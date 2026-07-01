@@ -47,9 +47,10 @@ def test_play_user_mp3_rejects_missing_file(music):
 def test_play_user_mp3_plays_and_announces(music, tmp_path):
     mp3 = tmp_path / "My Song.mp3"
     mp3.write_bytes(b"x")
-    with patch("kinito.features.music.random.choice", return_value="Playing {song}!"), patch(
-        "kinito.features.music.threading.Thread"
-    ) as thread_cls:
+    with (
+        patch("kinito.features.music.random.choice", return_value="Playing {song}!"),
+        patch("kinito.features.music.threading.Thread") as thread_cls,
+    ):
         music.play_user_mp3(str(mp3))
     music.play_mp3.assert_called_once_with(str(mp3), volume=0.75)
     thread_cls.assert_called_once()

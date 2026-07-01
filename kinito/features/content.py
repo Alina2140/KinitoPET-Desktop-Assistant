@@ -10,7 +10,7 @@ from content.fancy_lines import FANCY_LINES
 from content.poems import POEMS
 from content.questions import QUESTIONS
 from content.stories import STORIES
-from content.wisdom import WISDOM, get_random_wisdom
+from content.wisdom import get_random_wisdom
 from kinito.assets import newbeginnings_file_path, tune_file_path
 from kinito.speech import SpeechMixin
 

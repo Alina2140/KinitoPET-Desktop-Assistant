@@ -69,9 +69,15 @@ def test_ttt_player_row_win():
 
 def test_ttt_draw():
     board = [
-        PLAYER, KINITO, PLAYER,
-        KINITO, PLAYER, KINITO,
-        KINITO, PLAYER, KINITO,
+        PLAYER,
+        KINITO,
+        PLAYER,
+        KINITO,
+        PLAYER,
+        KINITO,
+        KINITO,
+        PLAYER,
+        KINITO,
     ]
     assert check_winner(board) == "draw"
 

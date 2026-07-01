@@ -32,9 +32,7 @@ class CameraMixin:
         try:
             import cv2
         except ImportError:
-            self.speak(
-                "I'd love to see you, but you need opencv-python installed first."
-            )
+            self.speak("I'd love to see you, but you need opencv-python installed first.")
             return
 
         cap = None
@@ -314,11 +312,7 @@ class CameraMixin:
 
     def say_random_camera_line(self):
         """Speak a random line from CAMERA_LINES if the camera feed is live."""
-        if (
-            self._camera_active
-            and self._camera_feed_live
-            and not self._is_busy_with_speech()
-        ):
+        if self._camera_active and self._camera_feed_live and not self._is_busy_with_speech():
             self.speak(random.choice(CAMERA_LINES))
 
     def close_camera(self):

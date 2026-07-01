@@ -27,9 +27,7 @@ def test_run_browser_window_without_pywebview(capsys):
         return real_import(name, *args, **kwargs)
 
     with patch("builtins.__import__", side_effect=fake_import):
-        code = browser_process.run_browser_window(
-            "https://www.kinitopet.com/", 0, 0, 800, 600
-        )
+        code = browser_process.run_browser_window("https://www.kinitopet.com/", 0, 0, 800, 600)
     assert code == 1
     assert "pywebview" in capsys.readouterr().err.lower()
 

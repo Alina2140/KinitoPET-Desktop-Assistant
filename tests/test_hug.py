@@ -26,9 +26,11 @@ def hug():
 
 
 def test_give_hug_shows_bubble_and_speaks(hug):
-    with patch("kinito.features.hug.random.choice", return_value=HUG_LINES[0]), patch.object(
-        hug, "show_love_bubble"
-    ) as show, patch.object(hug, "_schedule_love_bubble_hide") as schedule:
+    with (
+        patch("kinito.features.hug.random.choice", return_value=HUG_LINES[0]),
+        patch.object(hug, "show_love_bubble") as show,
+        patch.object(hug, "_schedule_love_bubble_hide") as schedule,
+    ):
         hug.give_hug()
     show.assert_called_once()
     schedule.assert_called_once_with(8000)

@@ -20,12 +20,7 @@ class GlitchMixin:
             return False
         if getattr(self, "_focus_mode", False):
             return False
-        if (
-            self.paused
-            or self.is_dragging
-            or self._camera_active
-            or self._browser_active
-        ):
+        if self.paused or self.is_dragging or self._camera_active or self._browser_active:
             return False
         if random.random() >= self.GLITCH_CHANCE:
             return False
@@ -103,7 +98,9 @@ class GlitchMixin:
             pass
 
         self._glitch_tk_image = ImageTk.PhotoImage(noise)
-        label = tk.Label(self._glitch_window, image=self._glitch_tk_image, bd=0, highlightthickness=0)
+        label = tk.Label(
+            self._glitch_window, image=self._glitch_tk_image, bd=0, highlightthickness=0
+        )
         label.pack(fill="both", expand=True)
 
         self._glitch_hide_timer = self.root.after(

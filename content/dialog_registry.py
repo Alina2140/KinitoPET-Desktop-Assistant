@@ -8,9 +8,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from content import credits
+from content import credits, game_lines
 from content import dialogue as dlg
-from content import game_lines
 from content.site_validator import pick_random_category
 from kinito.features.games.number_guess import (
     MAX_ATTEMPTS,
@@ -103,6 +102,7 @@ def _speak_declined(app, lines) -> None:
 
 def _yes_no(yes_fn: Handler, no_lines) -> Handler:
     """Build a handler that runs *yes_fn* on Yes or speaks *no_lines* on No."""
+
     def handler(app, response: str) -> None:
         if response == dlg.BUTTON_YES:
             yes_fn(app)
@@ -114,6 +114,7 @@ def _yes_no(yes_fn: Handler, no_lines) -> Handler:
 
 def _yes_no_lines(yes_lines, no_lines) -> Handler:
     """Build a handler that speaks variant lines for Yes/No answers."""
+
     def handler(app, response: str) -> None:
         if response == dlg.BUTTON_YES:
             app.speak(dlg.pick_line(yes_lines))
@@ -125,6 +126,7 @@ def _yes_no_lines(yes_lines, no_lines) -> Handler:
 
 def _good_bad(good_lines, bad_lines) -> Handler:
     """Build a handler for Good/Bad button pairs."""
+
     def handler(app, response: str) -> None:
         if response == dlg.BUTTON_GOOD:
             app.speak(dlg.pick_line(good_lines))
@@ -136,6 +138,7 @@ def _good_bad(good_lines, bad_lines) -> Handler:
 
 def _sure_decline(yes_fn: Handler, declined_lines) -> Handler:
     """Build a handler for Sure / Not now button pairs."""
+
     def handler(app, response: str) -> None:
         if response == dlg.BUTTON_SURE:
             yes_fn(app)
@@ -147,14 +150,18 @@ def _sure_decline(yes_fn: Handler, declined_lines) -> Handler:
 
 def _text_format(response_lines) -> Handler:
     """Build a handler that speaks a formatted line with the user's text answer."""
+
     def handler(app, response: str) -> None:
         app.speak(dlg.pick_line(response_lines).format(response=response))
 
     return handler
 
 
-def _okay_not_now(yes_fn: Handler, declined_lines, *, minimize_count: int = 0, speak_pitch: int = 45) -> Handler:
+def _okay_not_now(
+    yes_fn: Handler, declined_lines, *, minimize_count: int = 0, speak_pitch: int = 45
+) -> Handler:
     """Build a handler for Okay / Not now; optionally minimize windows on decline."""
+
     def handler(app, response: str) -> None:
         if response == dlg.BUTTON_OKAY:
             yes_fn(app)
@@ -168,6 +175,7 @@ def _okay_not_now(yes_fn: Handler, declined_lines, *, minimize_count: int = 0, s
 
 def _button_map(actions: dict[str, Handler]) -> Handler:
     """Build a handler that dispatches by exact button label."""
+
     def handler(app, response: str) -> None:
         action = actions.get(response)
         if action:

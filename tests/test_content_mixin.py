@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from content import dialogue as dlg
-from content.questions import QUESTIONS
 from content.facts import FACTS
+from content.questions import QUESTIONS
 from content.stories import STORIES
 from kinito.assets import newbeginnings_file_path
 from kinito.features.content import ContentMixin
@@ -98,7 +98,9 @@ def test_say_random_poem_plays_music_and_uses_normal_voice(content):
 
 
 def test_offer_random_story_sets_pending(content):
-    with patch("kinito.features.content.random.choice", side_effect=[STORIES[0], dlg.STORY_QUESTIONS[0]]):
+    with patch(
+        "kinito.features.content.random.choice", side_effect=[STORIES[0], dlg.STORY_QUESTIONS[0]]
+    ):
         content.offer_random_story()
     assert content._pending_story == STORIES[0]
     content.speak.assert_called_once()

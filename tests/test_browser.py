@@ -37,9 +37,10 @@ def test_open_allowed_site_rejects_invalid_category_site(browser):
 
 def test_open_allowed_site_launches_thread_for_valid_site(browser):
     site = ALLOWED_SITES["animals"][0]
-    with patch("kinito.features.browser.pick_random_site", return_value=site), patch(
-        "kinito.features.browser.threading.Thread"
-    ) as thread_cls:
+    with (
+        patch("kinito.features.browser.pick_random_site", return_value=site),
+        patch("kinito.features.browser.threading.Thread") as thread_cls,
+    ):
         browser.open_allowed_site("animals")
     thread_cls.assert_called_once()
     assert browser._browser_category == "animals"
@@ -47,9 +48,10 @@ def test_open_allowed_site_launches_thread_for_valid_site(browser):
 
 def test_launch_browser_skips_when_not_running(browser):
     browser._running = False
-    with patch.object(browser, "_has_pywebview", return_value=False), patch(
-        "kinito.features.browser.webbrowser.open"
-    ) as open_url:
+    with (
+        patch.object(browser, "_has_pywebview", return_value=False),
+        patch("kinito.features.browser.webbrowser.open") as open_url,
+    ):
         browser._launch_browser("https://www.kinitopet.com/", 0, 0, "Hi")
     browser.speak.assert_called_once_with("Hi", show_bubble=True, wait_for_tts=True)
     open_url.assert_not_called()

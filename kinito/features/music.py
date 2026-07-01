@@ -43,7 +43,7 @@ class MusicMixin:
             if not os.path.isdir(root):
                 continue
             for dirpath, _, filenames in os.walk(root):
-                if dirpath[len(root):].count(os.sep) > 4:
+                if dirpath[len(root) :].count(os.sep) > 4:
                     continue
                 for filename in filenames:
                     if filename.lower().endswith(".mp3"):

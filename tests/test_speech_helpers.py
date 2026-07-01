@@ -45,10 +45,13 @@ def test_run_tts_uses_balcon_when_available(speech):
     speech._available_voices = {"Eddie"}
     process = MagicMock(returncode=0)
     process.communicate.return_value = ("", "")
-    with patch("kinito.speech.os.path.isfile", return_value=True), patch(
-        "kinito.speech.subprocess.Popen",
-        return_value=process,
-    ) as popen:
+    with (
+        patch("kinito.speech.os.path.isfile", return_value=True),
+        patch(
+            "kinito.speech.subprocess.Popen",
+            return_value=process,
+        ) as popen,
+    ):
         assert speech._run_tts("Hello") is True
         popen.assert_called_once()
         process.communicate.assert_called_once()
@@ -56,9 +59,10 @@ def test_run_tts_uses_balcon_when_available(speech):
 
 def test_run_tts_falls_back_to_pyttsx3(speech):
     speech._available_voices = set()
-    with patch("kinito.speech.os.path.isfile", return_value=False), patch.object(
-        speech, "_run_pyttsx3_fallback", return_value=True
-    ) as fallback:
+    with (
+        patch("kinito.speech.os.path.isfile", return_value=False),
+        patch.object(speech, "_run_pyttsx3_fallback", return_value=True) as fallback,
+    ):
         assert speech._run_tts("Hello") is True
         fallback.assert_called_once_with("Hello")
 
@@ -75,10 +79,13 @@ def test_run_tts_aborts_after_interrupt_without_next_voice(speech):
 
     process.communicate.side_effect = communicate_and_interrupt
 
-    with patch("kinito.speech.os.path.isfile", return_value=True), patch(
-        "kinito.speech.subprocess.Popen",
-        return_value=process,
-    ) as popen:
+    with (
+        patch("kinito.speech.os.path.isfile", return_value=True),
+        patch(
+            "kinito.speech.subprocess.Popen",
+            return_value=process,
+        ) as popen,
+    ):
         assert speech._run_tts("Hello", speech_epoch=1) is False
 
     popen.assert_called_once()
@@ -86,9 +93,10 @@ def test_run_tts_aborts_after_interrupt_without_next_voice(speech):
 
 def test_run_tts_skips_pyttsx3_when_interrupted(speech):
     speech._speech_epoch = 2
-    with patch("kinito.speech.os.path.isfile", return_value=False), patch.object(
-        speech, "_run_pyttsx3_fallback", return_value=True
-    ) as fallback:
+    with (
+        patch("kinito.speech.os.path.isfile", return_value=False),
+        patch.object(speech, "_run_pyttsx3_fallback", return_value=True) as fallback,
+    ):
         assert speech._run_tts("Hello", speech_epoch=1) is False
     fallback.assert_not_called()
 
@@ -126,9 +134,10 @@ def test_speak_uses_lock(speech):
     speech.root = MagicMock()
     speech._speech_epoch = 0
     speech._tts_process = None
-    with patch.object(speech, "_run_tts") as run_tts, patch.object(
-        speech, "interrupt_speech"
-    ) as interrupt:
+    with (
+        patch.object(speech, "_run_tts") as run_tts,
+        patch.object(speech, "interrupt_speech") as interrupt,
+    ):
         speech.speak("Hi", show_bubble=False, wait_for_tts=True)
     interrupt.assert_called_once()
     speech._speech_lock.__enter__.assert_called_once()
@@ -173,9 +182,7 @@ def test_response_buttons_skip_close_with_no(speech):
 
 
 def test_response_buttons_skip_close_with_poem_reject(speech):
-    assert speech._response_buttons_need_close(
-        [dlg.BUTTON_YES, dlg.BUTTON_POEM_REJECT]
-    ) is False
+    assert speech._response_buttons_need_close([dlg.BUTTON_YES, dlg.BUTTON_POEM_REJECT]) is False
 
 
 def test_handle_response_interrupts_before_handler(speech):

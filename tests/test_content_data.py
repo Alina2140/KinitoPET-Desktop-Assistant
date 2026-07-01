@@ -16,7 +16,7 @@ from content.music_player_lines import MUSIC_PLAYER_LINES
 from content.poems import POEMS
 from content.startup import STARTUP_LINES
 from content.stories import STORIES
-from content.wisdom import QUOTES, WISDOM, format_wisdom_line, get_random_wisdom, load_quotes
+from content.wisdom import WISDOM, format_wisdom_line, get_random_wisdom, load_quotes
 
 
 def _assert_non_empty_strings(items, *, min_length=1):

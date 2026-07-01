@@ -185,8 +185,7 @@ class ProgramsMixin:
             onedrive_path = os.path.join(os.path.expanduser("~"), "OneDrive", "Desktop")
             if os.path.exists(onedrive_path) and os.path.isdir(onedrive_path):
                 onedrive_shortcuts = [
-                    file for file in os.listdir(onedrive_path)
-                    if file.endswith(".lnk")
+                    file for file in os.listdir(onedrive_path) if file.endswith(".lnk")
                 ]
                 if onedrive_shortcuts:
                     selected_shortcut = random.choice(onedrive_shortcuts)
@@ -205,7 +204,7 @@ class ProgramsMixin:
     def minimize_current_window(self):
         """Send Win+Down to minimize the active window."""
         try:
-            pyautogui.hotkey('winleft', 'down')
+            pyautogui.hotkey("winleft", "down")
         except (OSError, pyautogui.FailSafeException):
             pass
 
@@ -215,7 +214,8 @@ class ProgramsMixin:
 
         if os.path.exists(secret_images_folder) and os.path.isdir(secret_images_folder):
             image_files = [
-                file for file in os.listdir(secret_images_folder)
+                file
+                for file in os.listdir(secret_images_folder)
                 if file.endswith((".jpg", ".jpeg", ".png"))
             ]
 

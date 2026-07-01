@@ -24,6 +24,7 @@ class BrowserMixin:
         """Return True if the pywebview package is installed."""
         try:
             import webview  # noqa: F401
+
             return True
         except ImportError:
             return False

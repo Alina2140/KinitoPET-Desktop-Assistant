@@ -3,7 +3,7 @@
 import pytest
 
 from content import dialogue as dlg
-from content.dialog_registry import DIALOG_SPECS, find_dialog_spec
+from content.dialog_registry import DIALOG_SPECS, find_dialog_spec, menu_options_for
 from content.questions import QUESTIONS
 
 
@@ -33,10 +33,6 @@ def test_story_questions_contain_marker(question):
     assert dlg.STORY_QUESTION_MARKER.lower() in question.lower()
 
 
-from content import dialogue as dlg
-from content.dialog_registry import menu_options_for
-
-
 def _menu_app(**kwargs):
     from unittest.mock import MagicMock
 
@@ -58,9 +54,7 @@ def test_menu_options_default_toggle_labels():
 
 
 def test_menu_options_reflect_active_states():
-    opts = menu_options_for(
-        _menu_app(paused=True, focus_mode=True, screen_effects_enabled=False)
-    )
+    opts = menu_options_for(_menu_app(paused=True, focus_mode=True, screen_effects_enabled=False))
     assert dlg.BUTTON_WAKE_UP in opts
     assert dlg.BUTTON_SLEEP not in opts
     assert dlg.BUTTON_UNFOCUS in opts

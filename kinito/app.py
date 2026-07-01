@@ -39,8 +39,8 @@ from kinito.features.hug import HugMixin
 from kinito.features.music import MusicMixin
 from kinito.features.programs import ProgramsMixin
 from kinito.movement import MovementMixin
-from kinito.tk_timers import cancel_after, schedule_after
 from kinito.speech import SpeechMixin
+from kinito.tk_timers import cancel_after, schedule_after
 
 
 def _open_sprite(path, fallback_path):
@@ -81,7 +81,7 @@ class FloatingAssistant(
         self.is_dragging = False
         self._speech_lock = threading.Lock()
         self.root.overrideredirect(True)
-        self.root.attributes('-transparentcolor', 'white')
+        self.root.attributes("-transparentcolor", "white")
 
         fallback = sprite_path_normal
         self.img_normal = _open_sprite(sprite_path_normal, fallback)
@@ -118,7 +118,7 @@ class FloatingAssistant(
         self.tk_img_thinking2 = ImageTk.PhotoImage(self.img_thinking2)
         self.tk_img_love_bubble = ImageTk.PhotoImage(self.img_love_bubble)
 
-        self.panel = tk.Label(self.root, bg='white')
+        self.panel = tk.Label(self.root, bg="white")
         self.panel.pack(side="top", fill="both", expand="yes")
         self.change_sprite(self.tk_img_normal)
         self.setup_reminder_countdown_button()
@@ -204,6 +204,7 @@ class FloatingAssistant(
                 status[label] = "missing"
         status["balcon"] = "ok" if os.path.isfile(balconexe_directory) else "missing"
         from kinito.assets import engine as tts_engine
+
         status["pyttsx3"] = "ok" if tts_engine is not None else "missing"
         print(f"Kinito optional deps: {status}", flush=True)
 

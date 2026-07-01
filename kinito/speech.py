@@ -22,19 +22,29 @@ class SpeechMixin:
     """TTS playback, speech bubbles, and user response handling."""
 
     BUBBLE_MAX_WIDTH = 800
-    BUBBLE_BG = 'light gray'
-    BUBBLE_TRANSPARENT_BG = 'white'
-    DISMISS_RESPONSE_BUTTONS = frozenset({
-        dlg.BUTTON_NOT_NOW,
-        dlg.BUTTON_NO,
-        dlg.BUTTON_POEM_REJECT,
-    })
+    BUBBLE_BG = "light gray"
+    BUBBLE_TRANSPARENT_BG = "white"
+    DISMISS_RESPONSE_BUTTONS = frozenset(
+        {
+            dlg.BUTTON_NOT_NOW,
+            dlg.BUTTON_NO,
+            dlg.BUTTON_POEM_REJECT,
+        }
+    )
     VOICE_DEFAULT = "Eddie"
     VOICE_NORMAL_CANDIDATES = [
-        "Eddie", "Peter", "Douglas", "Microsoft Zira Desktop", "Microsoft Hedda Desktop",
+        "Eddie",
+        "Peter",
+        "Douglas",
+        "Microsoft Zira Desktop",
+        "Microsoft Hedda Desktop",
     ]
     VOICE_WHISPER_CANDIDATES = [
-        "Female Whisper", "Julia", "Wanda", "Microsoft Hedda Desktop", "Eddie",
+        "Female Whisper",
+        "Julia",
+        "Wanda",
+        "Microsoft Hedda Desktop",
+        "Eddie",
     ]
 
     BUBBLE_CLOSE_BUFFER_MS = 1500
@@ -82,9 +92,9 @@ class SpeechMixin:
             parent,
             text=text,
             bg=self.BUBBLE_BG,
-            fg='black',
+            fg="black",
             wraplength=self._bubble_wraplength(text),
-            justify='left',
+            justify="left",
         )
         return label
 
@@ -156,7 +166,7 @@ class SpeechMixin:
     def _has_active_speech_bubble(self):
         """Return True if a speech bubble Toplevel exists."""
         try:
-            return hasattr(self, 'speech_bubble') and self.speech_bubble.winfo_exists()
+            return hasattr(self, "speech_bubble") and self.speech_bubble.winfo_exists()
         except tk.TclError:
             return False
 
@@ -205,9 +215,7 @@ class SpeechMixin:
         """Return True if this utterance was cancelled or superseded."""
         if getattr(self, "_tts_cancelled", False):
             return True
-        if speech_epoch is not None and self._speech_epoch != speech_epoch:
-            return True
-        return False
+        return speech_epoch is not None and self._speech_epoch != speech_epoch
 
     def _stop_active_tts(self):
         """Terminate an in-progress balcon or pyttsx3 utterance."""
@@ -400,11 +408,11 @@ class SpeechMixin:
         self._speech_bubble_button_frame = None
 
         text_frame = tk.Frame(self.speech_bubble, bg=self.BUBBLE_BG)
-        text_frame.pack(fill=tk.X, anchor='w')
+        text_frame.pack(fill=tk.X, anchor="w")
         self._speech_bubble_text_frame = text_frame
 
         label = self.create_wrapped_label(text_frame, text)
-        label.pack(fill=tk.BOTH, expand=True, ipadx=5, ipady=5, anchor='w')
+        label.pack(fill=tk.BOTH, expand=True, ipadx=5, ipady=5, anchor="w")
         self._speech_bubble_label = label
 
         spec = find_dialog_spec(text)
@@ -424,9 +432,9 @@ class SpeechMixin:
 
     def _align_bubble_text_to_buttons(self):
         """Match the text bar width to the button row; never wrap wider text."""
-        label = getattr(self, '_speech_bubble_label', None)
-        text_frame = getattr(self, '_speech_bubble_text_frame', None)
-        button_frame = getattr(self, '_speech_bubble_button_frame', None)
+        label = getattr(self, "_speech_bubble_label", None)
+        text_frame = getattr(self, "_speech_bubble_text_frame", None)
+        button_frame = getattr(self, "_speech_bubble_button_frame", None)
         if (
             not self._has_active_speech_bubble()
             or label is None
@@ -443,7 +451,7 @@ class SpeechMixin:
 
             pad_x = 10
             pad_y = 10
-            text = label.cget('text')
+            text = label.cget("text")
             text_width = self._measure_text_width(text_frame, text)
 
             buttons_width = 0
@@ -475,31 +483,28 @@ class SpeechMixin:
 
     def show_response_buttons(self, options):
         """Add wrapped rows of response buttons below the bubble text."""
-        if hasattr(self, 'speech_bubble') and self.speech_bubble.winfo_exists():
+        if hasattr(self, "speech_bubble") and self.speech_bubble.winfo_exists():
             button_frame = tk.Frame(self.speech_bubble, bg=self.BUBBLE_TRANSPARENT_BG)
-            button_frame.pack(anchor='w')
+            button_frame.pack(anchor="w")
             self._speech_bubble_button_frame = button_frame
 
             max_row_width = self.get_max_bubble_width() - 20
             show_close = self._response_buttons_need_close(options)
             close_width = (
-                self._measure_button_width(button_frame, "×", width=2) + 10
-                if show_close
-                else 0
+                self._measure_button_width(button_frame, "×", width=2) + 10 if show_close else 0
             )
             row_frame = tk.Frame(button_frame, bg=self.BUBBLE_TRANSPARENT_BG)
-            row_frame.pack(anchor='w')
+            row_frame.pack(anchor="w")
             row_width = 0
 
             for option in options:
                 btn_width = self._measure_button_width(row_frame, option) + 10
                 needs_new_row = (
-                    row_width > 0
-                    and row_width + btn_width + close_width > max_row_width
+                    row_width > 0 and row_width + btn_width + close_width > max_row_width
                 )
                 if needs_new_row:
                     row_frame = tk.Frame(button_frame, bg=self.BUBBLE_TRANSPARENT_BG)
-                    row_frame.pack(anchor='w')
+                    row_frame.pack(anchor="w")
                     row_width = 0
                 option_button = tk.Button(
                     row_frame,
@@ -525,12 +530,12 @@ class SpeechMixin:
     def _add_textbox_row(self, parent, prompt):
         """Add an Entry + close button row for free-text dialog responses."""
         input_frame = tk.Frame(parent, bg=self.BUBBLE_BG)
-        input_frame.pack(ipadx=10, ipady=5, anchor='w')
+        input_frame.pack(ipadx=10, ipady=5, anchor="w")
 
         entry_width = self.get_entry_char_width(prompt)
-        entry = tk.Entry(input_frame, bg=self.BUBBLE_BG, fg='black', width=entry_width)
+        entry = tk.Entry(input_frame, bg=self.BUBBLE_BG, fg="black", width=entry_width)
         entry.pack(side=tk.LEFT, ipady=2)
-        entry.bind('<Return>', lambda event: self.handle_response(entry.get()))
+        entry.bind("<Return>", lambda event: self.handle_response(entry.get()))
 
         close_button = tk.Button(
             input_frame,
@@ -553,7 +558,7 @@ class SpeechMixin:
             self.speech_bubble = self._new_speech_bubble_toplevel(prompt)
 
             label = self.create_wrapped_label(self.speech_bubble, prompt)
-            label.pack(ipadx=10, ipady=5, anchor='w')
+            label.pack(ipadx=10, ipady=5, anchor="w")
 
             self._add_textbox_row(self.speech_bubble, prompt)
             self._fit_speech_bubble_to_content()
@@ -593,7 +598,7 @@ class SpeechMixin:
         bubble.geometry(self.BUBBLE_OFF_SCREEN_GEOMETRY)
         bubble.configure(bg=self.BUBBLE_TRANSPARENT_BG)
         bubble.overrideredirect(True)
-        bubble.attributes('-transparentcolor', 'white')
+        bubble.attributes("-transparentcolor", "white")
         bubble.wm_attributes("-topmost", True)
         bubble.wm_title(title)
         return bubble
@@ -624,7 +629,7 @@ class SpeechMixin:
 
     def position_speech_bubble(self):
         """Place the bubble above Kinito, clamped to screen bounds."""
-        if not hasattr(self, 'speech_bubble') or not self.speech_bubble.winfo_exists():
+        if not hasattr(self, "speech_bubble") or not self.speech_bubble.winfo_exists():
             return
 
         self.root.update_idletasks()
@@ -672,12 +677,12 @@ class SpeechMixin:
             return
         if hasattr(self, "ensure_on_screen"):
             self.ensure_on_screen()
-        if hasattr(self, 'speech_bubble'):
+        if hasattr(self, "speech_bubble"):
             try:
                 if self.speech_bubble.winfo_exists():
                     self.position_speech_bubble()
                 else:
-                    delattr(self, 'speech_bubble')
+                    delattr(self, "speech_bubble")
             except tk.TclError:
                 pass
         if self._has_love_bubble():
@@ -693,7 +698,7 @@ class SpeechMixin:
     def ask_what_todo(self, event):
         """Right-click handler: open or close the action menu speech bubble."""
         if (
-            hasattr(self, 'speech_bubble')
+            hasattr(self, "speech_bubble")
             and self.speech_bubble.winfo_exists()
             and dlg.MENU_PROMPT in self.speech_bubble.wm_title()
         ):

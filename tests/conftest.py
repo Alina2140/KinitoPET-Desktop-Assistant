@@ -14,5 +14,7 @@ def mock_app():
     app.speak = MagicMock()
     app.speak_brief = MagicMock()
     app.root = MagicMock()
-    app.root.after = MagicMock(side_effect=lambda delay, fn, *args: fn(*args) if callable(fn) else None)
+    app.root.after = MagicMock(
+        side_effect=lambda delay, fn, *args: fn(*args) if callable(fn) else None
+    )
     return app

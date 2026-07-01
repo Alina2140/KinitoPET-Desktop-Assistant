@@ -1,6 +1,5 @@
 """Integration-style tests for dialog handlers beyond the happy path."""
 
-
 from content import dialogue as dlg
 from content.dialog_registry import find_dialog_spec, handle_dialog_response
 

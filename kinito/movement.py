@@ -23,9 +23,9 @@ class MovementMixin:
 
     def setup_mouse_bindings(self):
         """Bind left-click drag events for repositioning Kinito."""
-        self.root.bind('<Button-1>', self.on_mouse_down)
-        self.root.bind('<B1-Motion>', self.on_mouse_move)
-        self.root.bind('<ButtonRelease-1>', self.on_mouse_up)
+        self.root.bind("<Button-1>", self.on_mouse_down)
+        self.root.bind("<B1-Motion>", self.on_mouse_move)
+        self.root.bind("<ButtonRelease-1>", self.on_mouse_up)
         self.x, self.y = self.root.winfo_rootx(), self.root.winfo_rooty()
 
     def on_mouse_down(self, event):
@@ -151,7 +151,7 @@ class MovementMixin:
             current_x, current_y = self.root.winfo_rootx(), self.root.winfo_rooty()
             dx = target_x - current_x
             dy = target_y - current_y
-            distance = ((dx ** 2) + (dy ** 2)) ** 0.5
+            distance = ((dx**2) + (dy**2)) ** 0.5
             if distance < 1:
                 break
             self.change_sprite(self._surf_sprite_for_movement(dx))

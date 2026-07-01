@@ -72,7 +72,9 @@ def format_wisdom_line(entry, intro=None):
     return f"{intro} {text}"
 
 
-WISDOM = [format_wisdom_line(entry, _INTROS[index % len(_INTROS)]) for index, entry in enumerate(QUOTES)]
+WISDOM = [
+    format_wisdom_line(entry, _INTROS[index % len(_INTROS)]) for index, entry in enumerate(QUOTES)
+]
 
 
 def get_random_wisdom():

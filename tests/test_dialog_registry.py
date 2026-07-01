@@ -1,8 +1,14 @@
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
 from content import dialogue as dlg
-from content.dialog_registry import DIALOG_SPECS, find_dialog_spec, handle_dialog_response, menu_options_for
+from content.dialog_registry import (
+    DIALOG_SPECS,
+    find_dialog_spec,
+    handle_dialog_response,
+    menu_options_for,
+)
 
 
 def test_find_dialog_spec_case_insensitive():
@@ -144,10 +150,6 @@ def test_number_guess_question_matches_registry():
 
 
 def test_game_picker_before_game_question():
-    picker_idx = next(
-        i for i, s in enumerate(DIALOG_SPECS) if s.marker == dlg.GAME_PICKER_MARKER
-    )
-    game_idx = next(
-        i for i, s in enumerate(DIALOG_SPECS) if s.marker == dlg.GAME_QUESTION
-    )
+    picker_idx = next(i for i, s in enumerate(DIALOG_SPECS) if s.marker == dlg.GAME_PICKER_MARKER)
+    game_idx = next(i for i, s in enumerate(DIALOG_SPECS) if s.marker == dlg.GAME_QUESTION)
     assert picker_idx < game_idx

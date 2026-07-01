@@ -65,5 +65,7 @@ def test_launch_shortcut_returns_false_on_error(programs):
 def test_minimize_current_window_swallows_failsafe(programs):
     import pyautogui
 
-    with patch("kinito.features.programs.pyautogui.hotkey", side_effect=pyautogui.FailSafeException):
+    with patch(
+        "kinito.features.programs.pyautogui.hotkey", side_effect=pyautogui.FailSafeException
+    ):
         programs.minimize_current_window()

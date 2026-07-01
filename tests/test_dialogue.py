@@ -19,6 +19,8 @@ def test_pick_declined_line_returns_from_ack_or_specific():
     seen = {dlg.pick_declined_line(specific) for _ in range(40)}
     assert seen & set(dlg.DECLINED_ACK_LINES)
     assert "Specific decline line." in seen
+
+
 @pytest.mark.parametrize(
     "questions,marker",
     [

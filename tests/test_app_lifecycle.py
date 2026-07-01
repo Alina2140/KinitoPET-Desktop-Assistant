@@ -70,9 +70,12 @@ def test_say_goodbye_shuts_down_and_schedules_quit(goodbye_app):
     goodbye_app._bubble_close_delay_after_tts = SpeechMixin._bubble_close_delay_after_tts.__get__(
         goodbye_app, FloatingAssistant
     )
-    with patch("kinito.app.random.choice", return_value=GOODBYE_LINES[0]), patch(
-        "kinito.app.threading.Thread",
-        side_effect=lambda target, daemon=True: MagicMock(start=target),
+    with (
+        patch("kinito.app.random.choice", return_value=GOODBYE_LINES[0]),
+        patch(
+            "kinito.app.threading.Thread",
+            side_effect=lambda target, daemon=True: MagicMock(start=target),
+        ),
     ):
         goodbye_app.say_goodbye()
 
@@ -80,9 +83,7 @@ def test_say_goodbye_shuts_down_and_schedules_quit(goodbye_app):
     goodbye_app.close_camera.assert_called_once()
     goodbye_app.close_browser.assert_called_once()
     goodbye_app.hide_love_bubble.assert_called_once()
-    goodbye_app.speak.assert_called_once_with(
-        GOODBYE_LINES[0], show_bubble=True, wait_for_tts=True
-    )
+    goodbye_app.speak.assert_called_once_with(GOODBYE_LINES[0], show_bubble=True, wait_for_tts=True)
     goodbye_app.root.after.assert_called_once()
     delay = goodbye_app.root.after.call_args[0][0]
     assert delay >= 3000
@@ -137,8 +138,11 @@ def test_play_sfx_swallows_pygame_errors(goodbye_app, tmp_path):
 
     mp3 = tmp_path / "test.mp3"
     mp3.write_bytes(b"not a real mp3")
-    with patch.object(goodbye_app, "_ensure_mixer"), patch(
-        "kinito.app.pygame.mixer.Sound",
-        side_effect=pygame.error("boom"),
+    with (
+        patch.object(goodbye_app, "_ensure_mixer"),
+        patch(
+            "kinito.app.pygame.mixer.Sound",
+            side_effect=pygame.error("boom"),
+        ),
     ):
         goodbye_app.play_sfx(str(mp3))
