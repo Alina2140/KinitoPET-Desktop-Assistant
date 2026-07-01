@@ -67,7 +67,7 @@ def menu_options_for(app) -> list[str]:
         if getattr(app, "_screen_effects_enabled", True)
         else dlg.BUTTON_SCREEN_EFFECTS_ON
     )
-    return [
+    options = [
         dlg.BUTTON_SET_REMINDER,
         dlg.BUTTON_TELL_TIME,
         sleep_label,
@@ -82,6 +82,9 @@ def menu_options_for(app) -> list[str]:
         dlg.BUTTON_SHOW_CREDITS,
         dlg.BUTTON_SAY_GOODBYE,
     ]
+    if getattr(app, "_focus_mode", False):
+        return [option for option in options if option in _MENU_FOCUS_BUTTONS]
+    return options
 
 
 _MENU_FOCUS_BUTTONS = frozenset({dlg.BUTTON_FOCUS, dlg.BUTTON_UNFOCUS})
