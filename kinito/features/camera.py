@@ -10,6 +10,7 @@ from PIL import Image, ImageTk
 from content import dialogue as dlg
 from content.camera_lines import CAMERA_LINES
 from kinito.tk_timers import cancel_after, schedule_after
+from kinito.window_icon import apply_window_icon
 
 
 class CameraMixin:
@@ -57,6 +58,7 @@ class CameraMixin:
 
             self._camera_window = Toplevel(self.root)
             self._camera_window.title("Kinito's Camera")
+            apply_window_icon(self._camera_window)
             self._camera_window.resizable(True, True)
             self._camera_window.minsize(self.CAMERA_MIN_WIDTH, self.CAMERA_MIN_HEIGHT)
             self._camera_window.protocol("WM_DELETE_WINDOW", self.close_camera)

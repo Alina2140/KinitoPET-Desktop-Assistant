@@ -28,9 +28,7 @@ def geometry_app():
     app.x = 100
     app.y = 100
     app.position_speech_bubble = MagicMock()
-    app.position_love_bubble = MagicMock()
     app._has_active_speech_bubble = MagicMock(return_value=False)
-    app._has_love_bubble = MagicMock(return_value=False)
     app._last_virtual_screen_rect = None
     return app
 

@@ -14,8 +14,9 @@ from content.goodbye_lines import GOODBYE_LINES
 from content.startup import STARTUP_LINES
 from kinito.assets import (
     balconexe_directory,
-    love_bubble_path,
     sprite_path_fancy,
+    sprite_path_hug,
+    sprite_path_hug2,
     sprite_path_idle,
     sprite_path_normal,
     sprite_path_normal_2,
@@ -41,6 +42,7 @@ from kinito.features.programs import ProgramsMixin
 from kinito.movement import MovementMixin
 from kinito.speech import SpeechMixin
 from kinito.tk_timers import cancel_after, schedule_after
+from kinito.window_icon import set_default_window_icon
 
 
 def _open_sprite(path, fallback_path):
@@ -80,6 +82,7 @@ class FloatingAssistant(
         self.root = root
         self.is_dragging = False
         self._speech_lock = threading.Lock()
+        set_default_window_icon(self.root)
         self.root.overrideredirect(True)
         self.root.attributes("-transparentcolor", "white")
 
@@ -98,10 +101,8 @@ class FloatingAssistant(
         self.img_talking2 = _open_sprite(sprite_path_talking2, fallback)
         self.img_thinking = _open_sprite(sprite_path_thinking, fallback)
         self.img_thinking2 = _open_sprite(sprite_path_thinking2, fallback)
-        self.img_love_bubble = _open_sprite(love_bubble_path, fallback).resize(
-            (HugMixin.LOVE_BUBBLE_SIZE, HugMixin.LOVE_BUBBLE_SIZE),
-            Image.LANCZOS,
-        )
+        self.img_hug = _open_sprite(sprite_path_hug, fallback)
+        self.img_hug2 = _open_sprite(sprite_path_hug2, fallback)
         self.tk_img_normal = ImageTk.PhotoImage(self.img_normal)
         self.tk_img_normal_2 = ImageTk.PhotoImage(self.img_normal_2)
         self.tk_img_idle = ImageTk.PhotoImage(self.img_idle)
@@ -116,7 +117,8 @@ class FloatingAssistant(
         self.tk_img_talking2 = ImageTk.PhotoImage(self.img_talking2)
         self.tk_img_thinking = ImageTk.PhotoImage(self.img_thinking)
         self.tk_img_thinking2 = ImageTk.PhotoImage(self.img_thinking2)
-        self.tk_img_love_bubble = ImageTk.PhotoImage(self.img_love_bubble)
+        self.tk_img_hug = ImageTk.PhotoImage(self.img_hug)
+        self.tk_img_hug2 = ImageTk.PhotoImage(self.img_hug2)
 
         self.panel = tk.Label(self.root, bg="white")
         self.panel.pack(side="top", fill="both", expand="yes")
@@ -153,8 +155,7 @@ class FloatingAssistant(
         self._browser_active = False
         self._browser_process = None
         self._browser_category = None
-        self._love_bubble_window = None
-        self._love_bubble_timer = None
+        self._hug_timer = None
         self._bubble_close_timer = None
         self._speech_epoch = 0
         self._active_bubble_epoch = 0
@@ -238,7 +239,7 @@ class FloatingAssistant(
 
         self.interrupt_speech()
         self.close_speech_bubble()
-        self.hide_love_bubble()
+        self.end_hug()
         self.hide_screen_glitch()
         if hasattr(self, "_ensure_single_game_window"):
             self._ensure_single_game_window()
@@ -398,8 +399,6 @@ class FloatingAssistant(
         self.root.geometry(f"+{clamped_x}+{clamped_y}")
         if self._has_active_speech_bubble():
             self.position_speech_bubble()
-        if self._has_love_bubble():
-            self.position_love_bubble()
 
     def _watch_screen_geometry(self):
         """Keep Kinito on-screen when monitors are added, removed, or resized."""
@@ -494,7 +493,7 @@ class FloatingAssistant(
         self.close_camera()
         self.close_browser()
         self._ensure_single_game_window()
-        self.hide_love_bubble()
+        self.end_hug()
         self.hide_screen_glitch()
         line = random.choice(GOODBYE_LINES)
 
@@ -528,7 +527,7 @@ class FloatingAssistant(
         self.close_camera()
         self.close_browser()
         self._ensure_single_game_window()
-        self.hide_love_bubble()
+        self.end_hug()
         self.hide_screen_glitch()
 
     def _start_worker_threads(self):

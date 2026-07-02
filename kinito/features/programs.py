@@ -13,6 +13,7 @@ from PIL import Image, ImageTk
 from content import dialogue as dlg
 from kinito.assets import secret_images_directory, timer_file_path
 from kinito.tk_timers import cancel_after, schedule_after
+from kinito.window_icon import apply_window_icon
 
 
 class ProgramsMixin:
@@ -241,6 +242,7 @@ class ProgramsMixin:
 
         image_window = Toplevel(self.root)
         image_window.title("Image.png From: KinitoPET")
+        apply_window_icon(image_window)
         image_window.geometry("800x600")
 
         tk_img = ImageTk.PhotoImage(img)

@@ -6,6 +6,7 @@ from tkinter import Toplevel
 
 from content import dialogue as dlg
 from content import game_lines
+from kinito.window_icon import apply_window_icon
 
 
 def game_emoji_font(size: int = 24) -> tuple[str, int]:
@@ -59,6 +60,7 @@ def open_game_window(
     app._ensure_single_game_window()
     window = Toplevel(app.root)
     window.title(title)
+    apply_window_icon(window)
     window.resizable(True, True)
     window.minsize(
         min_width if min_width is not None else max(280, width - 60),

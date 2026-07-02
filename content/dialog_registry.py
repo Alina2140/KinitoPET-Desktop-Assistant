@@ -11,6 +11,16 @@ from typing import Literal
 from content import credits, game_lines
 from content import dialogue as dlg
 from content.site_validator import pick_random_category
+from content.trivia_questions import ROUND_SIZE, check_answer
+from kinito.features.games.coin_dice import (
+    HEADS,
+    TAILS,
+    coin_outcome,
+    dice_outcome,
+    flip_coin,
+    roll_dice,
+)
+from kinito.features.games.magic_8_ball import pick_answer as pick_8ball_answer
 from kinito.features.games.number_guess import (
     MAX_ATTEMPTS,
     compare_guess,
@@ -222,7 +232,6 @@ def _handle_credits(app, response: str) -> None:
     links = {
         dlg.BUTTON_CREDITS_STEAM: credits.CREDITS_URL_STEAM,
         dlg.BUTTON_CREDITS_GITHUB: credits.CREDITS_URL_GITHUB,
-        dlg.BUTTON_CREDITS_CLEANPNG: credits.CREDITS_URL_LOVE_BUBBLE,
     }
     url = links.get(response)
     if url:
@@ -293,16 +302,149 @@ def _handle_poem(app, response: str) -> None:
 
 
 def _handle_game_picker(app, response: str) -> None:
-    """Launch the selected mini-game."""
+    """Open the quick-games or board-games submenu."""
     actions = {
-        dlg.BUTTON_GAME_TIC_TAC_TOE: lambda a: a.start_tic_tac_toe(),
-        dlg.BUTTON_GAME_RPS: lambda a: a.start_rock_paper_scissors(),
-        dlg.BUTTON_GAME_NUMBER_GUESS: lambda a: a.start_number_guess(),
-        dlg.BUTTON_GAME_MEMORY: lambda a: a.start_memory(),
+        dlg.BUTTON_QUICK_GAMES: lambda a: a.offer_quick_games(),
+        dlg.BUTTON_BOARD_GAMES: lambda a: a.offer_board_games(),
     }
     action = actions.get(response)
     if action:
         action(app)
+
+
+def _handle_quick_games(app, response: str) -> None:
+    """Launch a quick mini-game or return to the top-level picker."""
+    if response == dlg.BUTTON_BACK:
+        app.offer_game_picker()
+        return
+    actions = {
+        dlg.BUTTON_GAME_RPS: lambda a: a.start_rock_paper_scissors(),
+        dlg.BUTTON_GAME_NUMBER_GUESS: lambda a: a.start_number_guess(),
+        dlg.BUTTON_GAME_COIN_DICE: lambda a: a.start_coin_dice(),
+        dlg.BUTTON_GAME_MAGIC_8_BALL: lambda a: a.start_magic_8_ball(),
+        dlg.BUTTON_GAME_TRUE_FALSE: lambda a: a.start_true_false(),
+    }
+    action = actions.get(response)
+    if action:
+        action(app)
+
+
+def _handle_board_games(app, response: str) -> None:
+    """Launch a board mini-game or return to the top-level picker."""
+    if response == dlg.BUTTON_BACK:
+        app.offer_game_picker()
+        return
+    actions = {
+        dlg.BUTTON_GAME_TIC_TAC_TOE: lambda a: a.start_tic_tac_toe(),
+        dlg.BUTTON_GAME_MEMORY: lambda a: a.start_memory(),
+        dlg.BUTTON_GAME_BATTLESHIPS: lambda a: a.start_battleships(),
+    }
+    action = actions.get(response)
+    if action:
+        action(app)
+
+
+def _offer_play_again(app, line: str, restart_fn) -> None:
+    """Speak *line* and show Play Again / Back buttons."""
+    app._play_again_restart = restart_fn
+    app.speak(f"{line} {dlg.GAME_PLAY_AGAIN_SUFFIX}", 45, True)
+
+
+def _handle_play_again(app, response: str) -> None:
+    """Restart the last quick game or return to the quick-games menu."""
+    if response == dlg.BUTTON_PLAY_AGAIN:
+        restart = getattr(app, "_play_again_restart", None)
+        if restart:
+            restart(app)
+    elif response == dlg.BUTTON_BACK:
+        app.offer_quick_games()
+
+
+def _handle_coin_dice_mode(app, response: str) -> None:
+    """Choose coin flip or dice roll."""
+    if response == dlg.BUTTON_FLIP_COIN:
+        app.speak(dlg.COIN_FLIP_QUESTION, 45, True)
+    elif response == dlg.BUTTON_ROLL_DICE:
+        app.speak(dlg.DICE_GUESS_QUESTION, 45, True)
+
+
+def _handle_coin_flip(app, response: str) -> None:
+    """Resolve a coin-flip guess."""
+    guess_map = {
+        dlg.BUTTON_HEADS: HEADS,
+        dlg.BUTTON_TAILS: TAILS,
+    }
+    guess = guess_map.get(response)
+    if guess is None:
+        return
+    result = flip_coin()
+    fmt = {"guess": guess, "result": result}
+    if coin_outcome(guess, result) == "win":
+        line = dlg.pick_line(game_lines.COIN_WIN_LINES).format(**fmt)
+    else:
+        line = dlg.pick_line(game_lines.COIN_LOSE_LINES).format(**fmt)
+    _offer_play_again(app, line, lambda a: a.start_coin_dice())
+
+
+def _handle_dice_guess(app, response: str) -> None:
+    """Resolve a dice-guess attempt."""
+    if response not in dlg.DICE_CHOICES:
+        return
+    guess = int(response)
+    roll = roll_dice()
+    fmt = {"guess": guess, "roll": roll}
+    if dice_outcome(guess, roll) == "win":
+        line = dlg.pick_line(game_lines.DICE_WIN_LINES).format(**fmt)
+    else:
+        line = dlg.pick_line(game_lines.DICE_LOSE_LINES).format(**fmt)
+    _offer_play_again(app, line, lambda a: a.start_coin_dice())
+
+
+def _handle_magic_8_ball(app, response: str) -> None:
+    """Answer a Magic 8-Ball question."""
+    question = response.strip()
+    if not question:
+        app.speak(dlg.pick_line(game_lines.MAGIC_8_BALL_INVALID_LINES))
+        app.speak(dlg.MAGIC_8_BALL_QUESTION, 45, True)
+        return
+    answer = pick_8ball_answer()
+    line = dlg.pick_line(game_lines.MAGIC_8_BALL_ANSWER_LINES).format(
+        question=question,
+        answer=answer,
+    )
+    _offer_play_again(app, line, lambda a: a.start_magic_8_ball())
+
+
+def _handle_true_false(app, response: str) -> None:
+    """Check a true-or-false answer and continue or end the round."""
+    if response not in (dlg.BUTTON_TRUE, dlg.BUTTON_FALSE):
+        return
+    question = getattr(app, "_trivia_current", None)
+    if question is None:
+        return
+
+    player_said_true = response == dlg.BUTTON_TRUE
+    correct = check_answer(question, player_said_true)
+    if correct:
+        app._trivia_score = getattr(app, "_trivia_score", 0) + 1
+        feedback = dlg.pick_line(game_lines.TRIVIA_CORRECT_LINES)
+    else:
+        correct_label = "true" if question.answer else "false"
+        feedback = dlg.pick_line(game_lines.TRIVIA_WRONG_LINES).format(correct=correct_label)
+
+    app._trivia_round = getattr(app, "_trivia_round", 0) + 1
+    app._trivia_current = None
+
+    if app._trivia_round >= ROUND_SIZE:
+        line = dlg.pick_line(game_lines.TRIVIA_ROUND_END_LINES).format(
+            score=app._trivia_score,
+            total=ROUND_SIZE,
+        )
+        _offer_play_again(app, line, lambda a: a.start_true_false())
+        return
+
+    app.speak(feedback, 45, False)
+    app._ask_next_trivia()
 
 
 def _handle_rps(app, response: str) -> None:
@@ -377,21 +519,91 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
             buttons=(
                 dlg.BUTTON_CREDITS_STEAM,
                 dlg.BUTTON_CREDITS_GITHUB,
-                dlg.BUTTON_CREDITS_CLEANPNG,
                 dlg.BUTTON_OKAY,
             ),
         ),
         _handle_credits,
     ),
     DialogSpec(
-        dlg.GAME_PICKER_MARKER,
+        dlg.QUICK_GAMES_MARKER,
+        DialogUI(
+            "buttons",
+            buttons=(
+                dlg.BUTTON_GAME_RPS,
+                dlg.BUTTON_GAME_NUMBER_GUESS,
+                dlg.BUTTON_GAME_COIN_DICE,
+                dlg.BUTTON_GAME_MAGIC_8_BALL,
+                dlg.BUTTON_GAME_TRUE_FALSE,
+                dlg.BUTTON_BACK,
+            ),
+        ),
+        _handle_quick_games,
+    ),
+    DialogSpec(
+        dlg.BOARD_GAMES_MARKER,
         DialogUI(
             "buttons",
             buttons=(
                 dlg.BUTTON_GAME_TIC_TAC_TOE,
-                dlg.BUTTON_GAME_RPS,
-                dlg.BUTTON_GAME_NUMBER_GUESS,
                 dlg.BUTTON_GAME_MEMORY,
+                dlg.BUTTON_GAME_BATTLESHIPS,
+                dlg.BUTTON_BACK,
+            ),
+        ),
+        _handle_board_games,
+    ),
+    DialogSpec(
+        dlg.GAME_PLAY_AGAIN_MARKER,
+        DialogUI(
+            "buttons",
+            buttons=(dlg.BUTTON_PLAY_AGAIN, dlg.BUTTON_BACK),
+        ),
+        _handle_play_again,
+    ),
+    DialogSpec(
+        dlg.COIN_DICE_MARKER,
+        DialogUI(
+            "buttons",
+            buttons=(dlg.BUTTON_FLIP_COIN, dlg.BUTTON_ROLL_DICE),
+        ),
+        _handle_coin_dice_mode,
+    ),
+    DialogSpec(
+        dlg.COIN_FLIP_MARKER,
+        DialogUI(
+            "buttons",
+            buttons=(dlg.BUTTON_HEADS, dlg.BUTTON_TAILS),
+        ),
+        _handle_coin_flip,
+    ),
+    DialogSpec(
+        dlg.DICE_GUESS_MARKER,
+        DialogUI(
+            "buttons",
+            buttons=dlg.DICE_CHOICES,
+        ),
+        _handle_dice_guess,
+    ),
+    DialogSpec(
+        dlg.MAGIC_8_BALL_MARKER,
+        DialogUI("textbox", textbox_prompt=dlg.MAGIC_8_BALL_QUESTION),
+        _handle_magic_8_ball,
+    ),
+    DialogSpec(
+        dlg.TRUE_FALSE_MARKER,
+        DialogUI(
+            "buttons",
+            buttons=(dlg.BUTTON_TRUE, dlg.BUTTON_FALSE),
+        ),
+        _handle_true_false,
+    ),
+    DialogSpec(
+        dlg.GAME_PICKER_MARKER,
+        DialogUI(
+            "buttons",
+            buttons=(
+                dlg.BUTTON_QUICK_GAMES,
+                dlg.BUTTON_BOARD_GAMES,
             ),
         ),
         _handle_game_picker,

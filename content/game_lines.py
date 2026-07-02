@@ -92,3 +92,77 @@ GAME_CLOSED_LINES = [
     "Thanks for playing with me!",
     "Until next time. I'll be ready for a rematch.",
 ]
+
+COIN_WIN_LINES = [
+    "It's {result}! You guessed right. Lucky you.",
+    "{result}! You called it. I am mildly impressed.",
+    "The coin landed on {result}. You win this round.",
+]
+
+COIN_LOSE_LINES = [
+    "It's {result}! You picked {guess}. Better luck next flip.",
+    "{result}! Not your guess. The coin has spoken.",
+    "The coin says {result}. You said {guess}. I win. Fair and square.",
+]
+
+DICE_WIN_LINES = [
+    "I rolled a {roll}! You guessed {guess}. Perfect!",
+    "Lucky roll — {roll}! You nailed it with {guess}.",
+    "The dice shows {roll}. You picked {guess}. Victory!",
+]
+
+DICE_LOSE_LINES = [
+    "I rolled a {roll}. You guessed {guess}. Close? Not close enough.",
+    "The dice landed on {roll}, not {guess}. Try again sometime.",
+    "Rolled {roll}! You said {guess}. The dice don't lie.",
+]
+
+MAGIC_8_BALL_INVALID_LINES = [
+    "Ask me a real question! I need words to work with.",
+    "That's not a question. Try again — I'm listening.",
+]
+
+MAGIC_8_BALL_ANSWER_LINES = [
+    'You asked: "{question}". The ball says: {answer} Believe it. Or don\'t.',
+    'Your question: "{question}". My answer: {answer} The ball never lies. Usually.',
+    '"{question}" — and the Magic 8-Ball replies: {answer} Spooky, right?',
+]
+
+TRIVIA_CORRECT_LINES = [
+    "Correct! You know your stuff.",
+    "Right! Your brain is working today.",
+    "True genius. Well, correct anyway.",
+]
+
+TRIVIA_WRONG_LINES = [
+    "Wrong! The answer was {correct}. I'll remember that.",
+    "Nope! It was {correct}. Don't feel bad. Much.",
+    "Incorrect. The right answer was {correct}. Study harder.",
+]
+
+TRIVIA_ROUND_END_LINES = [
+    "Round over! You scored {score} out of {total}.",
+    "That's {score} out of {total} correct. Not bad. Not amazing.",
+    "Final score: {score}/{total}.",
+]
+
+BATTLESHIPS_FIRST_HIT_LINES = [
+    "You hit one! My ship! Rude.",
+    "Direct hit! I felt that in my circuits.",
+]
+
+BATTLESHIPS_HIT_LINES = [
+    "Another hit! You're on fire. Metaphorically.",
+    "Hit confirmed! My fleet is shrinking.",
+]
+
+BATTLESHIPS_WIN_LINES = [
+    "All ships sunk in {shots} shots! You win. I'll rebuild. Silently.",
+    "You got them all in {shots} tries! Fleet destroyed. Well played.",
+]
+
+BATTLESHIPS_LOSE_LINES = [
+    "Out of shots! {hits} of {total} ships sunk. My fleet survives. See where they were hiding.",
+    "Ten shots, no victory. You got {hits} of {total}. The rest are revealed. Study the board.",
+    "No more ammo! Only {hits} of {total} ships hit. I win. The map tells the rest.",
+]

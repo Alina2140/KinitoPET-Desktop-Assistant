@@ -153,3 +153,33 @@ def test_game_picker_before_game_question():
     picker_idx = next(i for i, s in enumerate(DIALOG_SPECS) if s.marker == dlg.GAME_PICKER_MARKER)
     game_idx = next(i for i, s in enumerate(DIALOG_SPECS) if s.marker == dlg.GAME_QUESTION)
     assert picker_idx < game_idx
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_marker"),
+    [
+        (dlg.QUICK_GAMES_QUESTION, dlg.QUICK_GAMES_MARKER),
+        (dlg.BOARD_GAMES_QUESTION, dlg.BOARD_GAMES_MARKER),
+        (dlg.COIN_DICE_QUESTION, dlg.COIN_DICE_MARKER),
+        (dlg.COIN_FLIP_QUESTION, dlg.COIN_FLIP_MARKER),
+        (dlg.DICE_GUESS_QUESTION, dlg.DICE_GUESS_MARKER),
+        (dlg.MAGIC_8_BALL_QUESTION, dlg.MAGIC_8_BALL_MARKER),
+        (dlg.GAME_PLAY_AGAIN_SUFFIX, dlg.GAME_PLAY_AGAIN_MARKER),
+    ],
+)
+def test_new_game_questions_match_registry(question, expected_marker):
+    spec = find_dialog_spec(question)
+    assert spec is not None
+    assert spec.marker == expected_marker
+
+
+def test_true_false_question_matches_registry():
+    spec = find_dialog_spec("True or false: Honey never spoils.")
+    assert spec is not None
+    assert spec.marker == dlg.TRUE_FALSE_MARKER
+
+
+def test_quick_games_before_game_picker():
+    quick_idx = next(i for i, s in enumerate(DIALOG_SPECS) if s.marker == dlg.QUICK_GAMES_MARKER)
+    picker_idx = next(i for i, s in enumerate(DIALOG_SPECS) if s.marker == dlg.GAME_PICKER_MARKER)
+    assert quick_idx < picker_idx

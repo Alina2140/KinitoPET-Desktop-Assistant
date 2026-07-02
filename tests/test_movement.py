@@ -34,12 +34,10 @@ def movement():
     stub.clamp_position = MagicMock(side_effect=lambda x, y: (x, y))
     stub._should_skip_drag_sounds = MagicMock(return_value=False)
     stub._has_active_speech_bubble = MagicMock(return_value=False)
-    stub._has_love_bubble = MagicMock(return_value=False)
     stub._is_busy_with_speech = MagicMock(return_value=False)
     stub._is_background_music_playing = MagicMock(return_value=False)
     stub.ensure_on_screen = MagicMock()
     stub.position_speech_bubble = MagicMock()
-    stub.position_love_bubble = MagicMock()
     return stub
 
 

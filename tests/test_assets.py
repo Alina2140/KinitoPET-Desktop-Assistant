@@ -45,11 +45,11 @@ def test_asset_subdirectories(directory_attr, relative_path):
         ("sprite_path_talking2", "Talking2.png", "sprites_directory"),
         ("sprite_path_thinking", "Thinking.png", "sprites_directory"),
         ("sprite_path_thinking2", "Thinking2.png", "sprites_directory"),
+        ("sprite_path_hug", "KinitoHug.png", "sprites_directory"),
+        ("sprite_path_hug2", "KinitoHug2.png", "sprites_directory"),
         ("icon_path", "Icon.ico", "icons_directory"),
         ("favicon_path", "Favicon.png", "icons_directory"),
-        ("love_bubble_path", "loveBubble.png", "icons_directory"),
         ("timer_file_path", "Timer.mp3", "sounds_directory"),
-        ("starttalk_file_path", "StartTalking.mp3", "sounds_directory"),
         ("stoptalk_file_path", "StopTalking.mp3", "sounds_directory"),
         ("woosh_file_path", "Woosh.mp3", "sounds_directory"),
         ("surf_file_path", "Surf.mp3", "sounds_directory"),
@@ -84,6 +84,8 @@ def test_asset_paths_point_to_expected_files(path_attr, filename, parent_attr):
         "sprite_path_talking2",
         "sprite_path_thinking",
         "sprite_path_thinking2",
+        "sprite_path_hug",
+        "sprite_path_hug2",
     ],
 )
 def test_sprite_paths_stay_under_sprites_directory(path_attr):
@@ -93,7 +95,7 @@ def test_sprite_paths_stay_under_sprites_directory(path_attr):
 
 @pytest.mark.parametrize(
     "path_attr",
-    ["icon_path", "favicon_path", "love_bubble_path"],
+    ["icon_path", "favicon_path"],
 )
 def test_icon_paths_stay_under_icons_directory(path_attr):
     path = getattr(assets, path_attr)
@@ -127,7 +129,8 @@ def test_packaged_asset_files_exist_on_disk():
         assets.sprite_path_surf_left,
         assets.sprite_path_surf_right,
         assets.sprite_path_talking,
-        assets.love_bubble_path,
+        assets.sprite_path_hug,
+        assets.sprite_path_hug2,
         assets.icon_path,
         assets.favicon_path,
         assets.timer_file_path,

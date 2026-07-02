@@ -26,7 +26,7 @@ def app_stub():
     stub.root = MagicMock()
     stub.close_camera = MagicMock()
     stub.close_browser = MagicMock()
-    stub.hide_love_bubble = MagicMock()
+    stub.end_hug = MagicMock()
     stub.close_speech_bubble = MagicMock()
     stub.speak = MagicMock(side_effect=lambda text, **kw: setattr(stub, "_last_spoken", text))
     return stub
@@ -41,7 +41,7 @@ def goodbye_app(app_stub):
     app.root = MagicMock()
     app.close_camera = MagicMock()
     app.close_browser = MagicMock()
-    app.hide_love_bubble = MagicMock()
+    app.end_hug = MagicMock()
     app._quit_app = MagicMock()
     return app
 
@@ -82,7 +82,7 @@ def test_say_goodbye_shuts_down_and_schedules_quit(goodbye_app):
     assert goodbye_app._running is False
     goodbye_app.close_camera.assert_called_once()
     goodbye_app.close_browser.assert_called_once()
-    goodbye_app.hide_love_bubble.assert_called_once()
+    goodbye_app.end_hug.assert_called_once()
     goodbye_app.speak.assert_called_once_with(GOODBYE_LINES[0], show_bubble=True, wait_for_tts=True)
     goodbye_app.root.after.assert_called_once()
     delay = goodbye_app.root.after.call_args[0][0]

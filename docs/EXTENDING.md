@@ -273,8 +273,9 @@ Place files in `GameAssets/`. Paths are defined in `kinito/assets.py`:
 | `sprite_path_normal` | `KinitoNormal.png` |
 | `sprite_path_moving` | `Kinito.png` |
 | `sprite_path_thinking` | `Thinking.png` |
+| `sprite_path_hug` | `KinitoHug.png` |
+| `sprite_path_hug2` | `KinitoHug2.png` |
 | `sprite_path_sleep` | `Sleep.png` |
-| `love_bubble_path` | `loveBubble.png` |
 
 Replace a PNG with the **same filename**, or change the path in `assets.py`.
 
@@ -330,7 +331,7 @@ Add your own images there.
 |------|------|----------|
 | How often Kinito asks questions | `kinito/movement.py` | `QUESTION_CHANCE` (0.0–1.0) |
 | Browser window size | `kinito/features/browser.py` | `BROWSER_WIDTH`, `BROWSER_HEIGHT` |
-| Love bubble size | `kinito/features/hug.py` | `LOVE_BUBBLE_SIZE` |
+| Hug duration | `kinito/features/hug.py` | `HUG_DURATION_MS` |
 | Speech bubble max width | `kinito/speech.py` | `BUBBLE_MAX_WIDTH` |
 | MP3 search folders | `kinito/features/music.py` | `_music_search_roots()` |
 

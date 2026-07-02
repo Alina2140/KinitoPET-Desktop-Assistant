@@ -32,7 +32,7 @@ A free, open-source desktop companion inspired by **KinitoPET**. Kinito lives on
 | **Safe browser** | Opens whitelisted HTTPS sites in a small window (or your default browser) |
 | **Camera** | Optional webcam view (requires OpenCV) |
 | **Music player** | Play MP3s from your PC |
-| **Hug** | Love bubble + sweet lines |
+| **Hug** | Hug sprites + sweet lines |
 | **Idle animations** | Blinking, reading, fancy hat mode, sleep sprites |
 | **Reminders** | Timer with sound after X minutes |
 
@@ -98,7 +98,7 @@ For a **full beginner walkthrough** (screenshots-level detail), see **[docs/INST
 - **Fun Fact** — random fact
 - **Visit a Website** — pick a category (Animals, Knowledge, Games, Horror, Surprise Me)
 - **Play Music** — pick an MP3 or play a random one from your Music/Downloads folders
-- **Hug** — love bubble + hug line
+- **Hug** — hug pose sprites + hug line
 - **Goodbye** — farewell line, then closes the app
 
 ### Spontaneous speech
@@ -168,8 +168,7 @@ The app expects a `GameAssets` folder next to `Kinito.py`:
 
 ```
 GameAssets/
-├── Kinito.png, KinitoNormal.png, Thinking.png, ...   # Sprites
-├── loveBubble.png
+├── Kinito.png, KinitoNormal.png, KinitoHug.png, Thinking.png, ...   # Sprites
 ├── Timer.mp3, Woosh.mp3, StartTalking.mp3, ...       # Sounds
 ├── Programs/balcon.exe                               # Windows TTS (optional fallback: pyttsx3)
 └── SecretImages/                                     # Optional images for easter egg

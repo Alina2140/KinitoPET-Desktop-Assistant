@@ -589,7 +589,6 @@ class SpeechMixin:
             self.speech_bubble.destroy()
             self.play_sfx(stoptalk_file_path)
             self.talking = False
-        self._hug_mode = False
 
     def _new_speech_bubble_toplevel(self, title):
         """Create a hidden speech-bubble window parked off-screen."""
@@ -685,8 +684,6 @@ class SpeechMixin:
                     delattr(self, "speech_bubble")
             except tk.TclError:
                 pass
-        if self._has_love_bubble():
-            self.position_love_bubble()
         schedule_after(
             self.root,
             self,

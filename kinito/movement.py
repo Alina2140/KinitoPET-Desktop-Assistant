@@ -54,8 +54,6 @@ class MovementMixin:
             self.root.geometry(f"+{new_x}+{new_y}")
             if self._has_active_speech_bubble():
                 self.position_speech_bubble()
-            if self._has_love_bubble():
-                self.position_love_bubble()
 
     def on_mouse_up(self, event):
         """End dragging and play the drop sound after a real drag."""
@@ -223,11 +221,11 @@ class MovementMixin:
                     time.sleep(1)
                     continue
                 if self._hug_mode:
-                    self.change_sprite(self.tk_img_normal)
+                    self.change_sprite(self.tk_img_hug)
                     time.sleep(1)
                     if not self._running:
                         break
-                    self.change_sprite(self.tk_img_normal_2)
+                    self.change_sprite(self.tk_img_hug2)
                     time.sleep(1)
                     continue
                 sprite_a, sprite_b = self._talking_sprite_pair()

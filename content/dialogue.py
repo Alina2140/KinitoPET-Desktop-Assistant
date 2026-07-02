@@ -86,6 +86,29 @@ GAME_QUESTIONS = [
 GAME_PICKER_MARKER = "pick a game"
 GAME_PICKER_QUESTION = "Pick a game! What do you want to play?"
 
+QUICK_GAMES_MARKER = "quick games"
+QUICK_GAMES_QUESTION = "Quick games! Pick one!"
+
+BOARD_GAMES_MARKER = "board games"
+BOARD_GAMES_QUESTION = "Board games! Pick one!"
+
+COIN_DICE_MARKER = "coin and dice"
+COIN_DICE_QUESTION = "Coin and dice! Flip a coin or roll dice?"
+
+COIN_FLIP_MARKER = "flip the coin"
+COIN_FLIP_QUESTION = "Flip the coin! Heads or tails?"
+
+DICE_GUESS_MARKER = "guess the dice"
+DICE_GUESS_QUESTION = "Guess the dice roll! Pick a number from 1 to 6!"
+
+MAGIC_8_BALL_MARKER = "magic 8-ball"
+MAGIC_8_BALL_QUESTION = "Ask the Magic 8-Ball a yes-or-no question!"
+
+TRUE_FALSE_MARKER = "true or false"
+
+GAME_PLAY_AGAIN_MARKER = "play again"
+GAME_PLAY_AGAIN_SUFFIX = "Want to play again?"
+
 RPS_MARKER = "rock paper scissors"
 RPS_QUESTION = "Rock paper scissors! Pick your move!"
 
@@ -957,10 +980,25 @@ BUTTON_FUN_FACT = "Fun Fact"
 BUTTON_VISIT_WEBSITE = "Visit a Website"
 BUTTON_PLAY_MUSIC = "Play Music"
 BUTTON_PLAY_GAME = "Play a Game"
+BUTTON_QUICK_GAMES = "Quick Games"
+BUTTON_BOARD_GAMES = "Board Games"
+BUTTON_BACK = "Back"
 BUTTON_GAME_TIC_TAC_TOE = "Tic-Tac-Toe"
 BUTTON_GAME_RPS = "Rock Paper Scissors"
 BUTTON_GAME_NUMBER_GUESS = "Number Guess"
 BUTTON_GAME_MEMORY = "Memory"
+BUTTON_GAME_COIN_DICE = "Coin & Dice"
+BUTTON_GAME_MAGIC_8_BALL = "Magic 8-Ball"
+BUTTON_GAME_TRUE_FALSE = "True or False"
+BUTTON_GAME_BATTLESHIPS = "Battleships"
+BUTTON_FLIP_COIN = "Flip Coin"
+BUTTON_ROLL_DICE = "Roll Dice"
+BUTTON_HEADS = "Heads"
+BUTTON_TAILS = "Tails"
+BUTTON_TRUE = "True"
+BUTTON_FALSE = "False"
+BUTTON_PLAY_AGAIN = "Play Again"
+DICE_CHOICES = ("1", "2", "3", "4", "5", "6")
 BUTTON_ROCK = "Rock"
 BUTTON_PAPER = "Paper"
 BUTTON_SCISSORS = "Scissors"
@@ -975,7 +1013,6 @@ BUTTON_TELL_TIME = "Tell the Time"
 BUTTON_SHOW_CREDITS = "Credits"
 BUTTON_CREDITS_STEAM = "KinitoPET on Steam"
 BUTTON_CREDITS_GITHUB = "GitHub (TimTamCoder)"
-BUTTON_CREDITS_CLEANPNG = "Love Bubble Credit"
 BUTTON_SAY_GOODBYE = "Goodbye"
 
 # Backwards-compatible aliases

@@ -33,10 +33,11 @@ sprite_path_talking = os.path.join(sprites_directory, "Talking.png")
 sprite_path_talking2 = os.path.join(sprites_directory, "Talking2.png")
 sprite_path_thinking = os.path.join(sprites_directory, "Thinking.png")
 sprite_path_thinking2 = os.path.join(sprites_directory, "Thinking2.png")
+sprite_path_hug = os.path.join(sprites_directory, "KinitoHug.png")
+sprite_path_hug2 = os.path.join(sprites_directory, "KinitoHug2.png")
 
 icon_path = os.path.join(icons_directory, "Icon.ico")
 favicon_path = os.path.join(icons_directory, "Favicon.png")
-love_bubble_path = os.path.join(icons_directory, "loveBubble.png")
 
 newbeginnings_file_path = os.path.join(sounds_directory, "NewBeginningsPoemEdit.mp3")
 timer_file_path = os.path.join(sounds_directory, "Timer.mp3")

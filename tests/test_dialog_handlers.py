@@ -67,10 +67,94 @@ def test_handle_menu_play_game(mock_app):
     mock_app.offer_game_picker.assert_called_once()
 
 
-def test_handle_game_picker_tic_tac_toe(mock_app):
+def test_handle_game_picker_opens_quick_games(mock_app):
     spec = find_dialog_spec(dlg.GAME_PICKER_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_QUICK_GAMES)
+    mock_app.offer_quick_games.assert_called_once()
+
+
+def test_handle_game_picker_opens_board_games(mock_app):
+    spec = find_dialog_spec(dlg.GAME_PICKER_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_BOARD_GAMES)
+    mock_app.offer_board_games.assert_called_once()
+
+
+def test_handle_board_games_tic_tac_toe(mock_app):
+    spec = find_dialog_spec(dlg.BOARD_GAMES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_GAME_TIC_TAC_TOE)
     mock_app.start_tic_tac_toe.assert_called_once()
+
+
+def test_handle_board_games_back(mock_app):
+    spec = find_dialog_spec(dlg.BOARD_GAMES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_BACK)
+    mock_app.offer_game_picker.assert_called_once()
+
+
+def test_handle_quick_games_coin_dice(mock_app):
+    spec = find_dialog_spec(dlg.QUICK_GAMES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_GAME_COIN_DICE)
+    mock_app.start_coin_dice.assert_called_once()
+
+
+def test_handle_coin_flip_offers_play_again(mock_app):
+    spec = find_dialog_spec(dlg.COIN_FLIP_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_HEADS)
+    mock_app.speak.assert_called_once()
+    spoken = mock_app.speak.call_args[0][0]
+    assert dlg.GAME_PLAY_AGAIN_MARKER.lower() in spoken.lower()
+
+
+def test_handle_play_again_restarts_coin_dice(mock_app):
+    mock_app._play_again_restart = lambda a: a.start_coin_dice()
+    spec = find_dialog_spec(dlg.GAME_PLAY_AGAIN_SUFFIX)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_PLAY_AGAIN)
+    mock_app.start_coin_dice.assert_called_once()
+
+
+def test_handle_play_again_back_opens_quick_games(mock_app):
+    spec = find_dialog_spec(dlg.GAME_PLAY_AGAIN_SUFFIX)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_BACK)
+    mock_app.offer_quick_games.assert_called_once()
+
+
+def test_handle_magic_8_ball_empty_reprompts(mock_app):
+    spec = find_dialog_spec(dlg.MAGIC_8_BALL_QUESTION)
+    handle_dialog_response(mock_app, spec, "   ")
+    assert mock_app.speak.call_count == 2
+
+
+def test_handle_magic_8_ball_answer(mock_app):
+    spec = find_dialog_spec(dlg.MAGIC_8_BALL_QUESTION)
+    handle_dialog_response(mock_app, spec, "Will I win?")
+    mock_app.speak.assert_called_once()
+    spoken = mock_app.speak.call_args[0][0]
+    assert "Will I win?" in spoken
+    assert dlg.GAME_PLAY_AGAIN_MARKER.lower() in spoken.lower()
+
+
+def test_handle_true_false_correct_advances(mock_app):
+    from content.trivia_questions import TriviaQuestion
+
+    mock_app._trivia_current = TriviaQuestion("The sky is blue.", True)
+    mock_app._trivia_score = 0
+    mock_app._trivia_round = 0
+    spec = find_dialog_spec("True or false: The sky is blue.")
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_TRUE)
+    assert mock_app._trivia_score == 1
+    mock_app._ask_next_trivia.assert_called_once()
+
+
+def test_handle_true_false_round_end_offers_play_again(mock_app):
+    from content.trivia_questions import ROUND_SIZE, TriviaQuestion
+
+    mock_app._trivia_current = TriviaQuestion("The sky is blue.", True)
+    mock_app._trivia_score = ROUND_SIZE - 1
+    mock_app._trivia_round = ROUND_SIZE - 1
+    spec = find_dialog_spec("True or false: The sky is blue.")
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_TRUE)
+    spoken = mock_app.speak.call_args[0][0]
+    assert dlg.GAME_PLAY_AGAIN_MARKER.lower() in spoken.lower()
 
 
 def test_game_picker_buttons_exclude_not_now():
