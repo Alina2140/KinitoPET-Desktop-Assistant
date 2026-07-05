@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from PIL import Image
 
 from kinito.movement import MovementMixin
 
@@ -28,6 +29,8 @@ def movement():
     stub.panel = MagicMock()
     stub.tk_img_surf_left = "surf_left"
     stub.tk_img_surf_right = "surf_right"
+    stub.img_surf_left = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
+    stub.img_surf_right = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
     stub.tk_img_normal = "normal"
     stub._surf_facing = "right"
     stub.play_sfx = MagicMock()
@@ -87,6 +90,8 @@ def test_change_sprite_skipped_while_dragging(movement):
 def test_move_towards_reaches_target(movement):
     movement.root.winfo_rootx.side_effect = [0, 5, 10, 15, 20]
     movement.root.winfo_rooty.return_value = 0
+    movement.x = 0
+    movement.y = 0
     movement._running = True
     movement.move_towards(20, 0, speed=5)
     assert movement.root.geometry.called
