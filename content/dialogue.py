@@ -415,6 +415,12 @@ MUSIC_PLAYER_QUESTIONS = [
 ]
 MUSIC_PLAYER_PICK_MARKER = "how should I find a song"
 MUSIC_PLAYER_PICK_QUESTION = "Hey! How should I find a song?"
+MUSIC_MANAGE_PROMPT = "Music is still playing. What would you like to do?"
+MUSIC_STOPPED_LINES = [
+    "Music off. The silence is dramatic.",
+    "Stopped the song. Your ears can rest now.",
+    "Okay, no more music. Unless you change your mind.",
+]
 MUSIC_PLAYER_DECLINED_LINES = [
     "Oh, I see. Silence it is.",
     "No problem! I'll keep the silence golden.",
@@ -979,6 +985,8 @@ BUTTON_SING_SONG = "Sing"
 BUTTON_FUN_FACT = "Fun Fact"
 BUTTON_VISIT_WEBSITE = "Visit a Website"
 BUTTON_PLAY_MUSIC = "Play Music"
+BUTTON_STOP_MUSIC = "Stop music"
+BUTTON_CHANGE_SONG = "Pick another song"
 BUTTON_PLAY_GAME = "Play a Game"
 BUTTON_QUICK_GAMES = "Quick Games"
 BUTTON_BOARD_GAMES = "Board Games"

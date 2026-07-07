@@ -28,6 +28,54 @@ def test_bubble_close_delay_short(speech, text, expected):
     assert speech._bubble_close_delay_after_tts(text) == expected
 
 
+def test_bubble_style_uses_game_colors(speech):
+    assert speech.BUBBLE_BG == "#FFF8E7"
+    assert speech.BUBBLE_BORDER == "#000000"
+
+
+def test_update_bubble_tail_redraws_shell(speech):
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech.speech_bubble.winfo_rootx.return_value = 100
+    speech.root = MagicMock()
+    speech.root.winfo_rootx.return_value = 180
+    speech.root.winfo_rooty.return_value = 400
+    speech.root.winfo_width.return_value = 120
+    speech._speech_bubble_body = MagicMock()
+    speech._speech_bubble_body.winfo_reqwidth.return_value = 120
+    speech._speech_bubble_body.winfo_reqheight.return_value = 40
+    speech._speech_bubble_canvas = MagicMock()
+    speech._speech_bubble_body_window = 1
+    speech._redraw_bubble_shell = MagicMock()
+
+    speech._update_bubble_tail()
+
+    speech._redraw_bubble_shell.assert_called_once()
+
+
+def test_bubble_button_style_matches_bubble_palette(speech):
+    options = speech._bubble_button_options()
+    assert options["bg"] == speech.BUBBLE_BTN_BG
+    assert options["fg"] == speech.BUBBLE_FG
+    assert options["chamfer"] == speech.BUBBLE_BTN_CHAMFER
+    assert speech.BUBBLE_BTN_BG != speech.BUBBLE_BG
+
+
+def test_bubble_tail_aims_at_kinito_when_bubble_is_offset(speech):
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech.speech_bubble.winfo_rootx.return_value = 0
+    speech.root = MagicMock()
+    speech.root.winfo_rootx.return_value = 300
+    speech.root.winfo_rooty.return_value = 400
+    speech.root.winfo_width.return_value = 100
+    speech.img_normal = MagicMock(width=100)
+
+    center_x = speech._bubble_tail_center_x(200)
+
+    assert center_x == 188
+
+
 @pytest.mark.parametrize(
     "text,expected",
     [
@@ -160,6 +208,7 @@ def test_interrupt_speech_stops_active_tts_and_bumps_epoch(speech):
     speech.talking = True
     speech._cancel_bubble_close_timer = MagicMock()
     speech._stop_active_tts = MagicMock()
+    speech._has_active_speech_bubble = MagicMock(return_value=False)
 
     speech.interrupt_speech()
 
@@ -167,6 +216,33 @@ def test_interrupt_speech_stops_active_tts_and_bumps_epoch(speech):
     speech._cancel_bubble_close_timer.assert_called_once()
     assert speech._speech_epoch == 4
     assert speech.talking is False
+
+
+def test_interrupt_speech_closes_orphan_bubble(speech):
+    speech._speech_epoch = 1
+    speech._cancel_bubble_close_timer = MagicMock()
+    speech._stop_active_tts = MagicMock()
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+    speech._close_speech_bubble_impl = MagicMock()
+    speech._chat_mode = False
+    speech._awaiting_response = False
+
+    speech.interrupt_speech()
+
+    speech._close_speech_bubble_impl.assert_called_once()
+
+
+def test_interrupt_speech_keeps_interactive_bubble(speech):
+    speech._cancel_bubble_close_timer = MagicMock()
+    speech._stop_active_tts = MagicMock()
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+    speech._close_speech_bubble_impl = MagicMock()
+    speech._chat_mode = False
+    speech._awaiting_response = True
+
+    speech.interrupt_speech()
+
+    speech._close_speech_bubble_impl.assert_not_called()
 
 
 def test_response_buttons_need_close_without_not_now(speech):
@@ -190,6 +266,7 @@ def test_handle_response_interrupts_before_handler(speech):
     speech.close_speech_bubble = MagicMock()
     speech.speech_bubble = MagicMock()
     speech.speech_bubble.wm_title.return_value = dlg.MENU_PROMPT
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
 
     with patch("kinito.speech.handle_dialog_response") as handle:
         speech.handle_response(dlg.BUTTON_FUN_FACT)

@@ -46,14 +46,28 @@ def movement():
 
 def test_on_mouse_down_stops_moving_and_plays_bomp(movement):
     movement.moving = True
-    movement.stop_background_music = MagicMock()
+    movement._stop_audio_for_drag = MagicMock()
     event = MagicMock(x_root=50, y_root=60)
     movement.on_mouse_down(event)
     assert movement.is_dragging is True
     assert movement.moving is False
     assert movement._drag_moved is False
-    movement.stop_background_music.assert_called_once()
+    movement._stop_audio_for_drag.assert_called_once()
     movement.play_sfx.assert_called_once()
+
+
+def test_stop_audio_for_drag_keeps_user_music(movement):
+    movement._user_music_path = "song.mp3"
+    movement.stop_background_music = MagicMock()
+    movement._stop_audio_for_drag()
+    movement.stop_background_music.assert_not_called()
+
+
+def test_stop_audio_for_drag_stops_speech_accompaniment(movement):
+    movement._speech_accompaniment_active = True
+    movement.stop_speech_accompaniment_music = MagicMock()
+    movement._stop_audio_for_drag()
+    movement.stop_speech_accompaniment_music.assert_called_once()
 
 
 def test_on_mouse_up_plays_bomp_after_drag(movement):

@@ -37,19 +37,30 @@ class MovementMixin:
     SURF_MOVE_FRAME_DELAY = 0.022
 
     def setup_mouse_bindings(self):
-        """Bind left-click drag events for repositioning Kinito."""
-        self.root.bind("<Button-1>", self.on_mouse_down)
+        """Bind drag to the sprite only so control buttons stay clickable."""
+        self.panel.bind("<Button-1>", self.on_mouse_down)
         self.root.bind("<B1-Motion>", self.on_mouse_move)
         self.root.bind("<ButtonRelease-1>", self.on_mouse_up)
         self.x, self.y = self.root.winfo_rootx(), self.root.winfo_rooty()
+
+    def _stop_audio_for_drag(self) -> None:
+        """Stop poem/ambient music on drag, but keep user-selected songs playing."""
+        if getattr(self, "_user_music_path", None):
+            return
+        if getattr(self, "_speech_accompaniment_active", False) and hasattr(
+            self, "stop_speech_accompaniment_music"
+        ):
+            self.stop_speech_accompaniment_music()
+            return
+        if hasattr(self, "stop_background_music"):
+            self.stop_background_music()
 
     def on_mouse_down(self, event):
         """Begin dragging, stop roam sounds, and play the bomp click sound."""
         self.is_dragging = True
         self._drag_moved = False
         self.moving = False
-        if hasattr(self, "stop_background_music"):
-            self.stop_background_music()
+        self._stop_audio_for_drag()
         if not self._should_skip_drag_sounds():
             self.play_sfx(bomp_file_path)
         self.root.update_idletasks()

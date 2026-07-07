@@ -55,19 +55,24 @@ class ContentMixin:
     def say_random_poem(self):
         """Recite a random poem in Kinito's normal voice, optionally with background music."""
         poem = random.choice(POEMS)
-        if poem.get("play_music") and not poem.get("whisper"):
-            self.play_mp3(
-                newbeginnings_file_path,
-                volume=self.POEM_BACKGROUND_MUSIC_VOLUME,
-            )
+        play_music = poem.get("play_music") and not poem.get("whisper")
+        accompaniment_path = newbeginnings_file_path if play_music else None
+        accompaniment_volume = self.POEM_BACKGROUND_MUSIC_VOLUME if play_music else None
         if poem.get("whisper"):
-            self.speak_whisper(poem["text"], long_bubble=True)
+            self.speak_whisper(
+                poem["text"],
+                long_bubble=True,
+                speech_accompaniment_path=accompaniment_path,
+                speech_accompaniment_volume=accompaniment_volume,
+            )
         else:
             self.speak(
                 poem["text"],
                 pitch=45,
                 long_bubble=True,
                 voice_candidates=SpeechMixin.VOICE_NORMAL_CANDIDATES,
+                speech_accompaniment_path=accompaniment_path,
+                speech_accompaniment_volume=accompaniment_volume,
             )
 
     def spontaneous_nap(self):
@@ -101,8 +106,11 @@ class ContentMixin:
         """Play TinyTune and deliver a fancy-mode line."""
         if not self._can_initiate_spontaneous_speech():
             return
-        self.play_mp3(tune_file_path, volume=self.POEM_BACKGROUND_MUSIC_VOLUME)
-        self.speak(random.choice(FANCY_LINES))
+        self.speak(
+            random.choice(FANCY_LINES),
+            speech_accompaniment_path=tune_file_path,
+            speech_accompaniment_volume=self.POEM_BACKGROUND_MUSIC_VOLUME,
+        )
 
     def _run_fancy_idle(self):
         """Cycle magician sprites for the full fancy performance, including while talking."""

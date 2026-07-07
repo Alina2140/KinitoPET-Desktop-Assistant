@@ -142,6 +142,8 @@ class FloatingAssistant(
         self.panel.pack(side="top", anchor="n")
         self.change_sprite(self.tk_img_normal)
         self.setup_reminder_countdown_button()
+        self.setup_music_control_button()
+        self._assistant_controls_extended = False
 
         self.x = 0
         self.y = 0
@@ -197,6 +199,7 @@ class FloatingAssistant(
         self._bubble_position_timer = None
         self._screen_bounds_timer = None
         self._sfx_cache = {}
+        self._speech_accompaniment_active = False
         self._last_virtual_screen_rect = None
         self._number_guess_target = None
         self._number_guess_attempts = 0
@@ -512,6 +515,8 @@ class FloatingAssistant(
         self._cancel_auto_wake_timer()
         if hasattr(self, "_clear_reminder"):
             self._clear_reminder()
+        if hasattr(self, "stop_background_music"):
+            self.stop_background_music()
         self.close_camera()
         self.close_browser()
         self._ensure_single_game_window()
@@ -547,6 +552,8 @@ class FloatingAssistant(
             self._cancel_bubble_close_timer()
         if hasattr(self, "_clear_reminder"):
             self._clear_reminder()
+        if hasattr(self, "stop_background_music"):
+            self.stop_background_music()
         self.close_camera()
         self.close_browser()
         self._ensure_single_game_window()
@@ -589,6 +596,19 @@ class FloatingAssistant(
                 pygame.mixer.music.stop()
         except pygame.error:
             pass
+        if hasattr(self, "_on_background_music_stopped"):
+            self._on_background_music_stopped()
+
+    def stop_speech_accompaniment_music(self):
+        """Stop poem/fancy background music once Kinito has finished speaking."""
+        if not getattr(self, "_speech_accompaniment_active", False):
+            return
+        try:
+            if pygame.mixer.get_init():
+                pygame.mixer.music.stop()
+        except pygame.error:
+            pass
+        self._speech_accompaniment_active = False
 
     def play_sfx(self, file_path, volume=1.0):
         """Play a short sound effect without interrupting background music."""
@@ -606,7 +626,7 @@ class FloatingAssistant(
         except (OSError, pygame.error):
             pass
 
-    def play_mp3(self, file_path, volume=1.0):
+    def play_mp3(self, file_path, volume=1.0, *, speech_accompaniment=False):
         """Play an MP3 file via pygame mixer; silently skip missing or broken files."""
         if not os.path.isfile(file_path):
             return
@@ -615,5 +635,6 @@ class FloatingAssistant(
             pygame.mixer.music.load(file_path)
             pygame.mixer.music.set_volume(volume)
             pygame.mixer.music.play()
+            self._speech_accompaniment_active = bool(speech_accompaniment)
         except (OSError, pygame.error):
             pass
