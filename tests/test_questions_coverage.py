@@ -84,6 +84,8 @@ def test_menu_options_include_all_actions():
         dlg.BUTTON_TELL_TIME,
         dlg.BUTTON_SING_SONG,
         dlg.BUTTON_FUN_FACT,
+        dlg.BUTTON_REMEMBER,
+        dlg.BUTTON_FORGET,
         dlg.BUTTON_VISIT_WEBSITE,
         dlg.BUTTON_SHOW_MEDIA,
         dlg.BUTTON_PLAY_MUSIC,
@@ -93,7 +95,7 @@ def test_menu_options_include_all_actions():
         dlg.BUTTON_SAY_GOODBYE,
     }
     assert expected.issubset(set(opts))
-    assert len(opts) == 14
+    assert len(opts) == 16
 
 
 def test_static_questions_match_expected_markers():

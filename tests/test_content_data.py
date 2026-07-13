@@ -14,7 +14,7 @@ from content.goodbye_lines import GOODBYE_LINES
 from content.hug_lines import HUG_ASK_LINES, HUG_LINES
 from content.music_player_lines import MUSIC_PLAYER_LINES
 from content.poems import POEMS
-from content.startup import STARTUP_LINES
+from content.startup import STARTUP_LINES, STARTUP_LINES_WITH_NAME
 from content.stories import STORIES
 from content.wisdom import WISDOM, format_wisdom_line, get_random_wisdom, load_quotes
 
@@ -30,6 +30,7 @@ def _assert_non_empty_strings(items, *, min_length=1):
     "pool,name",
     [
         (STARTUP_LINES, "startup"),
+        (STARTUP_LINES_WITH_NAME, "startup_with_name"),
         (GOODBYE_LINES, "goodbye"),
         (FACTS, "facts"),
         (STORIES, "stories"),
@@ -97,6 +98,14 @@ def test_format_templates_accept_placeholders(template):
     else:
         pytest.fail(f"Unknown placeholder pattern: {template!r}")
     assert "test" in result or "12:34" in result
+
+
+def test_startup_lines_with_name_use_user_name_placeholder():
+    for line in STARTUP_LINES_WITH_NAME:
+        assert "{user_name}" in line
+        formatted = line.format(user_name="Alex")
+        assert "Alex" in formatted
+        assert "{user_name}" not in formatted
 
 
 def test_allowed_sites_structure():

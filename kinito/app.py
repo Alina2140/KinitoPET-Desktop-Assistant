@@ -11,7 +11,7 @@ from PIL import Image, ImageTk
 
 from content import dialogue as dlg
 from content.goodbye_lines import GOODBYE_LINES
-from content.startup import STARTUP_LINES
+from content.startup import STARTUP_LINES, STARTUP_LINES_WITH_NAME
 from kinito.assets import (
     balconexe_directory,
     ensure_user_media_directories,
@@ -42,6 +42,7 @@ from kinito.features.games import GamesMixin
 from kinito.features.glitch import GlitchMixin
 from kinito.features.hug import HugMixin
 from kinito.features.media import MediaMixin
+from kinito.features.memory import MemoryMixin
 from kinito.features.music import MusicMixin
 from kinito.features.programs import ProgramsMixin
 from kinito.movement import MovementMixin
@@ -68,6 +69,7 @@ class FloatingAssistant(
     GlitchMixin,
     HugMixin,
     ContentMixin,
+    MemoryMixin,
     GamesMixin,
     MusicMixin,
     ProgramsMixin,
@@ -87,6 +89,7 @@ class FloatingAssistant(
     def __init__(self, root, image_path=None):
         """Build the window, load sprites, and start background worker threads."""
         ensure_user_media_directories()
+        self._init_memory()
         self.root = root
         self.is_dragging = False
         self._speech_lock = threading.Lock()
@@ -252,7 +255,13 @@ class FloatingAssistant(
     def _play_startup_line(self):
         """Speak a random startup line and mark startup as complete."""
         try:
-            self.speak(random.choice(STARTUP_LINES))
+            memory = getattr(self, "_memory", None)
+            name = memory.get_fact("user_name") if memory is not None else None
+            if name:
+                line = random.choice(STARTUP_LINES_WITH_NAME).format(user_name=name)
+            else:
+                line = random.choice(STARTUP_LINES)
+            self.speak(line)
         finally:
             self._startup_complete = True
 

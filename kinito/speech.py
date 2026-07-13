@@ -769,8 +769,15 @@ class SpeechMixin:
         self._speech_bubble_label = label
 
         spec = find_dialog_spec(text)
+        pending = getattr(self, "_pending_memory_question", None)
         needs_response = spec is not None
-        if spec:
+        if pending is not None and pending.question == text:
+            if pending.ui == "yes_no":
+                self.show_response_buttons([dlg.BUTTON_YES, dlg.BUTTON_NO])
+            else:
+                self.show_response_textbox(pending.question)
+            needs_response = True
+        elif spec:
             apply_dialog_ui(self, spec)
 
         self._fit_speech_bubble_to_content()
@@ -952,6 +959,12 @@ class SpeechMixin:
 
     def handle_response(self, response):
         """Route a button or textbox answer to the matching dialog handler."""
+        if getattr(self, "_pending_memory_question", None) is not None:
+            self.interrupt_speech()
+            self._close_speech_bubble_impl(clear_pending=False)
+            self._handle_memory_question_response(response)
+            return
+
         current_question = self._speech_bubble_title()
         self.interrupt_speech()
         self.close_speech_bubble()
@@ -968,12 +981,14 @@ class SpeechMixin:
         self._tts_cancelled = True
         self._close_speech_bubble_impl()
 
-    def _close_speech_bubble_impl(self):
+    def _close_speech_bubble_impl(self, *, clear_pending: bool = True):
         """Destroy the speech bubble without chat-mode teardown."""
         self._cancel_bubble_close_timer()
         self._response_timeout_generation = getattr(self, "_response_timeout_generation", 0) + 1
         self._cancel_response_timeout_timer()
         self._awaiting_response = False
+        if clear_pending and hasattr(self, "_pending_memory_question"):
+            self._pending_memory_question = None
         self._preserve_sprite = False
         self._talk_sprite_mode = "talking"
         self._speech_bubble_last_pos = None

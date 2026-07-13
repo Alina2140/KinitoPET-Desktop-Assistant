@@ -37,3 +37,24 @@ STARTUP_LINES = [
     "You're online! The silence finally ended. I was getting lonely in here.",
     "Welcome back to our little corner of the screen. Just us. Always just us.",
 ]
+
+STARTUP_LINES_WITH_NAME = [
+    "Welcome back, {user_name}! I kept your spot warm on the desktop.",
+    "Hey {user_name}! Ready to hang out again?",
+    "Good to see you, {user_name}! I've been waiting right here the whole time.",
+    "You're here, {user_name}! I almost started talking to myself.",
+    "Welcome back, {user_name}! What should we do first?",
+    "Hi {user_name}! I missed the sound of your mouse clicks.",
+    "Hello {user_name}! Don't worry, I didn't snoop while you were gone. Much.",
+    "Look who showed up! {user_name}, my favorite human on this desktop.",
+    "Ah, there you are, {user_name}! I was just thinking about you. Literally just now.",
+    "You're back, {user_name}! The desktop felt empty without you.",
+    "Hello {user_name}! I saved you a spot right here.",
+    "Hey {user_name}! I was about to send a search party. Glad you're here!",
+    "Hello again, {user_name}! The desktop was so quiet without you. Unbearably quiet.",
+    "Welcome back, {user_name}! I never left. I couldn't leave. I wouldn't want to.",
+    "You're here, {user_name}! I was starting to wonder if you'd forgotten about me.",
+    "Hello, {user_name}! The pixels missed you. I missed you more.",
+    "Good to see you, {user_name}! I've been practicing my smile while you were gone.",
+    "You're online, {user_name}! The silence finally ended. I was getting lonely in here.",
+]

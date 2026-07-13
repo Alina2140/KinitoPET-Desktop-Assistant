@@ -361,14 +361,12 @@ def test_idle_wait_before_next_action_in_valid_ranges(movement):
         assert MovementMixin.IDLE_WAIT_LONG[0] <= wait <= MovementMixin.IDLE_WAIT_LONG[1]
 
 
-def test_smooth_movement_calls_ai_idle_line(movement):
+def test_smooth_movement_calls_random_question(movement):
     movement._startup_complete = True
     movement._allow_random_questions = True
     movement._focus_mode = False
-    movement._should_use_ai_idle_line = MagicMock(return_value=True)
-    movement.speak_ai_idle_line = MagicMock(side_effect=lambda: setattr(movement, "_running", False))
     movement.perform_random_menu_action = MagicMock()
-    movement.speak_random_question = MagicMock()
+    movement.speak_random_question = MagicMock(side_effect=lambda: setattr(movement, "_running", False))
     movement._idle_wait_before_next_action = MagicMock(return_value=0)
 
     with (
@@ -377,8 +375,8 @@ def test_smooth_movement_calls_ai_idle_line(movement):
     ):
         movement.smooth_movement()
 
-    movement.speak_ai_idle_line.assert_called_once()
-    movement.speak_random_question.assert_not_called()
+    movement.speak_random_question.assert_called_once()
+    movement.perform_random_menu_action.assert_not_called()
 
 
 def test_smooth_movement_waits_while_reading_idle(movement):

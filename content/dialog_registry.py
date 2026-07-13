@@ -85,6 +85,8 @@ def menu_options_for(app) -> list[str]:
         effects_label,
         dlg.BUTTON_SING_SONG,
         dlg.BUTTON_FUN_FACT,
+        dlg.BUTTON_REMEMBER,
+        dlg.BUTTON_FORGET,
         dlg.BUTTON_VISIT_WEBSITE,
         dlg.BUTTON_SHOW_MEDIA,
         dlg.BUTTON_PLAY_MUSIC,
@@ -178,6 +180,41 @@ def _text_format(response_lines) -> Handler:
     return handler
 
 
+def _persist_dialog_answer(app, marker: str, fact_key: str, value: str) -> None:
+    """Save a dialog answer to the user's memory store."""
+    memory = getattr(app, "_memory", None)
+    if memory is None:
+        return
+    trimmed = value.strip()
+    if trimmed:
+        memory.set_fact(fact_key, trimmed)
+    memory.mark_answered(marker)
+
+
+def _text_format_with_memory(marker: str, fact_key: str, response_lines) -> Handler:
+    """Like _text_format, but persist the user's text answer first."""
+
+    def handler(app, response: str) -> None:
+        _persist_dialog_answer(app, marker, fact_key, response)
+        app.speak(dlg.pick_line(response_lines).format(response=response))
+
+    return handler
+
+
+def _yes_no_lines_with_memory(marker: str, fact_key: str, yes_lines, no_lines) -> Handler:
+    """Like _yes_no_lines, but persist yes/no as a fact."""
+
+    def handler(app, response: str) -> None:
+        if response == dlg.BUTTON_YES:
+            _persist_dialog_answer(app, marker, fact_key, "yes")
+            app.speak(dlg.pick_line(yes_lines))
+        elif response == dlg.BUTTON_NO:
+            _persist_dialog_answer(app, marker, fact_key, "no")
+            app.speak(dlg.pick_declined_line(no_lines))
+
+    return handler
+
+
 def _okay_not_now(
     yes_fn: Handler, declined_lines, *, minimize_count: int = 0, speak_pitch: int = 45
 ) -> Handler:
@@ -224,6 +261,8 @@ def _handle_menu(app, response: str) -> None:
         dlg.BUTTON_SCREEN_EFFECTS_OFF: lambda a: a.toggle_screen_effects(),
         dlg.BUTTON_SING_SONG: lambda a: a.say_random_poem(),
         dlg.BUTTON_FUN_FACT: lambda a: a.say_random_fact(),
+        dlg.BUTTON_REMEMBER: lambda a: a.show_memory_summary(),
+        dlg.BUTTON_FORGET: lambda a: a.forget_memory(),
         dlg.BUTTON_VISIT_WEBSITE: lambda a: a.ask_browser_category(),
         dlg.BUTTON_SHOW_MEDIA: lambda a: a.ask_media_type(),
         dlg.BUTTON_PLAY_MUSIC: lambda a: a.ask_music_player_pick(),
@@ -724,17 +763,22 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
     DialogSpec(
         dlg.COLOR_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.COLOR_QUESTION),
-        _text_format(dlg.COLOR_RESPONSES),
+        _text_format_with_memory(dlg.COLOR_QUESTION, "favorite_color", dlg.COLOR_RESPONSES),
     ),
     DialogSpec(
         dlg.PROGRAMMING_QUESTION,
         DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
-        _yes_no_lines(dlg.PROGRAMMING_YES_LINES, dlg.PROGRAMMING_NO_LINES),
+        _yes_no_lines_with_memory(
+            dlg.PROGRAMMING_QUESTION,
+            "likes_programming",
+            dlg.PROGRAMMING_YES_LINES,
+            dlg.PROGRAMMING_NO_LINES,
+        ),
     ),
     DialogSpec(
         dlg.HOBBY_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.HOBBY_QUESTION),
-        _text_format(dlg.HOBBY_RESPONSES),
+        _text_format_with_memory(dlg.HOBBY_QUESTION, "hobby", dlg.HOBBY_RESPONSES),
     ),
     DialogSpec(
         dlg.GAME_QUESTION,
@@ -754,7 +798,7 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
     DialogSpec(
         dlg.FOOD_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.FOOD_QUESTION),
-        _text_format(dlg.FOOD_RESPONSES),
+        _text_format_with_memory(dlg.FOOD_QUESTION, "favorite_food", dlg.FOOD_RESPONSES),
     ),
     DialogSpec(
         dlg.POEM_QUESTION,
@@ -794,12 +838,12 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
     DialogSpec(
         dlg.SEASON_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.SEASON_QUESTION),
-        _text_format(dlg.SEASON_RESPONSES),
+        _text_format_with_memory(dlg.SEASON_QUESTION, "favorite_season", dlg.SEASON_RESPONSES),
     ),
     DialogSpec(
         dlg.PET_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.PET_QUESTION),
-        _text_format(dlg.PET_RESPONSES),
+        _text_format_with_memory(dlg.PET_QUESTION, "pet", dlg.PET_RESPONSES),
     ),
     DialogSpec(
         dlg.SLEEP_QUESTION,
@@ -809,7 +853,7 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
     DialogSpec(
         dlg.NAME_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.NAME_QUESTION),
-        _text_format(dlg.NAME_RESPONSES),
+        _text_format_with_memory(dlg.NAME_QUESTION, "user_name", dlg.NAME_RESPONSES),
     ),
     DialogSpec(
         dlg.BORED_QUESTION,
@@ -819,22 +863,32 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
     DialogSpec(
         dlg.MUSIC_QUESTION,
         DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
-        _yes_no_lines(dlg.MUSIC_YES_LINES, dlg.MUSIC_NO_LINES),
+        _yes_no_lines_with_memory(
+            dlg.MUSIC_QUESTION,
+            "likes_music",
+            dlg.MUSIC_YES_LINES,
+            dlg.MUSIC_NO_LINES,
+        ),
     ),
     DialogSpec(
         dlg.BOOK_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.BOOK_QUESTION),
-        _text_format(dlg.BOOK_RESPONSES),
+        _text_format_with_memory(dlg.BOOK_QUESTION, "favorite_book", dlg.BOOK_RESPONSES),
     ),
     DialogSpec(
         dlg.COFFEE_QUESTION,
         DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
-        _yes_no_lines(dlg.COFFEE_YES_LINES, dlg.COFFEE_NO_LINES),
+        _yes_no_lines_with_memory(
+            dlg.COFFEE_QUESTION,
+            "likes_coffee",
+            dlg.COFFEE_YES_LINES,
+            dlg.COFFEE_NO_LINES,
+        ),
     ),
     DialogSpec(
         dlg.DRINK_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.DRINK_QUESTION),
-        _text_format(dlg.DRINK_RESPONSES),
+        _text_format_with_memory(dlg.DRINK_QUESTION, "favorite_drink", dlg.DRINK_RESPONSES),
     ),
     DialogSpec(
         dlg.JOKE_QUESTION,
@@ -844,12 +898,12 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
     DialogSpec(
         dlg.MOVIE_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.MOVIE_QUESTION),
-        _text_format(dlg.MOVIE_RESPONSES),
+        _text_format_with_memory(dlg.MOVIE_QUESTION, "favorite_movie", dlg.MOVIE_RESPONSES),
     ),
     DialogSpec(
         dlg.SNACK_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.SNACK_QUESTION),
-        _text_format(dlg.SNACK_RESPONSES),
+        _text_format_with_memory(dlg.SNACK_QUESTION, "favorite_snack", dlg.SNACK_RESPONSES),
     ),
     DialogSpec(
         dlg.WEATHER_QUESTION,

@@ -3,7 +3,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from content.goodbye_lines import GOODBYE_LINES
+from content.startup import STARTUP_LINES_WITH_NAME
 from kinito.app import FloatingAssistant, _open_sprite
+from kinito.memory.store import MemoryStore
 from kinito.speech import SpeechMixin
 
 
@@ -198,3 +200,28 @@ def test_play_sfx_swallows_pygame_errors(goodbye_app, tmp_path):
         ),
     ):
         goodbye_app.play_sfx(str(mp3))
+
+
+def test_play_startup_line_uses_name_when_known(tmp_path):
+    app = FloatingAssistant.__new__(FloatingAssistant)
+    app._memory = MemoryStore(directory=str(tmp_path / "user_media"))
+    app._memory.set_fact("user_name", "Alex")
+    app._startup_complete = False
+    app.speak = MagicMock()
+    line = STARTUP_LINES_WITH_NAME[0]
+    with patch("kinito.app.random.choice", return_value=line):
+        FloatingAssistant._play_startup_line(app)
+    app.speak.assert_called_once_with(line.format(user_name="Alex"))
+    assert app._startup_complete is True
+
+
+def test_play_startup_line_uses_generic_when_no_name(tmp_path):
+    app = FloatingAssistant.__new__(FloatingAssistant)
+    app._memory = MemoryStore(directory=str(tmp_path / "user_media"))
+    app._startup_complete = False
+    app.speak = MagicMock()
+    generic = "Hello friend!"
+    with patch("kinito.app.random.choice", return_value=generic):
+        FloatingAssistant._play_startup_line(app)
+    app.speak.assert_called_once_with(generic)
+    assert app._startup_complete is True

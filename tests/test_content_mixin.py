@@ -8,6 +8,7 @@ from content.questions import QUESTIONS
 from content.stories import STORIES
 from kinito.assets import newbeginnings_file_path
 from kinito.features.content import ContentMixin
+from kinito.memory.questions import MemoryQuestion
 from kinito.speech import SpeechMixin
 
 
@@ -66,6 +67,29 @@ def test_speak_random_question_speaks_from_pool(content):
     with patch("kinito.features.content.random.choice", return_value=dlg.DAY_QUESTIONS[0]):
         content.speak_random_question()
     content.speak.assert_called_once_with(dlg.DAY_QUESTIONS[0], 45, True)
+
+
+def test_speak_random_question_can_use_memory_followup(content):
+    memory = MagicMock()
+    memory.has_any_memory.return_value = True
+    content._memory = memory
+    spec = MemoryQuestion("Hey Alex, plans?", "textbox", "weekend_plans")
+    content.ask_memory_question = MagicMock()
+    with (
+        patch("kinito.features.content.random.random", return_value=0.1),
+        patch("kinito.features.content.pick_template_followup", return_value=spec),
+    ):
+        content.speak_random_question()
+    content.ask_memory_question.assert_called_once_with(spec)
+    content.speak.assert_not_called()
+
+
+def test_available_questions_skip_answered_markers(content):
+    memory = MagicMock()
+    memory.is_question_answered.side_effect = lambda q: dlg.NAME_QUESTION in q
+    content._memory = memory
+    pool = content._available_spontaneous_questions()
+    assert all(dlg.NAME_QUESTION not in q for q in pool)
 
 
 def test_available_questions_skip_camera_while_active(content):

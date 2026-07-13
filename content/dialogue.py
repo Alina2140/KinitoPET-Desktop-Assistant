@@ -519,6 +519,19 @@ STORY_DECLINED_LINES = [
 # Right-click menu
 MENU_PROMPT = "What would you like me to do?"
 
+MEMORY_FORGOTTEN_LINE = (
+    "Okay. I've cleared what I remembered about you. We can start fresh."
+)
+MEMORY_EMPTY_LINE = (
+    "I don't have anything saved about you yet. Tell me about yourself!"
+)
+MEMORY_ANSWER_ACK_LINES = [
+    "Got it! I'll keep that in mind.",
+    "Noted! I'll remember that.",
+    "Thanks for telling me — I'll remember.",
+    "I'll tuck that away in my memory.",
+]
+
 SCREEN_EFFECTS_ON_LINES = [
     "Screen effects enabled. If the picture hiccups, that might be me.",
     "Glitch mode on. The screen and I share moods now.",
@@ -1009,6 +1022,8 @@ BUTTON_SCREEN_EFFECTS_ON = "Screen Effects on"
 BUTTON_SCREEN_EFFECTS_OFF = "Screen Effects off"
 BUTTON_SING_SONG = "Sing"
 BUTTON_FUN_FACT = "Fun Fact"
+BUTTON_REMEMBER = "What do you remember?"
+BUTTON_FORGET = "Forget everything"
 BUTTON_VISIT_WEBSITE = "Visit a Website"
 BUTTON_SHOW_MEDIA = "Show Picture or Video"
 BUTTON_SHOW_PICTURE = "A Picture"

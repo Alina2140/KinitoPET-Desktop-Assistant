@@ -418,8 +418,6 @@ class MovementMixin:
             ):
                 if random.random() < self.MENU_ACTION_CHANCE:
                     self.perform_random_menu_action()
-                elif self._should_use_ai_idle_line():
-                    self.speak_ai_idle_line()
                 else:
                     self.speak_random_question()
             else:

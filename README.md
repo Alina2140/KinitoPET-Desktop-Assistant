@@ -136,6 +136,17 @@ Kinito only opens URLs from a **manual whitelist** in `content/allowed_sites.py`
 
 Kinito only opens media from these folders or the video whitelist — never arbitrary paths on your PC.
 
+### Memory (persistent user facts)
+
+Kinito remembers personal facts across sessions — no database required.
+
+- **Storage:** `GameAssets/UserMedia/memory.json` (and optional `notes.txt` mirror)
+- These files are local only (listed in `.gitignore`) and are created automatically the first time something is saved (e.g. when you answer a name question or a follow-up).
+- Right-click Kinito → **What do you remember?** to hear a summary.
+- Right-click Kinito → **Forget everything** to clear saved memory.
+
+Personal questions (name, favorite color, food, hobby, etc.) are asked once; answers are saved and reused in follow-up questions and startup greetings.
+
 ---
 
 ## Project structure

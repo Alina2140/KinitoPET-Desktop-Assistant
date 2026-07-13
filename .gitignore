@@ -32,3 +32,7 @@ desktop.ini
 .env
 *.key
 credentials.json
+
+# User-specific media and memory (personal data — never commit)
+GameAssets/UserMedia/memory.json
+GameAssets/UserMedia/notes.txt
