@@ -32,6 +32,7 @@ def content():
     for name in (
         "print_current_datetime",
         "offer_browser_visit",
+        "show_random_media",
         "offer_random_music",
         "offer_game_picker",
         "give_hug",
@@ -121,3 +122,31 @@ def test_say_random_fact(content):
     with patch("kinito.features.content.get_random_fact", return_value=FACTS[0]):
         content.say_random_fact()
     content.speak.assert_called_once_with(FACTS[0])
+
+
+def test_say_random_joke(content):
+    joke = dlg.JOKES[0]
+    with patch("kinito.features.content.dlg.pick_line", return_value=joke):
+        content.say_random_joke()
+    content.speak.assert_called_once_with(joke)
+
+
+def test_run_fancy_idle_cycles_sprites_during_speech(content):
+    content.tk_img_fancy_2 = "fancy2"
+    content._magician_sprites = ("fancy", "fancy2")
+    content.perform_fancy_show = MagicMock()
+
+    def fake_sleep(_seconds):
+        if content.change_sprite.call_count == 2:
+            content.talking = True
+        elif content.change_sprite.call_count >= 4:
+            content.talking = False
+
+    with patch("kinito.features.content.time.sleep", side_effect=fake_sleep):
+        content._run_fancy_idle()
+
+    sprite_calls = [call.args[0] for call in content.change_sprite.call_args_list]
+    assert sprite_calls[0] == "fancy"
+    assert "fancy2" in sprite_calls
+    assert content.change_sprite.call_count >= 3
+    assert content._fancy_mode is False

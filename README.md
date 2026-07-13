@@ -30,9 +30,11 @@ A free, open-source desktop companion inspired by **KinitoPET**. Kinito lives on
 | **Random questions** | 30+ conversation topics while idle |
 | **Right-click menu** | Reminders, time, sleep mode, poems, facts, browser, music, hug, goodbye |
 | **Safe browser** | Opens whitelisted HTTPS sites in a small window (or your default browser) |
+| **Pictures & videos** | Shows images from `GameAssets/UserMedia/` and videos from folder or whitelist |
 | **Camera** | Optional webcam view (requires OpenCV) |
 | **Music player** | Play MP3s from your PC |
 | **Hug** | Hug sprites + sweet lines |
+| **Mini-games** | Tic-tac-toe, memory, battleships, RPS, trivia, and more (right-click → **Play a Game**) |
 | **Idle animations** | Blinking, reading, fancy hat mode, sleep sprites |
 | **Reminders** | Timer with sound after X minutes |
 
@@ -97,7 +99,9 @@ For a **full beginner walkthrough** (screenshots-level detail), see **[docs/INST
 - **Sing** — recites a random poem (some include background music)
 - **Fun Fact** — random fact
 - **Visit a Website** — pick a category (Animals, Knowledge, Games, Horror, Surprise Me)
+- **Show Picture or Video** — open a user image or allow-listed video in a window
 - **Play Music** — pick an MP3 or play a random one from your Music/Downloads folders
+- **Play a Game** — mini-games (quick games and board games)
 - **Hug** — hug pose sprites + hug line
 - **Goodbye** — farewell line, then closes the app
 
@@ -112,9 +116,25 @@ While idle, Kinito may:
 
 Click the buttons in the speech bubble to respond. Press **Enter** in text boxes to submit.
 
+Unanswered questions close automatically after about **2 minutes**.
+
+### Easter eggs (intentional behavior)
+
+Some choices trigger **KinitoPET-style surprises** — not bugs:
+
+- **Declining a poem** (**No**) or **declining a secret image** (**Not now**) can cause certain intended things to happen. It needs `pyautogui` installed.
+
 ### Browser safety
 
 Kinito only opens URLs from a **manual whitelist** in `content/allowed_sites.py`. Navigation to other HTTPS sites is blocked inside the built-in browser window.
+
+### User media (pictures & videos)
+
+- **Images:** drop files into `GameAssets/UserMedia/` (PNG, JPG, WEBP, GIF, BMP)
+- **Local videos:** drop files into `GameAssets/UserMedia/videos/` (MP4, WEBM, MOV, MKV, AVI)
+- **Online videos:** curated whitelist in `content/allowed_videos.py` (same safety model as websites)
+
+Kinito only opens media from these folders or the video whitelist — never arbitrary paths on your PC.
 
 ---
 
@@ -126,18 +146,21 @@ KinitoPET-Python-Virtual-Assistant/
 ├── kinito/                  # Application code
 │   ├── app.py               # Main window & lifecycle
 │   ├── speech.py            # TTS, speech bubbles, menu
+│   ├── bubble_ui.py         # Chamfered bubble chrome & buttons
 │   ├── movement.py          # Drag, wander, idle animations
 │   ├── assets.py            # Paths to GameAssets files
-│   └── features/            # Browser, camera, music, hug, programs, content
+│   └── features/            # Browser, camera, music, hug, programs, content, games, media
 ├── content/                 # All dialogue & data (easy to edit!)
 │   ├── dialogue.py          # Questions, buttons, response lines
 │   ├── dialog_registry.py   # Links questions → UI → actions
 │   ├── questions.py         # Pool of random questions
 │   ├── allowed_sites.py     # Browser whitelist
+│   ├── allowed_videos.py    # Online video whitelist
 │   ├── facts.py, poems.py, stories.py, ...
-│   └── site_validator.py    # URL safety checks
+│   ├── site_validator.py    # URL safety checks
+│   └── media_validator.py   # User media path & video URL checks
 ├── GameAssets/              # Sprites, MP3s, balcon.exe (required)
-├── tests/                   # Automated tests (274+)
+├── tests/                   # Automated tests (815+)
 ├── docs/                    # Detailed guides
 ├── requirements.txt         # Runtime dependencies
 └── requirements-dev.txt     # pytest, ruff (for contributors)
@@ -153,7 +176,7 @@ KinitoPET-Python-Virtual-Assistant/
 | `opencv-python` | Webcam feature | Camera questions still appear; opening camera shows a message |
 | `pyttsx3` | TTS fallback | Uses `balcon.exe` only |
 | `pygame` | Sound effects & MP3 | Required for sounds |
-| `pyautogui` | Minimize windows (image easter egg) | That action silently fails |
+| `pyautogui` | Minimize windows (poem/image easter egg) | That easter egg silently fails |
 | `Pillow` | Images / sprites | Required |
 
 On startup, Kinito prints optional dependency status to the console, e.g.:
@@ -171,7 +194,9 @@ GameAssets/
 ├── Kinito.png, KinitoNormal.png, KinitoHug.png, Thinking.png, ...   # Sprites
 ├── Timer.mp3, Woosh.mp3, StartTalking.mp3, ...       # Sounds
 ├── Programs/balcon.exe                               # Windows TTS (optional fallback: pyttsx3)
-└── SecretImages/                                     # Optional images for easter egg
+├── SecretImages/                                     # Optional images for easter egg
+└── UserMedia/                                        # Your pictures & local videos
+    └── videos/                                       # Local video files (MP4, etc.)
 ```
 
 If a sprite is missing, Kinito falls back to `KinitoNormal.png`.
@@ -236,6 +261,10 @@ Common causes: missing `GameAssets`, missing `Pillow`, or no display (won’t ru
 
 The spoken line must contain a **marker substring** registered in `content/dialog_registry.py`. If you add new question text, see **[docs/EXTENDING.md](docs/EXTENDING.md)**.
 
+### My windows minimized — is that a bug?
+
+Usually **no**. Declining certain offers (poem **No**, secret image **Not now**) triggers intentional window minimizing on Windows — a KinitoPET-style easter egg. See [Easter eggs](#easter-eggs-intentional-behavior) above.
+
 ---
 
 ## For developers
@@ -272,7 +301,6 @@ This project is released under the **[MIT License](LICENSE)** — free to use, m
 |------|-------------|
 | **Kinito & KinitoPET** | [KinitoPET on Steam](https://store.steampowered.com/app/2075070/KinitoPET/) by **troy_en** |
 | **Python template** | [TimTamCoder/KinitoPET-Python-Virtual-Assistant](https://github.com/TimTamCoder/KinitoPET-Python-Virtual-Assistant) by **TimTamCoder** |
-| **Love bubble image** | [CleanPNG](https://www.cleanpng.com/png-exo-sticker-k-pop-paper-bts-unicorn-galaxy-onfyvq/) |
 
 This is a **fan-made** desktop assistant. It is not an official KinitoPET product and is not affiliated with the game's developers or publishers.
 

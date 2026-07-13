@@ -1,4 +1,4 @@
-﻿"""Text-to-speech, speech bubbles, and interactive dialog UI."""
+"""Text-to-speech, speech bubbles, and interactive dialog UI."""
 
 import os
 import subprocess
@@ -27,7 +27,7 @@ from kinito.tk_timers import schedule_after
 class SpeechMixin:
     """TTS playback, speech bubbles, and user response handling."""
 
-    BUBBLE_MAX_WIDTH = 800
+    BUBBLE_MAX_WIDTH = 533
     BUBBLE_BG = "#FFF8E7"
     BUBBLE_BORDER = "#000000"
     BUBBLE_FG = "#111111"
@@ -41,8 +41,10 @@ class SpeechMixin:
     BUBBLE_PAD_Y = 10
     BUBBLE_BTN_BG = "#fff1ce"
     BUBBLE_BTN_ACTIVE = "#FFE9A8"
+    BUBBLE_ENTRY_BG = "#FFFEF8"
     BUBBLE_BTN_PAD_X = 8
     BUBBLE_BTN_PAD_Y = 2
+    BUBBLE_CLOSE_LABEL = "\u00d7"
     DISMISS_RESPONSE_BUTTONS = frozenset(
         {
             dlg.BUTTON_NOT_NOW,
@@ -67,6 +69,7 @@ class SpeechMixin:
     ]
 
     BUBBLE_CLOSE_BUFFER_MS = 1500
+    RESPONSE_TIMEOUT_MS = 120_000
     BUBBLE_REVEAL_DELAY_MS = 100
     BUBBLE_OFF_SCREEN_GEOMETRY = "-10000-10000"
     BRIEF_ACK_DISPLAY_MS = 2000
@@ -122,6 +125,7 @@ class SpeechMixin:
             bg=self.BUBBLE_TRANSPARENT_BG,
             highlightthickness=0,
             borderwidth=0,
+            takefocus=0,
         )
         shell.pack(anchor="w")
 
@@ -134,18 +138,45 @@ class SpeechMixin:
         self._speech_bubble_body_window = body_window
         return body
 
-    def _kinito_screen_center_x(self):
-        """Return Kinito's horizontal center in screen coordinates."""
+    def _kinito_screen_position(self):
+        """Return Kinito's top-left corner in screen coordinates."""
+        if getattr(self, "is_dragging", False) or getattr(self, "moving", False):
+            tracked_x = getattr(self, "x", None)
+            tracked_y = getattr(self, "y", None)
+            if tracked_x is not None and tracked_y is not None:
+                return int(tracked_x), int(tracked_y)
+
         kinito_x = self.root.winfo_rootx()
         kinito_y = self.root.winfo_rooty()
-        if kinito_x <= 0 or kinito_y <= 0:
-            kinito_x = getattr(self, "x", kinito_x)
-        kinito_w = max(
+        if kinito_x > 0 and kinito_y > 0:
+            return int(kinito_x), int(kinito_y)
+
+        tracked_x = getattr(self, "x", None)
+        tracked_y = getattr(self, "y", None)
+        if tracked_x is not None and tracked_y is not None:
+            return int(tracked_x), int(tracked_y)
+        return int(kinito_x), int(kinito_y)
+
+    def _kinito_screen_width(self):
+        """Return Kinito's visible width in pixels."""
+        return max(
             self.root.winfo_width(),
             getattr(getattr(self, "img_normal", None), "width", 0),
             1,
         )
-        return kinito_x + (kinito_w // 2)
+
+    def _bubble_screen_size(self):
+        """Return the speech bubble's width and height for layout calculations."""
+        bubble = self.speech_bubble
+        bubble.update_idletasks()
+        bubble_w = max(bubble.winfo_width(), bubble.winfo_reqwidth(), 1)
+        bubble_h = max(bubble.winfo_height(), bubble.winfo_reqheight(), 1)
+        return bubble_w, bubble_h
+
+    def _kinito_screen_center_x(self):
+        """Return Kinito's horizontal center in screen coordinates."""
+        kinito_x, _kinito_y = self._kinito_screen_position()
+        return kinito_x + (self._kinito_screen_width() // 2)
 
     def _bubble_tail_center_x(self, tail_width):
         """Return where the bubble tail should sit to point at Kinito."""
@@ -205,12 +236,31 @@ class SpeechMixin:
             )
             canvas.tag_lower("bubble")
             canvas.lift(body_window)
+            self._focus_bubble_entry()
         except tk.TclError:
             pass
 
     def _update_bubble_tail(self):
         """Redraw bubble chrome so the tail keeps pointing at Kinito."""
         self._redraw_bubble_shell()
+
+    def _bubble_body_parent(self):
+        """Return the frame that holds interactive bubble content."""
+        body = getattr(self, "_speech_bubble_body", None)
+        if body is not None and body.winfo_exists():
+            return body
+        return None
+
+    def _focus_bubble_entry(self):
+        """Move keyboard focus to the active bubble text field, if any."""
+        entry = getattr(self, "_speech_bubble_entry", None)
+        if entry is None:
+            return
+        try:
+            if entry.winfo_exists():
+                entry.focus_set()
+        except tk.TclError:
+            pass
 
     def get_entry_char_width(self, prompt=""):
         """Compute a sensible Entry widget width from the prompt length."""
@@ -262,13 +312,60 @@ class SpeechMixin:
         bubble = self.speech_bubble
         try:
             bubble.update_idletasks()
-            width = bubble.winfo_reqwidth()
-            height = bubble.winfo_reqheight()
+            width = max(bubble.winfo_reqwidth(), 1)
+            height = max(bubble.winfo_reqheight(), 1)
             if width > 0 and height > 0:
-                bubble.geometry(f"{width}x{height}")
+                bubble_x = bubble.winfo_rootx()
+                bubble_y = bubble.winfo_rooty()
+                try:
+                    withdrawn = bubble.state() == "withdrawn"
+                except tk.TclError:
+                    withdrawn = False
+                if withdrawn or bubble_x <= 0 or bubble_y <= 0:
+                    bubble.geometry(f"{width}x{height}")
+                else:
+                    bubble.geometry(f"{width}x{height}+{bubble_x}+{bubble_y}")
             self._redraw_bubble_shell()
         except tk.TclError:
             pass
+
+    def _capture_speech_bubble_drag_offset(self):
+        """Remember how far the active bubble sits from Kinito for coupled dragging."""
+        if not self._has_active_speech_bubble():
+            self._bubble_kinito_offset_x = None
+            self._bubble_kinito_offset_y = None
+            return
+
+        self.position_speech_bubble()
+        kinito_x, kinito_y = self._kinito_screen_position()
+        try:
+            self._bubble_kinito_offset_x = self.speech_bubble.winfo_rootx() - kinito_x
+            self._bubble_kinito_offset_y = self.speech_bubble.winfo_rooty() - kinito_y
+        except tk.TclError:
+            self._bubble_kinito_offset_x = None
+            self._bubble_kinito_offset_y = None
+
+    def _move_speech_bubble_with_kinito(self, kinito_x, kinito_y):
+        """Move the speech bubble by the same delta as Kinito while dragging."""
+        offset_x = getattr(self, "_bubble_kinito_offset_x", None)
+        offset_y = getattr(self, "_bubble_kinito_offset_y", None)
+        if offset_x is None or offset_y is None:
+            self.position_speech_bubble()
+            return
+
+        bubble_w, bubble_h = self._bubble_screen_size()
+        bubble_x = int(kinito_x) + int(offset_x)
+        bubble_y = int(kinito_y) + int(offset_y)
+
+        min_x, min_y, max_x, max_y = self.get_screen_bounds(bubble_w, bubble_h)
+        bubble_x = max(min_x, min(bubble_x, max_x))
+        bubble_y = max(min_y, min(bubble_y, max_y))
+
+        self._speech_bubble_last_pos = (bubble_x, bubble_y)
+        self.speech_bubble.geometry(f"{bubble_w}x{bubble_h}+{bubble_x}+{bubble_y}")
+        self.speech_bubble.lift()
+        self.speech_bubble.wm_attributes("-topmost", True)
+        self._update_bubble_tail()
 
     def _cancel_bubble_close_timer(self):
         """Cancel any scheduled auto-close for the current speech bubble."""
@@ -278,6 +375,36 @@ class SpeechMixin:
             except (tk.TclError, ValueError):
                 pass
             self._bubble_close_timer = None
+
+    def _cancel_response_timeout_timer(self):
+        """Cancel any scheduled auto-dismiss for an unanswered dialog."""
+        if getattr(self, "_response_timeout_timer", None) is not None:
+            try:
+                self.root.after_cancel(self._response_timeout_timer)
+            except (tk.TclError, ValueError):
+                pass
+            self._response_timeout_timer = None
+
+    def _schedule_response_timeout(self):
+        """Close an unanswered button/textbox dialog after RESPONSE_TIMEOUT_MS."""
+        self._cancel_response_timeout_timer()
+        self._response_timeout_generation = getattr(self, "_response_timeout_generation", 0) + 1
+        generation = self._response_timeout_generation
+        self._response_timeout_timer = self.root.after(
+            self.RESPONSE_TIMEOUT_MS,
+            lambda: self._on_response_timeout(generation),
+        )
+
+    def _on_response_timeout(self, generation):
+        """Dismiss an interactive bubble when the user does not answer in time."""
+        self._response_timeout_timer = None
+        if generation != getattr(self, "_response_timeout_generation", 0):
+            return
+        if not self._awaiting_response:
+            return
+        if not self._has_active_speech_bubble():
+            return
+        self.close_speech_bubble()
 
     def _schedule_bubble_close(self, delay_ms):
         """Close the speech bubble after *delay_ms* milliseconds."""
@@ -329,12 +456,11 @@ class SpeechMixin:
             return False
 
     def _is_busy_with_speech(self):
-        """Return True while TTS, a bubble, a user response, or AI generation is in progress."""
+        """Return True while TTS, a bubble, or a user response is in progress."""
         return (
             self.talking
             or self._awaiting_response
             or self._has_active_speech_bubble()
-            or getattr(self, "_ai_generating", False)
         )
 
     def _is_background_music_playing(self):
@@ -419,19 +545,12 @@ class SpeechMixin:
 
     def interrupt_speech(self):
         """Stop current TTS and invalidate pending bubble callbacks."""
-        was_active = (
-            getattr(self, "talking", False)
-            or self._has_active_speech_bubble()
-            or getattr(self, "_ai_generating", False)
-        )
+        was_active = getattr(self, "talking", False) or self._has_active_speech_bubble()
         self._next_speech_epoch()
         self._stop_active_tts()
         self._cancel_bubble_close_timer()
-        if getattr(self, "_ai_generating", False):
-            self._ai_generating = False
         if (
-            not getattr(self, "_chat_mode", False)
-            and not getattr(self, "_awaiting_response", False)
+            not getattr(self, "_awaiting_response", False)
             and self._has_active_speech_bubble()
             and hasattr(self, "_close_speech_bubble_impl")
         ):
@@ -541,13 +660,18 @@ class SpeechMixin:
         preserve_sprite=False,
         question=None,
         *,
+        ai_hint=None,
+        skip_ai=False,
         speech_accompaniment_path=None,
         speech_accompaniment_volume=None,
     ):
         """Speak *text* in a background thread; optionally show and auto-close a bubble."""
+        del ai_hint, skip_ai  # handled by LLMMixin when present in the MRO
         if getattr(self, "_focus_mode", False) and not allow_in_focus:
             return
         self.interrupt_speech()
+        if hasattr(self, "_stop_roaming"):
+            self._stop_roaming()
         self._start_speech_accompaniment(speech_accompaniment_path, speech_accompaniment_volume)
         epoch = self._speech_epoch
         self._tts_cancelled = False
@@ -588,7 +712,7 @@ class SpeechMixin:
     def speak_brief(self, text, display_ms=None, *, allow_in_focus=False):
         """Show a short on-screen acknowledgment without TTS after the user interrupted speech.
 
-        Do not use for normal dialog lines — use ``speak()`` so Kinito actually says them.
+        Do not use for normal dialog lines ? use ``speak()`` so Kinito actually says them.
         """
         if getattr(self, "_focus_mode", False) and not allow_in_focus:
             return
@@ -602,25 +726,15 @@ class SpeechMixin:
         self.show_speech_bubble(text, evergoaway=False, speech_epoch=epoch, force=True)
         self._schedule_bubble_close_if_current(epoch, display_ms)
 
-    def speak_whisper(
-        self,
-        text,
-        pitch=25,
-        slow=False,
-        long_bubble=False,
-        *,
-        speech_accompaniment_path=None,
-        speech_accompaniment_volume=None,
-    ):
+    def speak_whisper(self, text, pitch=25, slow=False, long_bubble=False, *, ai_hint=None, skip_ai=False):
         """Speak *text* with whisper voice candidates and optional long bubble display."""
+        del ai_hint, skip_ai
         self.speak(
             text,
             pitch=pitch,
             slow=slow,
             voice_candidates=self.VOICE_WHISPER_CANDIDATES,
             long_bubble=long_bubble,
-            speech_accompaniment_path=speech_accompaniment_path,
-            speech_accompaniment_volume=speech_accompaniment_volume,
         )
 
     def show_speech_bubble(self, text, evergoaway=True, force=False, speech_epoch=None):
@@ -643,6 +757,7 @@ class SpeechMixin:
         self._speech_bubble_text_frame = None
         self._speech_bubble_button_frame = None
         self._speech_bubble_buttons_content_width = 0
+        self._speech_bubble_entry = None
         bubble_body = self._create_bubble_shell(self.speech_bubble)
 
         text_frame = tk.Frame(bubble_body, bg=self.BUBBLE_BG)
@@ -663,9 +778,10 @@ class SpeechMixin:
 
         if needs_response:
             self._awaiting_response = True
+            self._schedule_response_timeout()
 
     def _response_buttons_need_close(self, options):
-        """Return True when no explicit decline button makes a separate × redundant."""
+        """Return True when no explicit decline button makes a separate ? redundant."""
         return not any(option in self.DISMISS_RESPONSE_BUTTONS for option in options)
 
     def _align_bubble_text_to_buttons(self):
@@ -732,7 +848,9 @@ class SpeechMixin:
             max_row_width = self.get_max_bubble_width() - 20
             show_close = self._response_buttons_need_close(options)
             close_width = (
-                self._measure_button_width(button_frame, "×", width=2) + 8 if show_close else 0
+                self._measure_button_width(button_frame, self.BUBBLE_CLOSE_LABEL, width=2) + 8
+                if show_close
+                else 0
             )
             row_wrapper = tk.Frame(button_frame, bg=self.BUBBLE_BG)
             row_wrapper.pack(fill=tk.X, pady=(0, 3))
@@ -764,7 +882,7 @@ class SpeechMixin:
             if show_close:
                 close_button = self._create_bubble_button(
                     row_frame,
-                    "×",
+                    self.BUBBLE_CLOSE_LABEL,
                     self.close_speech_bubble,
                     width=2,
                     padx=4,
@@ -786,8 +904,9 @@ class SpeechMixin:
         entry_width = self.get_entry_char_width(prompt)
         entry = tk.Entry(
             input_frame,
-            bg="white",
+            bg=self.BUBBLE_ENTRY_BG,
             fg=self.BUBBLE_FG,
+            insertbackground=self.BUBBLE_FG,
             font=self._bubble_font(),
             width=entry_width,
             relief=tk.SOLID,
@@ -795,10 +914,11 @@ class SpeechMixin:
         )
         entry.pack(side=tk.LEFT, ipady=2)
         entry.bind("<Return>", lambda event: self.handle_response(entry.get()))
+        self._speech_bubble_entry = entry
 
         close_button = self._create_bubble_button(
             input_frame,
-            "×",
+            self.BUBBLE_CLOSE_LABEL,
             self.close_speech_bubble,
             width=2,
             padx=4,
@@ -810,10 +930,13 @@ class SpeechMixin:
 
     def show_response_textbox(self, prompt):
         """Show or extend the bubble with a text entry for the user's answer."""
-        if self._has_active_speech_bubble():
-            self._add_textbox_row(self.speech_bubble, prompt)
+        body = self._bubble_body_parent()
+        if body is not None:
+            self._add_textbox_row(body, prompt)
             self._fit_speech_bubble_to_content()
             self._schedule_speech_bubble_position()
+            delay = self._speech_bubble_reveal_delay_ms()
+            self.root.after(delay + delay + 50, self._focus_bubble_entry)
         else:
             self.speech_bubble = self._new_speech_bubble_toplevel(prompt)
             bubble_body = self._create_bubble_shell(self.speech_bubble)
@@ -824,6 +947,8 @@ class SpeechMixin:
             self._add_textbox_row(bubble_body, prompt)
             self._fit_speech_bubble_to_content()
             self._schedule_speech_bubble_position()
+            delay = self._speech_bubble_reveal_delay_ms()
+            self.root.after(delay + delay + 50, self._focus_bubble_entry)
 
     def handle_response(self, response):
         """Route a button or textbox answer to the matching dialog handler."""
@@ -837,14 +962,17 @@ class SpeechMixin:
 
     def close_speech_bubble(self):
         """Destroy the speech bubble and reset speech/hug state."""
-        if getattr(self, "_chat_mode", False) and hasattr(self, "close_chat_mode"):
-            self.close_chat_mode()
+        if not self._has_active_speech_bubble() and not getattr(self, "_awaiting_response", False):
             return
+        self._next_speech_epoch()
+        self._tts_cancelled = True
         self._close_speech_bubble_impl()
 
     def _close_speech_bubble_impl(self):
         """Destroy the speech bubble without chat-mode teardown."""
         self._cancel_bubble_close_timer()
+        self._response_timeout_generation = getattr(self, "_response_timeout_generation", 0) + 1
+        self._cancel_response_timeout_timer()
         self._awaiting_response = False
         self._preserve_sprite = False
         self._talk_sprite_mode = "talking"
@@ -853,19 +981,26 @@ class SpeechMixin:
         self._speech_bubble_text_frame = None
         self._speech_bubble_button_frame = None
         self._speech_bubble_buttons_content_width = 0
+        self._speech_bubble_entry = None
         self._speech_bubble_body = None
         self._speech_bubble_canvas = None
         self._speech_bubble_body_window = None
         self._speech_bubble_outer = None
         self._stop_active_tts()
         if self._has_active_speech_bubble():
-            self.speech_bubble.destroy()
+            try:
+                self.speech_bubble.destroy()
+            except tk.TclError:
+                pass
             self.play_sfx(stoptalk_file_path)
             self.talking = False
+        if hasattr(self, "speech_bubble"):
+            delattr(self, "speech_bubble")
 
     def _new_speech_bubble_toplevel(self, title):
         """Create a hidden speech-bubble window parked off-screen."""
         bubble = Toplevel(self.root)
+        bubble.transient(self.root)
         bubble.withdraw()
         bubble.geometry(self.BUBBLE_OFF_SCREEN_GEOMETRY)
         bubble.configure(bg=self.BUBBLE_TRANSPARENT_BG)
@@ -883,15 +1018,22 @@ class SpeechMixin:
         """Measure layout, position beside Kinito, then show the bubble."""
         if not self._has_active_speech_bubble():
             return
+        if hasattr(self, "_sync_kinito_screen_position"):
+            self._sync_kinito_screen_position()
         self._fit_speech_bubble_to_content()
         self.root.update_idletasks()
         self.speech_bubble.update_idletasks()
+        self._speech_bubble_last_pos = None
         self.position_speech_bubble()
         try:
             self.speech_bubble.deiconify()
             self.speech_bubble.lift()
         except tk.TclError:
             pass
+        self.root.update_idletasks()
+        self.speech_bubble.update_idletasks()
+        self._speech_bubble_last_pos = None
+        self.position_speech_bubble()
 
     def _schedule_speech_bubble_position(self):
         """Position and reveal the bubble after layout has settled."""
@@ -907,18 +1049,9 @@ class SpeechMixin:
         self.root.update_idletasks()
         self.speech_bubble.update_idletasks()
 
-        kinito_x = self.root.winfo_rootx()
-        kinito_y = self.root.winfo_rooty()
-        if kinito_x <= 0 or kinito_y <= 0:
-            kinito_x = getattr(self, "x", kinito_x)
-            kinito_y = getattr(self, "y", kinito_y)
-        kinito_w = max(
-            self.root.winfo_width(),
-            getattr(getattr(self, "img_normal", None), "width", 0),
-            1,
-        )
-        bubble_w = self.speech_bubble.winfo_width()
-        bubble_h = self.speech_bubble.winfo_height()
+        kinito_x, kinito_y = self._kinito_screen_position()
+        kinito_w = self._kinito_screen_width()
+        bubble_w, bubble_h = self._bubble_screen_size()
 
         gap = 30
         bubble_x = kinito_x + (kinito_w // 2) - (bubble_w // 2)
@@ -929,9 +1062,10 @@ class SpeechMixin:
         bubble_y = max(min_y, min(bubble_y, max_y))
 
         new_pos = (bubble_x, bubble_y)
-        if getattr(self, "_speech_bubble_last_pos", None) != new_pos:
+        force_reposition = getattr(self, "is_dragging", False) or getattr(self, "moving", False)
+        if force_reposition or getattr(self, "_speech_bubble_last_pos", None) != new_pos:
             self._speech_bubble_last_pos = new_pos
-            self.speech_bubble.geometry(f"+{bubble_x}+{bubble_y}")
+            self.speech_bubble.geometry(f"{bubble_w}x{bubble_h}+{bubble_x}+{bubble_y}")
             self.speech_bubble.lift()
             self.speech_bubble.wm_attributes("-topmost", True)
         self._update_bubble_tail()

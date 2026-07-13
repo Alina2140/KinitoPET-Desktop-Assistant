@@ -59,6 +59,25 @@ def test_bubble_button_style_matches_bubble_palette(speech):
     assert options["fg"] == speech.BUBBLE_FG
     assert options["chamfer"] == speech.BUBBLE_BTN_CHAMFER
     assert speech.BUBBLE_BTN_BG != speech.BUBBLE_BG
+    assert speech.BUBBLE_ENTRY_BG.lower() != speech.BUBBLE_TRANSPARENT_BG.lower()
+
+
+def test_show_response_textbox_uses_bubble_body(speech):
+    from unittest.mock import MagicMock
+
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+    speech._speech_bubble_body = MagicMock()
+    speech._speech_bubble_body.winfo_exists.return_value = True
+    speech._add_textbox_row = MagicMock()
+    speech._fit_speech_bubble_to_content = MagicMock()
+    speech._schedule_speech_bubble_position = MagicMock()
+    speech._speech_bubble_reveal_delay_ms = MagicMock(return_value=0)
+    speech.root = MagicMock()
+
+    speech.show_response_textbox("Answer:")
+
+    speech._add_textbox_row.assert_called_once_with(speech._speech_bubble_body, "Answer:")
+    speech.root.after.assert_called_once()
 
 
 def test_bubble_tail_aims_at_kinito_when_bubble_is_offset(speech):
@@ -74,6 +93,86 @@ def test_bubble_tail_aims_at_kinito_when_bubble_is_offset(speech):
     center_x = speech._bubble_tail_center_x(200)
 
     assert center_x == 188
+
+
+def test_position_speech_bubble_uses_tracked_kinito_coords_while_dragging(speech):
+    speech.is_dragging = True
+    speech.root = MagicMock()
+    speech.root.winfo_rootx.return_value = 50
+    speech.root.winfo_rooty.return_value = 60
+    speech.x = 500
+    speech.y = 300
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech.speech_bubble.winfo_width.return_value = 120
+    speech.speech_bubble.winfo_height.return_value = 80
+    speech.speech_bubble.winfo_reqwidth.return_value = 120
+    speech.speech_bubble.winfo_reqheight.return_value = 80
+    speech.root.winfo_width.return_value = 100
+    speech.img_normal = MagicMock(width=100)
+    speech.get_screen_bounds = MagicMock(return_value=(0, 0, 2000, 2000))
+    speech._update_bubble_tail = MagicMock()
+
+    speech.position_speech_bubble()
+
+    speech.speech_bubble.geometry.assert_called_once_with("120x80+490+190")
+
+
+def test_position_speech_bubble_prefers_live_window_coords(speech):
+    speech.is_dragging = False
+    speech.moving = False
+    speech.root = MagicMock()
+    speech.root.winfo_rootx.return_value = 800
+    speech.root.winfo_rooty.return_value = 400
+    speech.x = 100
+    speech.y = 100
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech.speech_bubble.winfo_width.return_value = 120
+    speech.speech_bubble.winfo_height.return_value = 80
+    speech.speech_bubble.winfo_reqwidth.return_value = 120
+    speech.speech_bubble.winfo_reqheight.return_value = 80
+    speech.root.winfo_width.return_value = 100
+    speech.img_normal = MagicMock(width=100)
+    speech.get_screen_bounds = MagicMock(return_value=(0, 0, 2000, 2000))
+    speech._update_bubble_tail = MagicMock()
+
+    speech.position_speech_bubble()
+
+    speech.speech_bubble.geometry.assert_called_once_with("120x80+790+290")
+
+
+def test_fit_speech_bubble_to_content_preserves_screen_position(speech):
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech.speech_bubble.winfo_reqwidth.return_value = 360
+    speech.speech_bubble.winfo_reqheight.return_value = 180
+    speech.speech_bubble.winfo_rootx.return_value = 420
+    speech.speech_bubble.winfo_rooty.return_value = 210
+    speech.speech_bubble.state.return_value = "normal"
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+    speech._redraw_bubble_shell = MagicMock()
+
+    speech._fit_speech_bubble_to_content()
+
+    speech.speech_bubble.geometry.assert_called_once_with("360x180+420+210")
+
+
+def test_move_speech_bubble_with_kinito_uses_drag_offset(speech):
+    speech._bubble_kinito_offset_x = 10
+    speech._bubble_kinito_offset_y = -200
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech.speech_bubble.winfo_width.return_value = 120
+    speech.speech_bubble.winfo_height.return_value = 80
+    speech.speech_bubble.winfo_reqwidth.return_value = 120
+    speech.speech_bubble.winfo_reqheight.return_value = 80
+    speech.get_screen_bounds = MagicMock(return_value=(0, 0, 2000, 2000))
+    speech._update_bubble_tail = MagicMock()
+
+    speech._move_speech_bubble_with_kinito(500, 300)
+
+    speech.speech_bubble.geometry.assert_called_once_with("120x80+510+100")
 
 
 @pytest.mark.parametrize(
@@ -102,7 +201,23 @@ def test_run_tts_uses_balcon_when_available(speech):
     ):
         assert speech._run_tts("Hello") is True
         popen.assert_called_once()
-        process.communicate.assert_called_once()
+        command = popen.call_args.args[0]
+        assert "-i" in command
+        assert "-t" not in command
+        assert process.communicate.call_args.kwargs["input"] == "Hello"
+
+
+def test_run_tts_passes_quoted_text_via_stdin(speech):
+    speech._available_voices = {"Eddie"}
+    process = MagicMock(returncode=0)
+    process.communicate.return_value = ("", "")
+    quoted = 'Play "Duck, Duck, Goose" now'
+    with (
+        patch("kinito.speech.os.path.isfile", return_value=True),
+        patch("kinito.speech.subprocess.Popen", return_value=process),
+    ):
+        assert speech._run_tts(quoted) is True
+    assert process.communicate.call_args.kwargs["input"] == quoted
 
 
 def test_run_tts_falls_back_to_pyttsx3(speech):
@@ -224,7 +339,6 @@ def test_interrupt_speech_closes_orphan_bubble(speech):
     speech._stop_active_tts = MagicMock()
     speech._has_active_speech_bubble = MagicMock(return_value=True)
     speech._close_speech_bubble_impl = MagicMock()
-    speech._chat_mode = False
     speech._awaiting_response = False
 
     speech.interrupt_speech()
@@ -237,7 +351,6 @@ def test_interrupt_speech_keeps_interactive_bubble(speech):
     speech._stop_active_tts = MagicMock()
     speech._has_active_speech_bubble = MagicMock(return_value=True)
     speech._close_speech_bubble_impl = MagicMock()
-    speech._chat_mode = False
     speech._awaiting_response = True
 
     speech.interrupt_speech()
@@ -274,6 +387,69 @@ def test_handle_response_interrupts_before_handler(speech):
     speech.interrupt_speech.assert_called_once()
     speech.close_speech_bubble.assert_called_once()
     handle.assert_called_once()
+
+
+def test_schedule_response_timeout_closes_unanswered_dialog(speech):
+    speech._awaiting_response = True
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+    speech.close_speech_bubble = MagicMock()
+    speech.root = MagicMock()
+
+    speech._schedule_response_timeout()
+    speech.root.after.assert_called_once_with(
+        SpeechMixin.RESPONSE_TIMEOUT_MS,
+        speech.root.after.call_args.args[1],
+    )
+    generation = speech._response_timeout_generation
+    speech._on_response_timeout(generation)
+
+    speech.close_speech_bubble.assert_called_once()
+
+
+def test_response_timeout_ignores_stale_generation(speech):
+    speech._awaiting_response = True
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+    speech.close_speech_bubble = MagicMock()
+    speech._response_timeout_generation = 2
+
+    speech._on_response_timeout(1)
+
+    speech.close_speech_bubble.assert_not_called()
+
+
+def test_close_speech_bubble_cancels_response_timeout(speech):
+    speech._response_timeout_timer = 99
+    speech._response_timeout_generation = 1
+    speech.root = MagicMock()
+    speech._has_active_speech_bubble = MagicMock(return_value=False)
+    speech._stop_active_tts = MagicMock()
+
+    speech._close_speech_bubble_impl()
+
+    speech.root.after_cancel.assert_called_once_with(99)
+    assert speech._response_timeout_generation == 2
+
+
+def test_close_speech_bubble_invalidates_stale_show_callback(speech):
+    speech._speech_epoch = 1
+    speech._awaiting_response = True
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech._stop_active_tts = MagicMock()
+    speech.play_sfx = MagicMock()
+    speech._cancel_bubble_close_timer = MagicMock()
+    speech._cancel_response_timeout_timer = MagicMock()
+
+    speech.close_speech_bubble()
+
+    assert speech._speech_epoch == 2
+    speech.play_sfx.reset_mock()
+    speech.show_speech_bubble(dlg.MENU_PROMPT, speech_epoch=1)
+    speech.play_sfx.assert_not_called()
+
+
+def test_bubble_close_label_is_multiply_sign(speech):
+    assert speech.BUBBLE_CLOSE_LABEL == "\u00d7"
 
 
 @pytest.mark.parametrize(

@@ -39,9 +39,57 @@ class MovementMixin:
     def setup_mouse_bindings(self):
         """Bind drag to the sprite only so control buttons stay clickable."""
         self.panel.bind("<Button-1>", self.on_mouse_down)
-        self.root.bind("<B1-Motion>", self.on_mouse_move)
-        self.root.bind("<ButtonRelease-1>", self.on_mouse_up)
-        self.x, self.y = self.root.winfo_rootx(), self.root.winfo_rooty()
+        self.root.bind("<Configure>", self._on_root_moved)
+        self._sync_kinito_screen_position()
+
+    def _sync_kinito_screen_position(self):
+        """Keep tracked screen coordinates aligned with the root window."""
+        if getattr(self, "moving", False):
+            return
+        try:
+            x = self.root.winfo_rootx()
+            y = self.root.winfo_rooty()
+        except tk.TclError:
+            return
+        if x > 0 and y > 0:
+            self.x, self.y = x, y
+
+    def _start_drag_tracking(self):
+        """Track drag globally so motion still works over other top-level windows."""
+        self.root.bind_all("<B1-Motion>", self.on_mouse_move)
+        self.root.bind_all("<ButtonRelease-1>", self.on_mouse_up)
+
+    def _stop_drag_tracking(self):
+        """Remove global drag bindings after mouse up."""
+        try:
+            self.root.unbind_all("<B1-Motion>")
+            self.root.unbind_all("<ButtonRelease-1>")
+        except tk.TclError:
+            pass
+
+    def _follow_speech_bubble_to_kinito(self, kinito_x=None, kinito_y=None):
+        """Reposition an open speech bubble to follow Kinito's current location."""
+        if not hasattr(self, "_has_active_speech_bubble") or not self._has_active_speech_bubble():
+            return
+        if kinito_x is None or kinito_y is None:
+            kinito_x, kinito_y = getattr(self, "x", 0), getattr(self, "y", 0)
+        if getattr(self, "is_dragging", False) and hasattr(self, "_move_speech_bubble_with_kinito"):
+            self._move_speech_bubble_with_kinito(kinito_x, kinito_y)
+        elif hasattr(self, "position_speech_bubble"):
+            self.position_speech_bubble()
+
+    def _on_root_moved(self, event):
+        """Keep speech bubbles aligned whenever Kinito's window moves."""
+        if event.widget is not self.root:
+            return
+        if getattr(self, "moving", False):
+            return
+        prev_x = getattr(self, "x", None)
+        prev_y = getattr(self, "y", None)
+        self._sync_kinito_screen_position()
+        if prev_x == getattr(self, "x", None) and prev_y == getattr(self, "y", None):
+            return
+        self._follow_speech_bubble_to_kinito(self.x, self.y)
 
     def _stop_audio_for_drag(self) -> None:
         """Stop poem/ambient music on drag, but keep user-selected songs playing."""
@@ -64,29 +112,39 @@ class MovementMixin:
         if not self._should_skip_drag_sounds():
             self.play_sfx(bomp_file_path)
         self.root.update_idletasks()
-        root_x = self.root.winfo_rootx()
-        root_y = self.root.winfo_rooty()
+        self._sync_kinito_screen_position()
+        root_x = self.x
+        root_y = self.y
         self.mouse_click_offset_x = root_x - event.x_root
         self.mouse_click_offset_y = root_y - event.y_root
+        self._start_drag_tracking()
+        if hasattr(self, "_capture_speech_bubble_drag_offset"):
+            self._capture_speech_bubble_drag_offset()
 
     def on_mouse_move(self, event):
         """Move the window while dragging and keep speech/love bubbles aligned."""
-        if self.is_dragging:
-            self._drag_moved = True
-            new_x = event.x_root + self.mouse_click_offset_x
-            new_y = event.y_root + self.mouse_click_offset_y
-            new_x, new_y = self.clamp_position(new_x, new_y)
-            self.x, self.y = new_x, new_y
-            self.root.geometry(f"+{new_x}+{new_y}")
-            if self._has_active_speech_bubble():
-                self.position_speech_bubble()
+        if not self.is_dragging:
+            return
+        self._drag_moved = True
+        new_x = event.x_root + self.mouse_click_offset_x
+        new_y = event.y_root + self.mouse_click_offset_y
+        new_x, new_y = self.clamp_position(new_x, new_y)
+        self.x, self.y = new_x, new_y
+        self.root.geometry(f"+{new_x}+{new_y}")
+        self._follow_speech_bubble_to_kinito(new_x, new_y)
 
     def on_mouse_up(self, event):
         """End dragging and play the drop sound after a real drag."""
-        if self.is_dragging and self._drag_moved and not self._should_skip_drag_sounds():
+        if not self.is_dragging:
+            return
+        if self._drag_moved and not self._should_skip_drag_sounds():
             self.play_sfx(bomp_file_path)
         self.is_dragging = False
         self._drag_moved = False
+        self._bubble_kinito_offset_x = None
+        self._bubble_kinito_offset_y = None
+        self._stop_drag_tracking()
+        self._follow_speech_bubble_to_kinito()
         if hasattr(self, "ensure_on_screen"):
             self.root.after(0, self.ensure_on_screen)
 
@@ -222,6 +280,20 @@ class MovementMixin:
             cache.clear()
         self.change_sprite(self.tk_img_normal)
 
+    def _stop_roaming(self) -> None:
+        """Abort an in-progress surf move so speech bubbles stay with Kinito."""
+        self.moving = False
+        self._finish_surf_movement()
+
+    def _realign_speech_bubble_after_move(self) -> None:
+        """Keep an open speech bubble anchored above Kinito after movement stops."""
+        if not hasattr(self, "_has_active_speech_bubble"):
+            return
+        if not self._has_active_speech_bubble():
+            return
+        if hasattr(self, "position_speech_bubble"):
+            self.root.after(0, self.position_speech_bubble)
+
     def _apply_surf_geometry(self, x: float, y: float, wave_phase: float) -> None:
         """Move the window along the path while bobbing on a sine wave."""
         display_y = y + self._surf_wave_offset(wave_phase)
@@ -265,20 +337,39 @@ class MovementMixin:
             and not self.moving
             and not self.is_dragging
             and not getattr(self, "_focus_mode", False)
+            and not getattr(self, "_fancy_mode", False)
             and (not self.talking or getattr(self, "_preserve_sprite", False))
         )
 
-    def _maybe_play_reading_page_turn(self) -> None:
+    def _can_play_reading_page_turn(self, session: int) -> bool:
+        """Return True only while an uninterrupted reading-idle session is still active."""
+        return (
+            getattr(self, "_reading_idle_session", None) == session
+            and getattr(self, "_reading_idle_active", False)
+            and self._running
+            and not self.paused
+            and not self.moving
+            and not self.is_dragging
+            and not self.talking
+            and not getattr(self, "_focus_mode", False)
+            and not getattr(self, "_fancy_mode", False)
+        )
+
+    def _maybe_play_reading_page_turn(self, session: int) -> None:
         """Play a page-turn sound only during an active, uninterrupted reading idle."""
-        if not self._is_reading_idle_active():
+        if not self._can_play_reading_page_turn(session):
             return
         if random.random() >= self.READING_PAGE_TURN_CHANCE:
+            return
+        if not self._can_play_reading_page_turn(session):
             return
         self.play_sfx(page_turn_file_path, volume=self.READING_PAGE_TURN_VOLUME)
 
     def _run_reading_idle(self):
         """Animate book sprites, optionally play page-turn sounds, and trigger speech."""
         reading_sprites = getattr(self, "_reading_sprites", (self.tk_img_idle,))
+        session = getattr(self, "_reading_idle_session", 0) + 1
+        self._reading_idle_session = session
         self._reading_idle_active = True
         try:
             frame = 0
@@ -299,9 +390,10 @@ class MovementMixin:
                     break
                 frame += 1
                 self.change_sprite(reading_sprites[frame % len(reading_sprites)])
-                self._maybe_play_reading_page_turn()
+                self._maybe_play_reading_page_turn(session)
         finally:
-            self._reading_idle_active = False
+            if getattr(self, "_reading_idle_session", None) == session:
+                self._reading_idle_active = False
 
     def smooth_movement(self):
         """Background loop: roam the screen or trigger spontaneous speech/actions."""
@@ -312,6 +404,7 @@ class MovementMixin:
                 or not self._startup_complete
                 or self._is_busy_with_speech()
                 or self._is_background_music_playing()
+                or getattr(self, "_reading_idle_active", False)
             ):
                 time.sleep(0.1)
                 continue
@@ -325,6 +418,8 @@ class MovementMixin:
             ):
                 if random.random() < self.MENU_ACTION_CHANCE:
                     self.perform_random_menu_action()
+                elif self._should_use_ai_idle_line():
+                    self.speak_ai_idle_line()
                 else:
                     self.speak_random_question()
             else:
@@ -357,7 +452,9 @@ class MovementMixin:
         target_x, target_y = self.clamp_position(target_x, target_y)
         wave_phase = 0.0
         while self._running:
-            if self.paused or self.is_dragging:
+            if self.paused or self.is_dragging or self._is_busy_with_speech():
+                self._finish_surf_movement()
+                self._realign_speech_bubble_after_move()
                 return
             current_x, current_y = self.x, self.y
             dx = target_x - current_x
@@ -420,6 +517,15 @@ class MovementMixin:
             elif self.talking:
                 if getattr(self, "_preserve_sprite", False):
                     time.sleep(0.1)
+                    continue
+                if getattr(self, "_ai_generating", False):
+                    sprite_a, sprite_b = self._talking_sprite_pair()
+                    self.change_sprite(sprite_a)
+                    time.sleep(1)
+                    if not self._running:
+                        break
+                    self.change_sprite(sprite_b)
+                    time.sleep(1)
                     continue
                 if self._fancy_mode:
                     magician_sprites = getattr(self, "_magician_sprites", (self.tk_img_fancy,))

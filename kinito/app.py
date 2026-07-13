@@ -14,6 +14,7 @@ from content.goodbye_lines import GOODBYE_LINES
 from content.startup import STARTUP_LINES
 from kinito.assets import (
     balconexe_directory,
+    ensure_user_media_directories,
     sprite_path_fancy,
     sprite_path_fancy_1,
     sprite_path_hug,
@@ -40,6 +41,7 @@ from kinito.features.content import ContentMixin
 from kinito.features.games import GamesMixin
 from kinito.features.glitch import GlitchMixin
 from kinito.features.hug import HugMixin
+from kinito.features.media import MediaMixin
 from kinito.features.music import MusicMixin
 from kinito.features.programs import ProgramsMixin
 from kinito.movement import MovementMixin
@@ -71,6 +73,7 @@ class FloatingAssistant(
     ProgramsMixin,
     CameraMixin,
     BrowserMixin,
+    MediaMixin,
     AdsMixin,
 ):
     """Borderless desktop friend that combines speech, movement, and feature mixins."""
@@ -83,6 +86,7 @@ class FloatingAssistant(
 
     def __init__(self, root, image_path=None):
         """Build the window, load sprites, and start background worker threads."""
+        ensure_user_media_directories()
         self.root = root
         self.is_dragging = False
         self._speech_lock = threading.Lock()
@@ -175,6 +179,14 @@ class FloatingAssistant(
         self._browser_active = False
         self._browser_process = None
         self._browser_category = None
+        self._media_active = False
+        self._media_process = None
+        self._media_window = None
+        self._media_label = None
+        self._media_video_cap = None
+        self._media_frame_timer = None
+        self._media_last_frame = None
+        self._media_window_size = None
         self._hug_timer = None
         self._bubble_close_timer = None
         self._speech_epoch = 0
@@ -270,6 +282,7 @@ class FloatingAssistant(
             self._ensure_single_game_window()
         self.close_camera()
         self.close_browser()
+        self.close_media()
         self.speak(dlg.pick_line(dlg.FOCUS_ON_LINES))
         self._focus_mode = True
 
@@ -519,6 +532,7 @@ class FloatingAssistant(
             self.stop_background_music()
         self.close_camera()
         self.close_browser()
+        self.close_media()
         self._ensure_single_game_window()
         self.end_hug()
         self.hide_screen_glitch()
@@ -556,6 +570,7 @@ class FloatingAssistant(
             self.stop_background_music()
         self.close_camera()
         self.close_browser()
+        self.close_media()
         self._ensure_single_game_window()
         self.end_hug()
         self.hide_screen_glitch()
