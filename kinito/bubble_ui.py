@@ -178,8 +178,11 @@ def draw_bubble_shell(
     offset_x: int = 0,
     offset_y: int = 0,
 ) -> None:
-    """Paint the chamfered bubble body and pointer tail."""
-    canvas.delete("bubble")
+    """Paint the chamfered bubble body and pointer tail.
+
+    New chrome is drawn first, then the old polygons are removed, so a
+    transparentcolor canvas never flashes fully clear between frames.
+    """
     inset = chamfer + border_width
     body_h = body_height + (2 * inset)
     body_w = panel_width
@@ -190,13 +193,15 @@ def draw_bubble_shell(
         body_h - border_width,
         chamfer,
     )
+    pending = "bubble_pending"
+    canvas.delete(pending)
     canvas.create_polygon(
         *points,
         fill=bg,
         outline=border,
         width=border_width,
         smooth=False,
-        tags="bubble",
+        tags=pending,
     )
     tail_top = offset_y + body_h - border_width
     tail_x = offset_x + tail_center_x
@@ -210,5 +215,8 @@ def draw_bubble_shell(
         fill=bg,
         outline=border,
         width=border_width,
-        tags="bubble",
+        tags=pending,
     )
+    canvas.delete("bubble")
+    canvas.addtag_withtag("bubble", pending)
+    canvas.dtag(pending)

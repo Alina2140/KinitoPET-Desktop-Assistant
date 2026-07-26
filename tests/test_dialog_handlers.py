@@ -62,7 +62,7 @@ def test_handle_game_okay_opens_game_picker(mock_app):
 
 
 def test_handle_menu_play_game(mock_app):
-    spec = find_dialog_spec(dlg.MENU_PROMPT)
+    spec = find_dialog_spec(dlg.ACTIONS_MENU_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_PLAY_GAME)
     mock_app.offer_game_picker.assert_called_once()
 
@@ -194,19 +194,19 @@ def test_handle_joke_sure(mock_app):
 
 
 def test_handle_menu_tell_time(mock_app):
-    spec = find_dialog_spec(dlg.MENU_PROMPT)
+    spec = find_dialog_spec(dlg.ACTIONS_MENU_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_TELL_TIME)
     mock_app.print_current_datetime.assert_called_once()
 
 
 def test_handle_menu_toggle_screen_effects(mock_app):
-    spec = find_dialog_spec(dlg.MENU_PROMPT)
+    spec = find_dialog_spec(dlg.SETTINGS_MENU_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_SCREEN_EFFECTS_OFF)
     mock_app.toggle_screen_effects.assert_called_once()
 
 
 def test_handle_menu_toggle_focus(mock_app):
-    spec = find_dialog_spec(dlg.MENU_PROMPT)
+    spec = find_dialog_spec(dlg.MODES_MENU_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_FOCUS)
     mock_app.toggle_focus.assert_called_once()
 

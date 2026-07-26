@@ -25,7 +25,11 @@ class GlitchMixin:
             return False
         if getattr(self, "_focus_mode", False):
             return False
-        if self.paused or self.is_dragging or self._camera_active or self._browser_active:
+        if self.paused or getattr(
+            self, "_is_position_locked_by_user", lambda: self.is_dragging
+        )():
+            return False
+        if self._camera_active or self._browser_active:
             return False
         if random.random() >= self.GLITCH_CHANCE:
             return False
@@ -38,7 +42,11 @@ class GlitchMixin:
             return False
         if getattr(self, "_focus_mode", False):
             return False
-        if self.paused or self.is_dragging or self._camera_active or self._browser_active:
+        if self.paused or getattr(
+            self, "_is_position_locked_by_user", lambda: self.is_dragging
+        )():
+            return False
+        if self._camera_active or self._browser_active:
             return False
         if not os.path.isfile(crash_image_path):
             return False
@@ -52,6 +60,8 @@ class GlitchMixin:
         from content import dialogue as dlg
 
         self._screen_effects_enabled = not self._screen_effects_enabled
+        if hasattr(self, "_persist_settings"):
+            self._persist_settings()
         lines = (
             dlg.SCREEN_EFFECTS_ON_LINES
             if self._screen_effects_enabled
@@ -102,6 +112,8 @@ class GlitchMixin:
                 pass
             self._glitch_window = None
         self._glitch_tk_image = None
+        if hasattr(self, "_keep_assistant_on_top"):
+            self._keep_assistant_on_top()
 
     def hide_blue_screen(self):
         """Close the blue-screen overlay immediately."""
@@ -114,6 +126,8 @@ class GlitchMixin:
                 pass
             self._crash_window = None
         self._crash_tk_image = None
+        if hasattr(self, "_keep_assistant_on_top"):
+            self._keep_assistant_on_top()
 
     def _flash_screen_glitch(self):
         """Show a short-lived static overlay across the virtual screen."""

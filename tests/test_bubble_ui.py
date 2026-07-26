@@ -1,6 +1,6 @@
 ﻿"""Tests for chamfered bubble chrome."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from kinito.bubble_ui import (
     chamfered_rect_points,
@@ -60,5 +60,5 @@ def test_draw_bubble_shell_creates_body_and_tail():
         offset_y=1,
     )
 
-    canvas.delete.assert_called_once_with("bubble")
+    assert canvas.delete.call_args_list == [call("bubble_pending"), call("bubble")]
     assert canvas.create_polygon.call_count == 2

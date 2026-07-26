@@ -38,6 +38,15 @@ def test_give_hug_shows_hug_sprite_and_speaks(hug):
     hug.speak.assert_called_once_with(HUG_LINES[0])
 
 
+def test_ask_for_hug_asks_yes_no(hug):
+    from content import dialogue as dlg
+
+    with patch("content.dialogue.pick_line", return_value=dlg.HUG_QUESTIONS[0]):
+        hug.ask_for_hug()
+    hug.speak.assert_called_once_with(dlg.HUG_QUESTIONS[0], 45, True)
+    hug.change_sprite.assert_not_called()
+
+
 def test_end_hug_restores_normal_sprite_when_idle(hug):
     hug._hug_mode = True
     hug.end_hug()

@@ -34,6 +34,12 @@ class HugMixin:
         delay = self.HUG_DURATION_MS if delay_ms is None else delay_ms
         self._hug_timer = self.root.after(delay, self.end_hug)
 
+    def ask_for_hug(self):
+        """Ask the user for a hug (yes/no); do not hug until they accept."""
+        from content import dialogue as dlg
+
+        self.speak(dlg.pick_line(dlg.HUG_QUESTIONS), 45, True)
+
     def give_hug(self):
         """Show hug sprites and speak a hug line."""
         self._hug_mode = True

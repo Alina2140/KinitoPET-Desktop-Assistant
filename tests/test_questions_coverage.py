@@ -40,62 +40,128 @@ def _menu_app(**kwargs):
     app.paused = kwargs.get("paused", False)
     app._focus_mode = kwargs.get("focus_mode", False)
     app._screen_effects_enabled = kwargs.get("screen_effects_enabled", True)
+    app._ambient_reminders_enabled = kwargs.get("ambient_reminders_enabled", True)
+    app._app_awareness_enabled = kwargs.get("app_awareness_enabled", True)
+    app._snoring_enabled = kwargs.get("snoring_enabled", True)
     return app
 
 
 def test_menu_options_default_toggle_labels():
     opts = menu_options_for(_menu_app())
-    assert dlg.BUTTON_SLEEP in opts
-    assert dlg.BUTTON_WAKE_UP not in opts
-    assert dlg.BUTTON_FOCUS in opts
-    assert dlg.BUTTON_UNFOCUS not in opts
-    assert dlg.BUTTON_SCREEN_EFFECTS_OFF in opts
-    assert dlg.BUTTON_SCREEN_EFFECTS_ON not in opts
+    assert opts == [
+        dlg.BUTTON_MODES,
+        dlg.BUTTON_SETTINGS,
+        dlg.BUTTON_ACTIONS,
+        dlg.BUTTON_SAY_GOODBYE,
+    ]
 
 
 def test_menu_options_reflect_active_states():
     opts = menu_options_for(_menu_app(paused=True, screen_effects_enabled=False))
-    assert opts == [dlg.BUTTON_WAKE_UP]
+    assert opts == [dlg.BUTTON_WAKE_UP, dlg.BUTTON_SAY_GOODBYE]
 
 
 def test_menu_options_hide_blocked_actions_when_sleeping():
     opts = menu_options_for(_menu_app(paused=True))
-    assert opts == [dlg.BUTTON_WAKE_UP]
-    assert dlg.BUTTON_SET_REMINDER not in opts
-    assert dlg.BUTTON_SING_SONG not in opts
+    assert opts == [dlg.BUTTON_WAKE_UP, dlg.BUTTON_SAY_GOODBYE]
+    assert dlg.BUTTON_MODES not in opts
+    assert dlg.BUTTON_SETTINGS not in opts
+    assert dlg.BUTTON_ACTIONS not in opts
 
 
 def test_menu_options_show_wake_up_and_unfocus_when_sleeping_in_focus_mode():
     opts = menu_options_for(_menu_app(paused=True, focus_mode=True))
-    assert opts == [dlg.BUTTON_WAKE_UP, dlg.BUTTON_UNFOCUS]
+    assert opts == [dlg.BUTTON_WAKE_UP, dlg.BUTTON_UNFOCUS, dlg.BUTTON_SAY_GOODBYE]
 
 
 def test_menu_options_hide_blocked_actions_in_focus_mode():
     opts = menu_options_for(_menu_app(focus_mode=True))
-    assert opts == [dlg.BUTTON_UNFOCUS]
-    assert dlg.BUTTON_SET_REMINDER not in opts
-    assert dlg.BUTTON_SING_SONG not in opts
+    assert opts == [dlg.BUTTON_UNFOCUS, dlg.BUTTON_SAY_GOODBYE]
+    assert dlg.BUTTON_MODES not in opts
+    assert dlg.BUTTON_SETTINGS not in opts
+    assert dlg.BUTTON_ACTIONS not in opts
 
 
-def test_menu_options_include_all_actions():
+def test_menu_options_include_all_top_level_actions():
     opts = menu_options_for(_menu_app())
     expected = {
+        dlg.BUTTON_MODES,
+        dlg.BUTTON_SETTINGS,
+        dlg.BUTTON_ACTIONS,
+        dlg.BUTTON_SAY_GOODBYE,
+    }
+    assert set(opts) == expected
+    assert len(opts) == 4
+
+
+def test_modes_options_default_and_toggles():
+    from content.dialog_registry import modes_options_for
+
+    assert modes_options_for(_menu_app()) == [
+        dlg.BUTTON_SLEEP,
+        dlg.BUTTON_FOCUS,
+        dlg.BUTTON_BACK,
+    ]
+    assert modes_options_for(_menu_app(focus_mode=True)) == [
+        dlg.BUTTON_UNFOCUS,
+        dlg.BUTTON_BACK,
+    ]
+    assert modes_options_for(_menu_app(paused=True)) == [
+        dlg.BUTTON_WAKE_UP,
+        dlg.BUTTON_BACK,
+    ]
+    assert modes_options_for(_menu_app(paused=True, focus_mode=True)) == [
+        dlg.BUTTON_WAKE_UP,
+        dlg.BUTTON_UNFOCUS,
+        dlg.BUTTON_BACK,
+    ]
+
+
+def test_settings_and_actions_options():
+    from content.dialog_registry import actions_options_for, settings_options_for
+
+    assert settings_options_for(_menu_app()) == [
+        dlg.BUTTON_SCREEN_EFFECTS_ON,
+        dlg.BUTTON_REMINDERS_ON,
+        dlg.BUTTON_APP_AWARENESS_ON,
+        dlg.BUTTON_SNORING_ON,
+        dlg.BUTTON_REMEMBER,
+        dlg.BUTTON_FORGET,
+        dlg.BUTTON_SHOW_CREDITS,
+        dlg.BUTTON_BACK,
+    ]
+    assert settings_options_for(_menu_app(ambient_reminders_enabled=False)) == [
+        dlg.BUTTON_SCREEN_EFFECTS_ON,
+        dlg.BUTTON_REMINDERS_OFF,
+        dlg.BUTTON_APP_AWARENESS_ON,
+        dlg.BUTTON_SNORING_ON,
+        dlg.BUTTON_REMEMBER,
+        dlg.BUTTON_FORGET,
+        dlg.BUTTON_SHOW_CREDITS,
+        dlg.BUTTON_BACK,
+    ]
+    assert settings_options_for(_menu_app(screen_effects_enabled=False)) == [
+        dlg.BUTTON_SCREEN_EFFECTS_OFF,
+        dlg.BUTTON_REMINDERS_ON,
+        dlg.BUTTON_APP_AWARENESS_ON,
+        dlg.BUTTON_SNORING_ON,
+        dlg.BUTTON_REMEMBER,
+        dlg.BUTTON_FORGET,
+        dlg.BUTTON_SHOW_CREDITS,
+        dlg.BUTTON_BACK,
+    ]
+    assert actions_options_for(_menu_app()) == [
         dlg.BUTTON_SET_REMINDER,
         dlg.BUTTON_TELL_TIME,
         dlg.BUTTON_SING_SONG,
         dlg.BUTTON_FUN_FACT,
-        dlg.BUTTON_REMEMBER,
-        dlg.BUTTON_FORGET,
         dlg.BUTTON_VISIT_WEBSITE,
         dlg.BUTTON_SHOW_MEDIA,
         dlg.BUTTON_PLAY_MUSIC,
         dlg.BUTTON_PLAY_GAME,
         dlg.BUTTON_GIVE_HUG,
-        dlg.BUTTON_SHOW_CREDITS,
-        dlg.BUTTON_SAY_GOODBYE,
-    }
-    assert expected.issubset(set(opts))
-    assert len(opts) == 16
+        dlg.BUTTON_BACK,
+    ]
 
 
 def test_static_questions_match_expected_markers():

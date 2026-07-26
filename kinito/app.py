@@ -15,12 +15,19 @@ from content.startup import STARTUP_LINES, STARTUP_LINES_WITH_NAME
 from kinito.assets import (
     balconexe_directory,
     ensure_user_media_directories,
+    list_standing_sprite_paths,
     sprite_path_fancy,
     sprite_path_fancy_1,
     sprite_path_hug,
     sprite_path_hug2,
     sprite_path_idle,
     sprite_path_idle_2,
+    sprite_path_idle_2_page,
+    sprite_path_idle_2_page_2,
+    sprite_path_idle_glasses,
+    sprite_path_idle_glasses_2,
+    sprite_path_idle_glasses_2_page,
+    sprite_path_idle_glasses_2_page_2,
     sprite_path_normal,
     sprite_path_normal_2,
     sprite_path_sleep,
@@ -33,8 +40,10 @@ from kinito.assets import (
     sprite_path_talking2,
     sprite_path_thinking,
     sprite_path_thinking2,
+    standing_direction_from_path,
 )
 from kinito.features.ads import AdsMixin
+from kinito.features.app_awareness import AppAwarenessMixin
 from kinito.features.browser import BrowserMixin
 from kinito.features.camera import CameraMixin
 from kinito.features.content import ContentMixin
@@ -44,8 +53,10 @@ from kinito.features.hug import HugMixin
 from kinito.features.media import MediaMixin
 from kinito.features.memory import MemoryMixin
 from kinito.features.music import MusicMixin
+from kinito.features.nudges import NudgesMixin
 from kinito.features.programs import ProgramsMixin
 from kinito.movement import MovementMixin
+from kinito.settings_store import SettingsStore
 from kinito.speech import SpeechMixin
 from kinito.tk_timers import cancel_after, schedule_after
 from kinito.window_icon import set_default_window_icon
@@ -63,10 +74,35 @@ def _open_sprite(path, fallback_path):
     return Image.open(fallback_path)
 
 
+def _load_look_around_sprites(paths, *, default_path, fallback):
+    """Load non-default look-around sprites for a standing pose."""
+    look_sprites = []
+    for path in paths:
+        if path == default_path:
+            continue
+        img = _open_sprite(path, fallback)
+        look_sprites.append(ImageTk.PhotoImage(img))
+    return tuple(look_sprites)
+
+
+def _load_direction_sprites(paths, *, fallback, center_image):
+    """Map look-direction ids to PhotoImages from standing sprite filenames."""
+    direction_sprites = {"center": ImageTk.PhotoImage(center_image)}
+    for path in paths:
+        direction = standing_direction_from_path(path)
+        if direction is None or direction == "center":
+            continue
+        img = _open_sprite(path, fallback)
+        direction_sprites[direction] = ImageTk.PhotoImage(img)
+    return direction_sprites
+
+
 class FloatingAssistant(
     SpeechMixin,
-    MovementMixin,
     GlitchMixin,
+    AdsMixin,
+    NudgesMixin,
+    MovementMixin,
     HugMixin,
     ContentMixin,
     MemoryMixin,
@@ -76,7 +112,7 @@ class FloatingAssistant(
     CameraMixin,
     BrowserMixin,
     MediaMixin,
-    AdsMixin,
+    AppAwarenessMixin,
 ):
     """Borderless desktop friend that combines speech, movement, and feature mixins."""
 
@@ -103,6 +139,14 @@ class FloatingAssistant(
         self.img_normal_2 = _open_sprite(sprite_path_normal_2, fallback)
         self.img_idle = _open_sprite(sprite_path_idle, fallback)
         self.img_idle_2 = _open_sprite(sprite_path_idle_2, fallback)
+        self.img_idle_2_page = _open_sprite(sprite_path_idle_2_page, fallback)
+        self.img_idle_2_page_2 = _open_sprite(sprite_path_idle_2_page_2, fallback)
+        self.img_idle_glasses = _open_sprite(sprite_path_idle_glasses, fallback)
+        self.img_idle_glasses_2 = _open_sprite(sprite_path_idle_glasses_2, fallback)
+        self.img_idle_glasses_2_page = _open_sprite(sprite_path_idle_glasses_2_page, fallback)
+        self.img_idle_glasses_2_page_2 = _open_sprite(
+            sprite_path_idle_glasses_2_page_2, fallback
+        )
         self.img_fancy = _open_sprite(sprite_path_fancy, fallback)
         self.img_fancy_2 = _open_sprite(sprite_path_fancy_1, self.img_fancy)
         self.img_surf_left = _open_sprite(sprite_path_surf_left, fallback)
@@ -119,11 +163,48 @@ class FloatingAssistant(
         self.img_hug2 = _open_sprite(sprite_path_hug2, fallback)
         self.tk_img_normal = ImageTk.PhotoImage(self.img_normal)
         self.tk_img_normal_2 = ImageTk.PhotoImage(self.img_normal_2)
+        self._standing_look_sprites = _load_look_around_sprites(
+            list_standing_sprite_paths(crouch=False),
+            default_path=sprite_path_normal,
+            fallback=fallback,
+        )
+        self._standing2_look_sprites = _load_look_around_sprites(
+            list_standing_sprite_paths(crouch=True),
+            default_path=sprite_path_normal_2,
+            fallback=fallback,
+        )
+        self._standing_dir_sprites = _load_direction_sprites(
+            list_standing_sprite_paths(crouch=False),
+            fallback=fallback,
+            center_image=self.img_normal,
+        )
+        self._standing2_dir_sprites = _load_direction_sprites(
+            list_standing_sprite_paths(crouch=True),
+            fallback=fallback,
+            center_image=self.img_normal_2,
+        )
         self.tk_img_idle = ImageTk.PhotoImage(self.img_idle)
         self.tk_img_idle_2 = ImageTk.PhotoImage(self.img_idle_2)
+        self.tk_img_idle_2_page = ImageTk.PhotoImage(self.img_idle_2_page)
+        self.tk_img_idle_2_page_2 = ImageTk.PhotoImage(self.img_idle_2_page_2)
+        self.tk_img_idle_glasses = ImageTk.PhotoImage(self.img_idle_glasses)
+        self.tk_img_idle_glasses_2 = ImageTk.PhotoImage(self.img_idle_glasses_2)
+        self.tk_img_idle_glasses_2_page = ImageTk.PhotoImage(self.img_idle_glasses_2_page)
+        self.tk_img_idle_glasses_2_page_2 = ImageTk.PhotoImage(
+            self.img_idle_glasses_2_page_2
+        )
         self.tk_img_fancy = ImageTk.PhotoImage(self.img_fancy)
         self.tk_img_fancy_2 = ImageTk.PhotoImage(self.img_fancy_2)
         self._reading_sprites = (self.tk_img_idle, self.tk_img_idle_2)
+        self._reading_page_sprites = (self.tk_img_idle_2_page, self.tk_img_idle_2_page_2)
+        self._reading_glasses_sprites = (
+            self.tk_img_idle_glasses,
+            self.tk_img_idle_glasses_2,
+        )
+        self._reading_glasses_page_sprites = (
+            self.tk_img_idle_glasses_2_page,
+            self.tk_img_idle_glasses_2_page_2,
+        )
         self._magician_sprites = (self.tk_img_fancy, self.tk_img_fancy_2)
         self._magician_frame = 0
         self.tk_img_surf_left = ImageTk.PhotoImage(
@@ -165,6 +246,9 @@ class FloatingAssistant(
         self._reminder_id = 0
         self._pending_story = None
         self._fancy_mode = False
+        self._reading_idle_active = False
+        self._reading_idle_session = 0
+        self._speech_accompaniment_active = False
         self._hug_mode = False
         self._camera_active = False
         self._camera_cap = None
@@ -198,7 +282,16 @@ class FloatingAssistant(
         self._awaiting_response = False
         self._startup_complete = False
         self._allow_random_questions = False
-        self._screen_effects_enabled = True
+        self._settings = SettingsStore()
+        self._screen_effects_enabled = self._settings.get("screen_effects_enabled", True)
+        self._ambient_reminders_enabled = self._settings.get(
+            "ambient_reminders_enabled", True
+        )
+        self._last_nudge_at = 0.0
+        self._init_app_awareness(
+            enabled=self._settings.get("app_awareness_enabled", True)
+        )
+        self._snoring_enabled = self._settings.get("snoring_enabled", True)
         self._focus_mode = False
         self._preserve_sprite = False
         self._talk_sprite_mode = "talking"
@@ -214,11 +307,20 @@ class FloatingAssistant(
         self._bubble_position_timer = None
         self._screen_bounds_timer = None
         self._sfx_cache = {}
-        self._speech_accompaniment_active = False
         self._last_virtual_screen_rect = None
         self._number_guess_target = None
         self._number_guess_attempts = 0
         self._available_voices = self._load_available_voices()
+        self._mouse_look_active = False
+        self._mouse_look_crouch = False
+        self._mouse_look_stance_until = 0.0
+        self._mouse_follow_state = "idle"
+        self._mouse_follow_long_range = False
+        self._mouse_follow_ready_at = 0.0
+        self._mouse_attention_timer = None
+        self._mouse_think_timer = None
+        self._mouse_look_direction = "center"
+        self._last_snore_at = 0.0
         self.root.wm_attributes("-topmost", True)
 
         self._log_optional_deps()
@@ -228,9 +330,17 @@ class FloatingAssistant(
 
         self.is_dragging = False
         self._drag_moved = False
+        self._throwing = False
+        self._drag_samples = []
+        self._throw_after_id = None
+        self._throw_vx = 0.0
+        self._throw_vy = 0.0
+        self._throw_bounce_count = 0
+        self._throw_last_t = 0.0
         self.mouse_click_offset_x = 0
         self.mouse_click_offset_y = 0
         self.setup_mouse_bindings()
+        self._start_mouse_attention()
         self.root.after(300, self._schedule_startup_line)
 
     def _log_optional_deps(self):
@@ -247,6 +357,24 @@ class FloatingAssistant(
 
         status["pyttsx3"] = "ok" if tts_engine is not None else "missing"
         print(f"Kinito optional deps: {status}", flush=True)
+
+    def _persist_settings(self) -> None:
+        """Write current Settings toggles to disk so they survive restarts."""
+        store = getattr(self, "_settings", None)
+        if store is None:
+            return
+        store.update(
+            screen_effects_enabled=bool(
+                getattr(self, "_screen_effects_enabled", True)
+            ),
+            ambient_reminders_enabled=bool(
+                getattr(self, "_ambient_reminders_enabled", True)
+            ),
+            app_awareness_enabled=bool(
+                getattr(self, "_app_awareness_enabled", True)
+            ),
+            snoring_enabled=bool(getattr(self, "_snoring_enabled", True)),
+        )
 
     def _schedule_startup_line(self):
         """Start the welcome speech in a background thread after a short delay."""
@@ -397,8 +525,55 @@ class FloatingAssistant(
             return
         try:
             self.root.deiconify()
-            self.root.wm_attributes("-topmost", True)
+            self._keep_assistant_on_top()
         except tk.TclError:
+            pass
+
+    def _keep_assistant_on_top(self):
+        """Re-assert always-on-top so Kinito stays above other windows."""
+        if not getattr(self, "_running", True):
+            return
+        try:
+            if not self.root.winfo_exists():
+                return
+            self.root.wm_attributes("-topmost", True)
+            self.root.lift()
+            self._force_window_topmost(self.root)
+            if self._has_active_speech_bubble():
+                bubble = getattr(self, "speech_bubble", None)
+                if bubble is not None and bubble.winfo_exists():
+                    bubble.wm_attributes("-topmost", True)
+                    bubble.lift()
+                    self._force_window_topmost(bubble)
+        except tk.TclError:
+            pass
+
+    @staticmethod
+    def _force_window_topmost(window) -> None:
+        """On Windows, restack *window* as TOPMOST without stealing focus."""
+        if sys.platform != "win32":
+            return
+        try:
+            import ctypes
+
+            hwnd = int(window.winfo_id())
+            parent = ctypes.windll.user32.GetParent(hwnd)
+            if parent:
+                hwnd = parent
+            hwnd_topmost = -1
+            swp_nomove = 0x0002
+            swp_nosize = 0x0001
+            swp_noactivate = 0x0010
+            ctypes.windll.user32.SetWindowPos(
+                hwnd,
+                hwnd_topmost,
+                0,
+                0,
+                0,
+                0,
+                swp_nomove | swp_nosize | swp_noactivate,
+            )
+        except (OSError, AttributeError, ValueError, TypeError, tk.TclError):
             pass
 
     def clamp_position(self, x, y):
@@ -414,12 +589,15 @@ class FloatingAssistant(
             "_camera_frame_timer",
             "_camera_comment_timer",
             "_reminder_tick_timer",
+            "_throw_after_id",
         ):
             cancel_after(self.root, self, attr)
+        if hasattr(self, "_stop_mouse_attention"):
+            self._stop_mouse_attention()
 
     def ensure_on_screen(self):
         """Reposition the assistant (and bubbles) if it drifted off-screen."""
-        if not self._running or self.is_dragging:
+        if not self._running or self.is_dragging or getattr(self, "_throwing", False):
             return
 
         self.root.update_idletasks()
@@ -448,7 +626,7 @@ class FloatingAssistant(
             self.position_speech_bubble()
 
     def _watch_screen_geometry(self):
-        """Keep Kinito on-screen when monitors are added, removed, or resized."""
+        """Keep Kinito on-screen and on top when the desktop layout changes."""
         self._screen_bounds_timer = None
         if not getattr(self, "_running", True):
             return
@@ -461,6 +639,7 @@ class FloatingAssistant(
             current = self._query_virtual_screen_rect()
             self._last_virtual_screen_rect = current
             self.ensure_on_screen()
+            self._keep_assistant_on_top()
         except tk.TclError:
             pass
         schedule_after(

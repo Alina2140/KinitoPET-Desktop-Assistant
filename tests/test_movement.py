@@ -18,6 +18,13 @@ def movement():
     stub.paused = False
     stub.is_dragging = False
     stub._drag_moved = False
+    stub._throwing = False
+    stub._drag_samples = []
+    stub._throw_after_id = None
+    stub._throw_vx = 0.0
+    stub._throw_vy = 0.0
+    stub._throw_bounce_count = 0
+    stub._throw_last_t = 0.0
     stub._startup_complete = True
     stub._allow_random_questions = False
     stub.talking = False
@@ -36,13 +43,17 @@ def movement():
     stub._surf_render_cache = {}
     stub._surf_facing = "right"
     stub.play_sfx = MagicMock()
+    stub.speak = MagicMock()
     stub.clamp_position = MagicMock(side_effect=lambda x, y: (x, y))
+    stub.get_screen_bounds = MagicMock(return_value=(0, 0, 1900, 1000))
     stub._should_skip_drag_sounds = MagicMock(return_value=False)
     stub._has_active_speech_bubble = MagicMock(return_value=False)
     stub._is_busy_with_speech = MagicMock(return_value=False)
     stub._is_background_music_playing = MagicMock(return_value=False)
     stub.ensure_on_screen = MagicMock()
     stub.position_speech_bubble = MagicMock()
+    stub.x = 100
+    stub.y = 200
     return stub
 
 
@@ -455,3 +466,276 @@ def test_maybe_play_reading_page_turn_plays_when_active(movement):
         movement._maybe_play_reading_page_turn(1)
 
     movement.play_sfx.assert_called_once()
+
+
+def _configure_mouse_attention(movement):
+    movement._startup_complete = True
+    movement._running = True
+    movement.paused = False
+    movement.is_dragging = False
+    movement.moving = False
+    movement.talking = False
+    movement._fancy_mode = False
+    movement._reading_idle_active = False
+    movement._hug_mode = False
+    movement._preserve_sprite = False
+    movement._ai_generating = False
+    movement._focus_mode = False
+    movement._chat_mode = False
+    movement._awaiting_response = False
+    movement._mouse_look_active = False
+    movement._mouse_look_crouch = False
+    movement._mouse_look_stance_until = 0.0
+    movement._mouse_follow_state = "idle"
+    movement._mouse_follow_long_range = False
+    movement._mouse_follow_ready_at = 0.0
+    movement._mouse_look_direction = "center"
+    movement._last_snore_at = 0.0
+    movement.x = 100
+    movement.y = 200
+    movement._window_screen_size = MagicMock(return_value=(40, 80))
+    movement._standing_dir_sprites = {
+        "center": "look_center",
+        "left": "look_left",
+        "right": "look_right",
+        "top": "look_top",
+        "bottom": "look_bottom",
+        "top_left": "look_top_left",
+        "top_right": "look_top_right",
+        "bottom_left": "look_bottom_left",
+        "bottom_right": "look_bottom_right",
+    }
+    movement._standing2_dir_sprites = {
+        "center": "crouch_center",
+        "left": "crouch_left",
+        "right": "crouch_right",
+        "top": "crouch_top",
+        "bottom": "crouch_bottom",
+        "top_left": "crouch_top_left",
+        "top_right": "crouch_top_right",
+        "bottom_left": "crouch_bottom_left",
+        "bottom_right": "crouch_bottom_right",
+    }
+    movement.change_sprite = MagicMock()
+    movement._schedule_mouse_attention_poll = MagicMock()
+    movement._is_busy_with_speech = MagicMock(return_value=False)
+    movement._is_game_active = MagicMock(return_value=False)
+
+
+def test_maybe_play_snoring_respects_volume_and_chance(movement):
+    _configure_mouse_attention(movement)
+    movement.paused = True
+    movement.talking = False
+    movement._snoring_enabled = True
+    movement._last_snore_at = 0.0
+    movement.play_sfx = MagicMock()
+    with patch("kinito.movement.random.random", return_value=0.0):
+        movement._maybe_play_snoring()
+    movement.play_sfx.assert_called_once()
+    args, kwargs = movement.play_sfx.call_args
+    assert args[0].endswith("snoring.mp3")
+    assert kwargs.get("volume", args[1] if len(args) > 1 else None) == movement.SNORING_VOLUME
+
+
+def test_maybe_play_snoring_respects_disabled(movement):
+    _configure_mouse_attention(movement)
+    movement.paused = True
+    movement.talking = False
+    movement._snoring_enabled = False
+    movement._last_snore_at = 0.0
+    movement.play_sfx = MagicMock()
+    with patch("kinito.movement.random.random", return_value=0.0):
+        movement._maybe_play_snoring()
+    movement.play_sfx.assert_not_called()
+
+
+def test_toggle_snoring_disables_and_enables(movement):
+    from content import dialogue as dlg
+
+    _configure_mouse_attention(movement)
+    movement._snoring_enabled = True
+    movement.speak = MagicMock()
+    movement.toggle_snoring()
+    assert movement._snoring_enabled is False
+    assert movement.speak.call_args[0][0] in dlg.SNORING_OFF_LINES
+    movement.toggle_snoring()
+    assert movement._snoring_enabled is True
+    assert movement.speak.call_args[0][0] in dlg.SNORING_ON_LINES
+
+
+def test_idle_skips_sprite_when_mouse_look_active(movement):
+    _configure_mouse_attention(movement)
+    movement._mouse_look_active = True
+    movement._running = True
+    calls = {"n": 0}
+
+    def stop_after_one_sleep(_seconds):
+        calls["n"] += 1
+        if calls["n"] >= 1:
+            movement._running = False
+
+    with patch("kinito.movement.time.sleep", side_effect=stop_after_one_sleep):
+        movement.idle_animation()
+
+    movement.change_sprite.assert_not_called()
+
+
+def test_velocity_from_samples_caps_speed():
+    samples = [(0.0, 0.0, 0.0), (0.05, 500.0, 0.0)]
+    vx, vy, speed = MovementMixin._velocity_from_samples(samples, max_speed=1000, scale=1.0)
+    assert speed == 1000
+    assert vx == 1000
+    assert vy == 0
+
+
+def test_on_mouse_move_records_drag_samples(movement):
+    movement.is_dragging = True
+    movement.mouse_click_offset_x = 0
+    movement.mouse_click_offset_y = 0
+    movement.on_mouse_move(MagicMock(x_root=300, y_root=400))
+    assert len(movement._drag_samples) == 1
+    assert movement._drag_samples[0][1:] == (300.0, 400.0)
+
+
+def test_on_mouse_up_places_when_release_speed_low(movement):
+    movement.is_dragging = True
+    movement._drag_moved = True
+    movement._stop_drag_tracking = MagicMock()
+    movement._follow_speech_bubble_to_kinito = MagicMock()
+    movement._start_throw = MagicMock()
+    now = 100.0
+    movement._drag_samples = [
+        (now - 0.2, 0.0, 0.0),
+        (now - 0.05, 400.0, 0.0),
+        (now - 0.01, 401.0, 0.0),
+        (now, 401.5, 0.0),
+    ]
+    with patch("kinito.movement.time.monotonic", return_value=now):
+        movement.on_mouse_up(MagicMock())
+    movement._start_throw.assert_not_called()
+    movement.play_sfx.assert_called_once()
+    assert movement.is_dragging is False
+
+
+def test_on_mouse_up_throws_when_release_speed_high(movement):
+    movement.is_dragging = True
+    movement._drag_moved = True
+    movement._stop_drag_tracking = MagicMock()
+    movement._start_throw = MagicMock()
+    now = 50.0
+    movement._drag_samples = [
+        (now - 0.05, 0.0, 100.0),
+        (now, 100.0, 50.0),
+    ]
+    with patch("kinito.movement.time.monotonic", return_value=now):
+        movement.on_mouse_up(MagicMock())
+    movement._start_throw.assert_called_once()
+    vx, vy = movement._start_throw.call_args[0]
+    assert vx > 0
+    assert vy < 0
+    movement.play_sfx.assert_not_called()
+
+
+def test_start_throw_plays_woosh_and_speaks(movement):
+    with (
+        patch("kinito.movement.random.random", return_value=0.0),
+        patch("content.throw_lines.pick_throw_line", return_value="Weeeee!"),
+    ):
+        movement._start_throw(1200.0, -800.0)
+    assert movement._throwing is True
+    assert movement.moving is True
+    movement.play_sfx.assert_called_once()
+    movement.speak.assert_called_once_with("Weeeee!")
+    movement.root.after.assert_called()
+
+
+def test_start_throw_skips_speech_when_busy(movement):
+    movement._is_busy_with_speech = MagicMock(return_value=True)
+    with patch("kinito.movement.random.random", return_value=0.0):
+        movement._start_throw(1200.0, -800.0)
+    movement.speak.assert_not_called()
+
+
+def test_throw_tick_applies_gravity(movement):
+    movement._throwing = True
+    movement.moving = True
+    movement.x = 100.0
+    movement.y = 200.0
+    movement._throw_vx = 0.0
+    movement._throw_vy = 0.0
+    movement._throw_last_t = 10.0
+    movement._follow_speech_bubble_to_kinito = MagicMock()
+    with patch("kinito.movement.time.monotonic", return_value=10.02):
+        movement._throw_tick()
+    assert movement._throw_vy > 0
+    assert movement.y > 200.0
+    assert movement._throwing is True
+
+
+def test_throw_tick_bounces_and_damps(movement):
+    movement._throwing = True
+    movement.moving = True
+    movement.x = 1890.0
+    movement.y = 100.0
+    movement._throw_vx = 2000.0
+    movement._throw_vy = 0.0
+    movement._throw_bounce_count = 0
+    movement._throw_last_t = 1.0
+    movement._follow_speech_bubble_to_kinito = MagicMock()
+    with patch("kinito.movement.time.monotonic", return_value=1.02):
+        movement._throw_tick()
+    assert movement.x == 1900.0
+    assert movement._throw_vx < 0
+    assert abs(movement._throw_vx) < 2000.0 * movement.THROW_BOUNCE_DAMPING + 50
+    assert movement._throw_bounce_count == 1
+
+
+def test_throw_stops_after_max_bounces(movement):
+    movement._throwing = True
+    movement.moving = True
+    movement.x = 100.0
+    movement.y = 100.0
+    movement._throw_vx = 800.0
+    movement._throw_vy = 100.0
+    movement._throw_bounce_count = movement.THROW_MAX_BOUNCES
+    movement._throw_last_t = 1.0
+    movement._follow_speech_bubble_to_kinito = MagicMock()
+    with patch("kinito.movement.time.monotonic", return_value=1.02):
+        movement._throw_tick()
+    assert movement._throwing is False
+    assert movement.moving is False
+
+
+def test_finish_throw_clears_flags_and_plays_bomp(movement):
+    movement._throwing = True
+    movement.moving = True
+    movement.x = 50
+    movement.y = 60
+    movement._finish_throw()
+    assert movement._throwing is False
+    assert movement.moving is False
+    movement.play_sfx.assert_called_once()
+    movement.root.after.assert_called()
+
+
+def test_on_mouse_down_cancels_active_throw(movement):
+    movement._throwing = True
+    movement.moving = True
+    movement._throw_after_id = "timer"
+    movement._cancel_throw = MagicMock()
+    movement._start_drag_tracking = MagicMock()
+    movement._sync_kinito_screen_position = MagicMock()
+    movement.x = 100
+    movement.y = 200
+    movement.on_mouse_down(MagicMock(x_root=50, y_root=60, widget=movement.panel))
+    movement._cancel_throw.assert_called_once()
+
+
+def test_place_path_does_not_speak_throw_line(movement):
+    movement.is_dragging = True
+    movement._drag_moved = True
+    movement._drag_samples = []
+    movement._stop_drag_tracking = MagicMock()
+    movement._follow_speech_bubble_to_kinito = MagicMock()
+    movement.on_mouse_up(MagicMock())
+    movement.speak.assert_not_called()
