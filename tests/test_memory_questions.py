@@ -31,7 +31,7 @@ def content(memory_dir):
 def test_ask_once_markers_cover_personal_questions():
     assert dlg.NAME_QUESTION in ASK_ONCE_MARKERS
     assert dlg.DAY_QUESTION not in ASK_ONCE_MARKERS
-    assert MARKER_TO_FACT_KEY[dlg.NAME_QUESTION] == "user_name"
+    assert MARKER_TO_FACT_KEY[dlg.NAME_QUESTION] == "user_names"
 
 
 def test_available_questions_skip_answered_markers(content):
@@ -49,7 +49,7 @@ def test_name_dialog_persists_answer(memory_dir):
     spec = find_dialog_spec(dlg.NAME_QUESTION)
     handle_dialog_response(app, spec, "Alex")
 
-    assert app._memory.get_fact("user_name") == "Alex"
+    assert app._memory.get_fact("user_names") == "Alex"
     assert app._memory.is_answered(dlg.NAME_QUESTION)
     app.speak.assert_called_once()
 
@@ -67,7 +67,7 @@ def test_programming_dialog_persists_yes_no(memory_dir):
 
 
 def test_answered_name_question_not_in_full_pool(content):
-    content._memory.set_fact("user_name", "Alex")
+    content._memory.set_fact("user_names", "Alex")
     content._memory.mark_answered(dlg.NAME_QUESTION)
     pool = content._available_spontaneous_questions()
     name_questions = [q for q in QUESTIONS if dlg.NAME_QUESTION in q]

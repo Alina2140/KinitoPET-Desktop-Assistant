@@ -40,6 +40,72 @@ _MEMORY_HINTS: tuple[re.Pattern[str], ...] = tuple(
 )
 
 _MIN_NOTE_LEN = 10
+_NEAR_DUPLICATE_TOKEN_OVERLAP = 0.65
+_COMPARE_STOP_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "is",
+        "are",
+        "was",
+        "were",
+        "to",
+        "for",
+        "with",
+        "on",
+        "in",
+        "of",
+        "and",
+        "or",
+        "user",
+        "she",
+        "he",
+        "they",
+        "her",
+        "his",
+        "their",
+    }
+)
+
+
+def normalize_note_text(text: str) -> str:
+    """Lowercase and strip punctuation for duplicate comparison."""
+    lowered = text.lower()
+    cleaned = re.sub(r"[^\w\s]", " ", lowered)
+    return " ".join(cleaned.split())
+
+
+def _note_tokens(text: str) -> set[str]:
+    return {token for token in normalize_note_text(text).split() if token not in _COMPARE_STOP_WORDS}
+
+
+def notes_are_near_duplicate(left: str, right: str) -> bool:
+    """Return True when two notes say essentially the same thing."""
+    normalized_left = normalize_note_text(left)
+    normalized_right = normalize_note_text(right)
+    if not normalized_left or not normalized_right:
+        return False
+    if normalized_left == normalized_right:
+        return True
+
+    left_tokens = _note_tokens(left)
+    right_tokens = _note_tokens(right)
+    if not left_tokens or not right_tokens:
+        return False
+    overlap = len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
+    return overlap >= _NEAR_DUPLICATE_TOKEN_OVERLAP
+
+
+def is_duplicate_of_existing_note(text: str, existing_notes: list[dict[str, str]]) -> bool:
+    """Return True when *text* matches or closely repeats an existing note."""
+    for note in existing_notes:
+        existing = note.get("text", "")
+        if not isinstance(existing, str):
+            continue
+        if notes_are_near_duplicate(text, existing):
+            return True
+    return False
 
 
 def is_storable_note(text: str, *, source: str = "chat") -> bool:

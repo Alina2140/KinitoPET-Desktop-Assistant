@@ -23,6 +23,7 @@ def test_assets_directory_is_under_project_root():
         ("sprites_talking_directory", os.path.join("GameAssets", "sprites", "Talking")),
         ("sprites_thinking_directory", os.path.join("GameAssets", "sprites", "Thinking")),
         ("sprites_hugging_directory", os.path.join("GameAssets", "sprites", "Hugging")),
+        ("sprites_hand_directory", os.path.join("GameAssets", "sprites", "Hand")),
         ("icons_directory", os.path.join("GameAssets", "icons")),
         ("sounds_directory", os.path.join("GameAssets", "sounds")),
         ("secret_images_directory", os.path.join("GameAssets", "SecretImages")),
@@ -73,6 +74,8 @@ def test_asset_subdirectories(directory_attr, relative_path):
         ("sprite_path_thinking2", "Thinking2.png", "sprites_thinking_directory"),
         ("sprite_path_hug", "KinitoHug.png", "sprites_hugging_directory"),
         ("sprite_path_hug2", "KinitoHug2.png", "sprites_hugging_directory"),
+        ("sprite_path_hand_left", "HandToLeft.png", "sprites_hand_directory"),
+        ("sprite_path_hand_right", "HandToRight.png", "sprites_hand_directory"),
         ("icon_path", "Icon.ico", "icons_directory"),
         ("favicon_path", "Favicon.png", "icons_directory"),
         ("timer_file_path", "Timer.mp3", "sounds_directory"),
@@ -114,6 +117,8 @@ def test_asset_paths_point_to_expected_files(path_attr, filename, parent_attr):
         "sprite_path_thinking2",
         "sprite_path_hug",
         "sprite_path_hug2",
+        "sprite_path_hand_left",
+        "sprite_path_hand_right",
     ],
 )
 def test_sprite_paths_stay_under_sprites_directory(path_attr):

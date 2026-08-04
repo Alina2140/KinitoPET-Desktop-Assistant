@@ -29,11 +29,11 @@ def test_empty_store_has_no_prompt_block(store):
 
 
 def test_set_fact_and_load_roundtrip(store, memory_dir):
-    store.set_fact("user_name", "Alex")
+    store.set_fact("user_names", "Alex")
     store.mark_answered("What should I call you?")
 
     reloaded = MemoryStore(directory=memory_dir)
-    assert reloaded.get_fact("user_name") == "Alex"
+    assert reloaded.get_fact("user_names") == "Alex"
     assert reloaded.is_answered("What should I call you?")
 
 
@@ -59,10 +59,10 @@ def test_notes_fifo_when_over_limit(store):
 
 
 def test_as_prompt_block_includes_facts_and_recent_notes(store):
-    store.set_fact("user_name", "Alex")
+    store.set_fact("user_names", "Alex")
     store.add_note("weekend_plans: hiking (Alex, got any plans?)", source="question")
     block = store.as_prompt_block()
-    assert "user name: Alex" in block
+    assert "user names: Alex" in block
     assert "hiking" in block
 
 
@@ -76,13 +76,13 @@ def test_as_prompt_block_limits_note_count(store):
 
 
 def test_as_prompt_block_truncates_long_output(store):
-    store.set_fact("user_name", "A" * 200)
+    store.set_fact("user_names", "A" * 200)
     block = store.as_prompt_block()
     assert len(block) <= MAX_PROMPT_BLOCK_CHARS
 
 
 def test_reset_removes_files(store, memory_dir):
-    store.set_fact("user_name", "Alex")
+    store.set_fact("user_names", "Alex")
     store.add_note("weekend_plans: test (plans?)", source="question")
     path = os.path.join(memory_dir, "memory.json")
     notes_path = os.path.join(memory_dir, "notes.txt")
@@ -106,18 +106,18 @@ def test_load_recovers_from_corrupt_json(memory_dir):
 
 
 def test_save_writes_valid_json(memory_dir, store):
-    store.set_fact("user_name", "Sam")
+    store.set_fact("user_names", "Sam")
     path = os.path.join(memory_dir, "memory.json")
     with open(path, encoding="utf-8") as handle:
         data = json.load(handle)
-    assert data["facts"]["user_name"] == "Sam"
+    assert data["facts"]["user_names"] == "Sam"
 
 
 def test_as_facts_prompt_block_omits_notes(store):
-    store.set_fact("user_name", "Alex")
+    store.set_fact("user_names", "Alex")
     store.add_note("weekend_plans: hiking (plans?)", source="question")
     facts_block = store.as_facts_prompt_block()
-    assert "user name: Alex" in facts_block
+    assert "user names: Alex" in facts_block
     assert "hiking" not in facts_block
     full_block = store.as_prompt_block()
     assert "hiking" in full_block

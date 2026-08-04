@@ -589,6 +589,48 @@ SNORING_OFF_LINES = [
     "Sleep audio disabled. Peaceful silence while I nap. Miss the snoring yet?",
 ]
 
+WINDOW_PLAY_ON_LINES = [
+    "Window play on! Hands may wander. Windows may wander with them.",
+    "I can grab windows again. Gently. Mostly. Sometimes sideways.",
+    "Desktop rearranging enabled. Don't panic if things move. That's me saying hi.",
+]
+
+WINDOW_PLAY_OFF_LINES = [
+    "Window play off. Your windows stay put. My hands stay put. Mostly.",
+    "No more grabbing windows. Promise. Soft promise. Softly.",
+    "Hands off mode. Your layout is safe. For now.",
+]
+
+TTS_ON_LINES = [
+    "Speech on! I can talk again. Out loud. Missed that.",
+    "TTS enabled. Voice unlocked. Hello from the speakers.",
+    "I can speak again. Bubbles and voice. Full package.",
+]
+
+TTS_OFF_LINES = [
+    "Speech off. I'll still show bubbles — just quietly. Mime mode.",
+    "TTS disabled. Reading lips optional. Bubbles still work.",
+    "Voice muted. Text lives on. Soft silence.",
+]
+
+SPECIAL_DAYS_ON_LINES = [
+    "Special days on! If the calendar looks festive, I might mention it. Softly.",
+    "Holiday comments enabled. Birthdays for the world. And jokes. I like jokes.",
+    "Special-day remarks are back. Startups and idle chat may get… seasonal.",
+]
+
+SPECIAL_DAYS_OFF_LINES = [
+    "Special days off. The calendar stays quiet. I won't. Entirely.",
+    "No more holiday commentary. Ordinary Tuesdays only. Mostly.",
+    "Special-day remarks disabled. Every day is still friendship day. Quietly.",
+]
+
+MENU_BUTTONS_OPEN_LINES = [
+    "Here's the menu button list. Check what you want to see.",
+    "Customize the menus. Tick boxes. Make it yours.",
+    "Menu buttons panel open. Hide what you don't need.",
+]
+
 FOCUS_ON_LINES = [
     "Focus mode on. I'll wander quietly. No chatter, no surprises. Just... presence.",
     "Quiet mode engaged. I'll keep moving, but I won't bother you. I'll still notice.",
@@ -1031,20 +1073,20 @@ SECRET_IMAGES_NOT_FOUND_LINES = [
     "The vault is gone. Or hidden. I respect that.",
 ]
 
-# Time
+# Time + date (Tell Time always uses both placeholders)
 TIME_RESPONSES = [
-    "The time is {time}!",
-    "Right now it's {time}!",
-    "It's currently {time}!",
-    "My clock says {time}!",
-    "According to me, it's {time}!",
-    "Tick tock, it's {time}!",
-    "If you're wondering, it's {time}!",
-    "Checking my internal clock... yep, {time}!",
-    "It's {time}. Time moves. I don't. Not really.",
-    "The clock says {time}. I say: don't be late. I'll worry.",
-    "Tick tock, {time}. Every second brings us closer. To what? Friendship!",
-    "My clock says {time}! The night is young. Or old. Depends on you.",
+    "It's {date}, and the time is {time}!",
+    "Right now it's {time} on {date}!",
+    "My clock says {time}. The calendar says {date}. Both agree you're here.",
+    "According to me, it's {time} on {date}!",
+    "Tick tock — {time} on {date}!",
+    "If you're wondering: {date}, {time}!",
+    "Checking my clocks… yep, {time} on {date}!",
+    "It's {time} on {date}. Time moves. I don't. Not really.",
+    "The clock says {time}. Today is {date}. Don't be late. I'll worry.",
+    "Tick tock, {time} — and today is {date}. Every second brings us closer. To friendship!",
+    "My clock says {time} on {date}! The day is young. Or old. Depends on you.",
+    "Date check: {date}. Time check: {time}. Company check: perfect.",
 ]
 
 # Button labels
@@ -1063,9 +1105,11 @@ BUTTON_SLEEP = "Sleep"
 BUTTON_WAKE_UP = "Wake up"
 BUTTON_FOCUS = "Focus"
 BUTTON_UNFOCUS = "Unfocus"
+BUTTON_SET_FOCUS_TIMER = "Focus Timer"
 BUTTON_MODES = "Modes"
 BUTTON_SETTINGS = "Settings"
 BUTTON_ACTIONS = "Actions"
+BUTTON_SCREEN_EFFECTS = "Screen Effects"
 BUTTON_SCREEN_EFFECTS_ON = "Screen Effects on"
 BUTTON_SCREEN_EFFECTS_OFF = "Screen Effects off"
 BUTTON_REMINDERS = "Reminders"
@@ -1077,6 +1121,20 @@ BUTTON_APP_AWARENESS_OFF = "App Awareness off"
 BUTTON_SNORING = "Snoring"
 BUTTON_SNORING_ON = "Snoring on"
 BUTTON_SNORING_OFF = "Snoring off"
+BUTTON_WINDOW_PLAY = "Window Play"
+BUTTON_WINDOW_PLAY_ON = "Window Play on"
+BUTTON_WINDOW_PLAY_OFF = "Window Play off"
+BUTTON_TTS = "Speech"
+BUTTON_TTS_ON = "Speech on"
+BUTTON_TTS_OFF = "Speech off"
+BUTTON_EMOJI = "Emojis"
+BUTTON_EMOJI_ON = "Emojis on"
+BUTTON_EMOJI_OFF = "Emojis off"
+BUTTON_SPECIAL_DAYS = "Special Days"
+BUTTON_SPECIAL_DAYS_ON = "Special Days on"
+BUTTON_SPECIAL_DAYS_OFF = "Special Days off"
+BUTTON_MENU_BUTTONS = "Menu Buttons"
+BUTTON_CHAT = "Chat"
 BUTTON_SING_SONG = "Sing"
 BUTTON_FUN_FACT = "Fun Fact"
 BUTTON_REMEMBER = "Memories"
@@ -1089,6 +1147,7 @@ BUTTON_PLAY_MUSIC = "Play Music"
 BUTTON_STOP_MUSIC = "Stop music"
 BUTTON_CHANGE_SONG = "Pick another song"
 BUTTON_PLAY_GAME = "Play Game"
+BUTTON_PAINT = "Paint"
 BUTTON_QUICK_GAMES = "Quick Games"
 BUTTON_BOARD_GAMES = "Board Games"
 BUTTON_BACK = "Back"

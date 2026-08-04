@@ -56,10 +56,10 @@ def test_handle_memory_question_response_saves_note(app):
 
 
 def test_handle_memory_question_response_saves_fact(app):
-    spec = MemoryQuestion("Favorite snack?", "textbox", "snack_followup", save_as="favorite_snack")
+    spec = MemoryQuestion("Favorite snack?", "textbox", "snack_followup", save_as="favorite_snacks")
     app._pending_memory_question = spec
     app._handle_memory_question_response("chips")
-    assert app._memory.get_fact("favorite_snack") == "chips"
+    assert app._memory.get_fact("favorite_snacks") == "chips"
 
 
 def test_show_speech_bubble_attaches_memory_question_ui(app):

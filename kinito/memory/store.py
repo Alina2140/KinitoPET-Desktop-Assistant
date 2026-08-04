@@ -4,12 +4,21 @@ from __future__ import annotations
 
 import json
 import os
+import random
+import sys
 from copy import deepcopy
 from datetime import date
 from typing import Any
 
+from content.memory_keys import LEGACY_FACT_KEY_ALIASES, MULTI_VALUE_FACT_KEYS
 from kinito.assets import user_media_directory
-from kinito.memory.validation import is_storable_note
+from kinito.memory.fact_values import (
+    compact_fact_storage,
+    format_fact_values,
+    normalize_fact_value_list,
+    split_fact_values,
+)
+from kinito.memory.validation import is_duplicate_of_existing_note, is_storable_note
 
 MEMORY_VERSION = 1
 MEMORY_FILENAME = "memory.json"
@@ -37,6 +46,23 @@ def notes_file_path(directory: str | None = None) -> str:
     return os.path.join(base, NOTES_FILENAME)
 
 
+def _atomic_replace(temp_path: str, final_path: str) -> None:
+    """Replace *final_path* atomically; retry once on Windows file locks."""
+    try:
+        os.replace(temp_path, final_path)
+    except PermissionError:
+        if sys.platform != "win32":
+            raise
+        if os.path.isfile(final_path):
+            os.remove(final_path)
+        os.replace(temp_path, final_path)
+
+
+def _canonical_fact_key(key: str) -> str:
+    trimmed = key.strip()
+    return LEGACY_FACT_KEY_ALIASES.get(trimmed, trimmed)
+
+
 class MemoryStore:
     """Load, update, and persist user memory under GameAssets/UserMedia/."""
 
@@ -54,6 +80,7 @@ class MemoryStore:
             "facts": {},
             "answered_markers": [],
             "asked_topics": [],
+            "topic_asked_at": {},
             "notes": [],
         }
 
@@ -82,7 +109,7 @@ class MemoryStore:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temp_path, self._path)
+        _atomic_replace(temp_path, self._path)
         self._write_notes_mirror()
 
     def reset(self) -> None:
@@ -99,11 +126,32 @@ class MemoryStore:
         data = self._empty_data()
         facts = raw.get("facts")
         if isinstance(facts, dict):
-            for key, value in list(facts.items())[:MAX_FACTS]:
-                if isinstance(key, str) and isinstance(value, str):
-                    trimmed = value.strip()[:MAX_FACT_VALUE_LEN]
-                    if trimmed:
-                        data["facts"][key] = trimmed
+            migrated: dict[str, Any] = {}
+            for key, value in list(facts.items())[: MAX_FACTS * 2]:
+                if not isinstance(key, str):
+                    continue
+                target_key = _canonical_fact_key(key)
+                normalized = self._normalize_stored_fact(target_key, value)
+                if normalized is None:
+                    continue
+                if target_key in migrated and target_key in MULTI_VALUE_FACT_KEYS:
+                    existing = normalize_fact_value_list(
+                        migrated[target_key]
+                        if isinstance(migrated[target_key], list)
+                        else [migrated[target_key]]
+                    )
+                    incoming = normalize_fact_value_list(
+                        normalized if isinstance(normalized, list) else [normalized]
+                    )
+                    merged = compact_fact_storage(
+                        normalize_fact_value_list(existing + incoming)
+                    )
+                    if merged is not None:
+                        migrated[target_key] = merged
+                elif target_key not in migrated:
+                    migrated[target_key] = normalized
+            for key, value in list(migrated.items())[:MAX_FACTS]:
+                data["facts"][key] = value
 
         markers = raw.get("answered_markers")
         if isinstance(markers, list):
@@ -131,7 +179,39 @@ class MemoryStore:
                     if normalized and normalized not in seen_topics:
                         data["asked_topics"].append(normalized)
                         seen_topics.add(normalized)
+
+        asked_at = raw.get("topic_asked_at")
+        if isinstance(asked_at, dict):
+            for topic, stamped in asked_at.items():
+                if not isinstance(topic, str) or not isinstance(stamped, str):
+                    continue
+                normalized = topic.strip()
+                day = stamped.strip()
+                if not normalized or not day:
+                    continue
+                try:
+                    date.fromisoformat(day)
+                except ValueError:
+                    continue
+                data["topic_asked_at"][normalized] = day
         return data
+
+    @classmethod
+    def _normalize_stored_fact(cls, key: str, value: Any) -> str | list[str] | None:
+        """Normalize one on-disk fact value (string or list for multi keys)."""
+        if key in MULTI_VALUE_FACT_KEYS:
+            if isinstance(value, str):
+                trimmed = value.strip()[:MAX_FACT_VALUE_LEN]
+                return trimmed or None
+            if isinstance(value, list):
+                values = normalize_fact_value_list(value)
+                return compact_fact_storage(values)
+            return None
+
+        if isinstance(value, str):
+            trimmed = value.strip()[:MAX_FACT_VALUE_LEN]
+            return trimmed or None
+        return None
 
     @staticmethod
     def _normalize_note(entry: Any) -> dict[str, str] | None:
@@ -149,21 +229,90 @@ class MemoryStore:
         created = str(entry.get("created", date.today().isoformat())).strip()
         return {"text": text, "source": source, "created": created}
 
+    def get_fact_values(self, key: str) -> list[str]:
+        """Return fact values as a list (empty if missing)."""
+        canonical = _canonical_fact_key(key)
+        value = self._data["facts"].get(canonical)
+        if value is None:
+            return []
+        if canonical in MULTI_VALUE_FACT_KEYS:
+            if isinstance(value, list):
+                return normalize_fact_value_list(value)
+            if isinstance(value, str):
+                return split_fact_values(value) or ([value.strip()] if value.strip() else [])
+            return []
+        if isinstance(value, str) and value.strip():
+            return [value.strip()]
+        return []
+
     def get_fact(self, key: str) -> str | None:
-        """Return a stored fact value or None."""
-        value = self._data["facts"].get(key)
-        return value if isinstance(value, str) else None
+        """Return a stored fact as a display string, or None."""
+        values = self.get_fact_values(key)
+        if not values:
+            return None
+        display = format_fact_values(values)
+        return display[:MAX_FACT_VALUE_LEN] if display else None
 
     def set_fact(self, key: str, value: str) -> None:
-        """Store or update a structured fact."""
-        trimmed_key = key.strip()
-        trimmed_value = value.strip()[:MAX_FACT_VALUE_LEN]
-        if not trimmed_key or not trimmed_value:
+        """Store or replace a structured fact (multi-keys parse lists from text)."""
+        trimmed_key = _canonical_fact_key(key)
+        if not trimmed_key or not isinstance(value, str):
             return
-        facts: dict[str, str] = self._data["facts"]
+        if trimmed_key in MULTI_VALUE_FACT_KEYS:
+            values = split_fact_values(value)
+            self._write_fact_values(trimmed_key, values, merge=False)
+            return
+
+        trimmed_value = value.strip()[:MAX_FACT_VALUE_LEN]
+        if not trimmed_value:
+            return
+        facts: dict[str, Any] = self._data["facts"]
         if trimmed_key not in facts and len(facts) >= MAX_FACTS:
             return
         facts[trimmed_key] = trimmed_value
+        self.save()
+
+    def merge_fact_values(self, key: str, values: list[str]) -> None:
+        """Append values to a multi-value fact (no-op for singular keys)."""
+        trimmed_key = _canonical_fact_key(key)
+        if trimmed_key not in MULTI_VALUE_FACT_KEYS:
+            if values:
+                self.set_fact(trimmed_key, values[0])
+            return
+        self._write_fact_values(trimmed_key, values, merge=True)
+
+    def replace_fact_values(self, key: str, values: list[str]) -> None:
+        """Replace a multi-value fact with an explicit list of values."""
+        trimmed_key = _canonical_fact_key(key)
+        if trimmed_key not in MULTI_VALUE_FACT_KEYS:
+            if values:
+                self.set_fact(trimmed_key, values[0])
+            return
+        self._write_fact_values(trimmed_key, values, merge=False)
+
+    def _write_fact_values(self, key: str, values: list[str], *, merge: bool) -> None:
+        cleaned = normalize_fact_value_list(values)
+        if not cleaned:
+            return
+        facts: dict[str, Any] = self._data["facts"]
+        if key not in facts and len(facts) >= MAX_FACTS:
+            return
+
+        if merge:
+            existing = self.get_fact_values(key)
+            seen = {item.casefold() for item in existing}
+            merged = list(existing)
+            for item in cleaned:
+                if item.casefold() in seen:
+                    continue
+                seen.add(item.casefold())
+                merged.append(item)
+            cleaned = normalize_fact_value_list(merged)
+
+        stored = compact_fact_storage(cleaned)
+        if stored is None:
+            return
+        facts[key] = stored
         self.save()
 
     def mark_answered(self, marker: str) -> None:
@@ -194,17 +343,41 @@ class MemoryStore:
         normalized = topic.strip()
         return normalized in self._data["asked_topics"]
 
-    def mark_topic_asked(self, topic: str) -> None:
+    def is_topic_on_cooldown(self, topic: str, *, days: int, today: date | None = None) -> bool:
+        """Return True when *topic* was asked fewer than *days* ago."""
+        if days <= 0:
+            return False
+        normalized = topic.strip()
+        if not normalized:
+            return False
+        asked_at = self._data.get("topic_asked_at")
+        if not isinstance(asked_at, dict):
+            return False
+        stamped = asked_at.get(normalized)
+        if not isinstance(stamped, str) or not stamped.strip():
+            return False
+        try:
+            last = date.fromisoformat(stamped.strip())
+        except ValueError:
+            return False
+        moment = today or date.today()
+        return (moment - last).days < days
+
+    def mark_topic_asked(self, topic: str, *, today: date | None = None) -> None:
         """Record that an interactive memory question topic was used."""
         normalized = topic.strip()
         if not normalized:
             return
         topics: list[str] = self._data["asked_topics"]
-        if normalized in topics:
-            return
-        topics.append(normalized)
-        if len(topics) > MAX_ASKED_TOPICS:
-            del topics[0]
+        if normalized not in topics:
+            topics.append(normalized)
+            if len(topics) > MAX_ASKED_TOPICS:
+                del topics[0]
+        asked_at = self._data.setdefault("topic_asked_at", {})
+        if not isinstance(asked_at, dict):
+            asked_at = {}
+            self._data["topic_asked_at"] = asked_at
+        asked_at[normalized] = (today or date.today()).isoformat()
         self.save()
 
     def asked_topics_list(self) -> list[str]:
@@ -212,11 +385,18 @@ class MemoryStore:
         return list(self._data["asked_topics"])
 
     def facts_dict(self) -> dict[str, str]:
-        """Return a shallow copy of stored facts for template formatting."""
+        """Return facts as display strings for template formatting."""
         facts = self._data.get("facts")
         if not isinstance(facts, dict):
             return {}
-        return {key: value for key, value in facts.items() if isinstance(key, str) and isinstance(value, str)}
+        result: dict[str, str] = {}
+        for key in facts:
+            if not isinstance(key, str):
+                continue
+            display = self.get_fact(key)
+            if display:
+                result[key] = display
+        return result
 
     def has_any_memory(self) -> bool:
         """Return True when facts or notes exist."""
@@ -228,6 +408,8 @@ class MemoryStore:
         if not trimmed or not is_storable_note(trimmed, source=source):
             return False
         notes: list[dict[str, str]] = self._data["notes"]
+        if source != "question" and is_duplicate_of_existing_note(trimmed, notes):
+            return False
         if any(note.get("text") == trimmed for note in notes):
             return False
         if len(notes) >= MAX_NOTES_STORED:
@@ -267,7 +449,7 @@ class MemoryStore:
 
     def as_facts_prompt_block(self) -> str:
         """Return only structured facts as a compact summary."""
-        facts: dict[str, str] = self._data["facts"]
+        facts = self.facts_dict()
         if not facts:
             return ""
         fact_lines = [f"- {key.replace('_', ' ')}: {value}" for key, value in facts.items()]
@@ -306,8 +488,18 @@ class MemoryStore:
         return "I don't have anything saved about you yet. Tell me about yourself!"
 
     def user_display_name(self, fallback: str = "You") -> str:
-        """Return the user's preferred name."""
-        return self.get_fact("user_name") or fallback
+        """Return one of the user's names (random if several)."""
+        names = self.get_fact_values("user_names")
+        if not names:
+            return fallback
+        return random.choice(names)
+
+    def pick_user_name(self, fallback: str | None = None) -> str | None:
+        """Return a random stored user name, or *fallback* / None."""
+        names = self.get_fact_values("user_names")
+        if names:
+            return random.choice(names)
+        return fallback
 
     def _write_notes_mirror(self) -> None:
         notes: list[dict[str, str]] = self._data["notes"]
@@ -321,7 +513,7 @@ class MemoryStore:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temp_path, self._notes_path)
+        _atomic_replace(temp_path, self._notes_path)
 
     def snapshot(self) -> dict[str, Any]:
         """Return a deep copy of the in-memory data (for tests)."""

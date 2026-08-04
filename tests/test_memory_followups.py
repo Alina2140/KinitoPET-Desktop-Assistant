@@ -17,7 +17,7 @@ def store(memory_dir):
 
 
 def test_pick_template_followup_requires_fact(store):
-    store.set_fact("user_name", "Alex")
+    store.set_fact("user_names", "Alex")
     spec = pick_template_followup(store)
     assert spec is not None
     assert "Alex" in spec.question

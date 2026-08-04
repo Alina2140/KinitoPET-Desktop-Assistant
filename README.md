@@ -2,7 +2,7 @@
 
 A free, open-source desktop companion inspired by **KinitoPET**. Kinito lives on your screen as a small floating character: he talks, wanders around, asks questions, opens safe websites, plays music, and keeps you company while you work.
 
-> **Platform:** Built and tested on **Windows 10/11**. Some features (TTS via `balcon.exe`, opening programs from the Desktop, window minimize) are Windows-specific. The core app may run on other OSes with reduced functionality.
+> **Platform:** Built and tested on **Windows 10/11**. Some features (TTS via `balcon.exe`, opening programs from the Desktop, window minimize / window grab) are Windows-specific. The core app may run on other OSes with reduced functionality.
 
 ---
 
@@ -92,10 +92,17 @@ For a **full beginner walkthrough** (screenshots-level detail), see **[docs/INST
 ### Right-click menu
 
 - **Set Reminder** — type minutes (e.g. `15`); Kinito reminds you with sound + speech
-- **Tell the Time** — speaks the current time
+- **Tell the Time** — speaks the current time and today's date (e.g. weekday and calendar date)
 - **Sleep** / **Wake up** — nap mode (sleep animations); label switches while sleeping
 - **Focus** / **Unfocus** — quiet mode; label switches while active
 - **Screen Effects on** / **Screen Effects off** — rare glitch effects; label shows current state
+- **Ambient Reminders on** / **Ambient Reminders off** — optional idle nudges
+- **App Awareness on** / **App Awareness off** — comments on open/active apps by process name (Windows; unknown apps use FileDescription when available)
+- **Snoring on** / **Snoring off** — occasional snore sounds while idle
+- **Window Play on** / **Window Play off** — rare hand-sprite window grabs (Windows)
+- **Speech on** / **Speech off** — toggle spoken TTS (bubbles still appear)
+- **Special Days on** / **Special Days off** — holiday and joke-day comments at startup and idle
+- **Menu Buttons** — show or hide individual menu entries
 - **Sing** — recites a random poem (some include background music)
 - **Fun Fact** — random fact
 - **Visit a Website** — pick a category (Animals, Knowledge, Games, Horror, Surprise Me)
@@ -110,6 +117,7 @@ For a **full beginner walkthrough** (screenshots-level detail), see **[docs/INST
 While idle, Kinito may:
 
 - Ask a random question (answer with buttons or a text field)
+- Mention today's **special day** (holidays and joke days, when **Special Days** is on)
 - Offer to open the camera, browser, music, or a hug
 - Read a short story or wisdom quote
 - Do a “fancy” show with a top hat sprite
@@ -123,6 +131,7 @@ Unanswered questions close automatically after about **2 minutes**.
 Some choices trigger **KinitoPET-style surprises** — not bugs:
 
 - **Declining a poem** (**No**) or **declining a secret image** (**Not now**) can cause certain intended things to happen. It needs `pyautogui` installed.
+- **Window Play** (on by default): Kinito may rarely reach out with a hand sprite, grab a window edge, and slide it (or sometimes minimize it). Windows stay on the virtual desktop so they remain reachable. While he is dragging, you can take over the window yourself — he lets go and does not keep pulling. Turn **Window Play** off in the menu if you prefer a quieter desktop.
 
 ### Browser safety
 
@@ -146,6 +155,8 @@ Kinito remembers personal facts across sessions — no database required.
 - Right-click Kinito → **Forget everything** to clear saved memory.
 
 Personal questions (name, favorite color, food, hobby, etc.) are asked once; answers are saved and reused in follow-up questions and startup greetings.
+
+**Multi-value answers:** For facts like hobbies or pets, you can answer with comma-separated lists or phrases joined with “and” (e.g. `reading, hiking, and chess`). Kinito stores each item separately for richer follow-ups.
 
 ---
 
@@ -239,6 +250,7 @@ Or install packages one by one. **Minimum to start:** `Pillow`, `pygame`, `pytts
 1. Check that `GameAssets/Programs/balcon.exe` exists
 2. Ensure `pyttsx3` is installed: `pip install pyttsx3`
 3. Check Windows sound output device and volume
+4. Confirm **Speech on** is selected in the right-click menu (TTS can be turned off while keeping speech bubbles)
 
 ### Browser opens in Chrome/Firefox instead of a small window
 
@@ -274,7 +286,7 @@ The spoken line must contain a **marker substring** registered in `content/dialo
 
 ### My windows minimized — is that a bug?
 
-Usually **no**. Declining certain offers (poem **No**, secret image **Not now**) triggers intentional window minimizing on Windows — a KinitoPET-style easter egg. See [Easter eggs](#easter-eggs-intentional-behavior) above.
+Usually **no**. Declining certain offers (poem **No**, secret image **Not now**) triggers intentional window minimizing on Windows — a KinitoPET-style easter egg. Separately, **Window Play** may occasionally grab and slide open windows with a hand sprite; you can take over mid-drag, and you can disable it via **Window Play off** in the menu. Windows are never closed. See [Easter eggs](#easter-eggs-intentional-behavior) above.
 
 ---
 
