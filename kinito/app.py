@@ -57,6 +57,7 @@ from kinito.features.memory import MemoryMixin
 from kinito.features.menu_settings import MenuSettingsMixin
 from kinito.features.music import MusicMixin
 from kinito.features.nudges import NudgesMixin
+from kinito.features.paint import PaintMixin
 from kinito.features.programs import ProgramsMixin
 from kinito.features.window_grab import WindowGrabMixin
 from kinito.movement import MovementMixin
@@ -113,6 +114,7 @@ class FloatingAssistant(
     ContentMixin,
     MemoryMixin,
     GamesMixin,
+    PaintMixin,
     MusicMixin,
     ProgramsMixin,
     CameraMixin,
@@ -307,6 +309,7 @@ class FloatingAssistant(
         self._hand_photo_ref = None
         self._tts_enabled = self._settings.get("tts_enabled", True)
         self._special_days_enabled = self._settings.get("special_days_enabled", True)
+        self._emoji_picker_enabled = self._settings.get("emoji_picker_enabled", True)
         get_hidden_menu = getattr(self._settings, "get_hidden_menu_buttons", None)
         self._hidden_menu_buttons = (
             get_hidden_menu() if callable(get_hidden_menu) else set()
@@ -328,6 +331,10 @@ class FloatingAssistant(
         self._crash_hide_timer = None
         self._crash_tk_image = None
         self._game_window = None
+        self._paint_window = None
+        self._paint_session = None
+        self._paint_gallery_window = None
+        self._paint_detail_window = None
         self._auto_wake_timer = None
         self._bubble_position_timer = None
         self._screen_bounds_timer = None
@@ -402,6 +409,7 @@ class FloatingAssistant(
             window_grab_enabled=bool(getattr(self, "_window_grab_enabled", True)),
             tts_enabled=bool(getattr(self, "_tts_enabled", True)),
             special_days_enabled=bool(getattr(self, "_special_days_enabled", True)),
+            emoji_picker_enabled=bool(getattr(self, "_emoji_picker_enabled", True)),
         )
         set_hidden_menu = getattr(store, "set_hidden_menu_buttons", None)
         if callable(set_hidden_menu):
@@ -417,29 +425,26 @@ class FloatingAssistant(
             line = None
             memory = getattr(self, "_memory", None)
             if memory is not None:
-                try:
-                    from content.birthday import (
-                        birthday_age,
-                        is_birthday_today,
-                        pick_birthday_congrats_line,
-                    )
+                from content.birthday import (
+                    birthday_age,
+                    is_birthday_today,
+                    pick_birthday_congrats_line,
+                )
 
-                    stored = memory.get_fact("birthday")
-                    if is_birthday_today(stored):
-                        name = memory.get_fact("user_name")
-                        line = pick_birthday_congrats_line(
-                            dlg.BIRTHDAY_CONGRATS_LINES,
-                            name=name,
-                            age=birthday_age(stored),
-                        )
-                except ImportError:
-                    pass
+                stored = memory.get_fact("birthday")
+                if is_birthday_today(stored):
+                    name = memory.pick_user_name()
+                    line = pick_birthday_congrats_line(
+                        dlg.BIRTHDAY_CONGRATS_LINES,
+                        name=name,
+                        age=birthday_age(stored),
+                    )
             if not line and getattr(self, "_special_days_enabled", True):
                 from content.special_days import pick_special_day_line
 
                 line = pick_special_day_line()
             if not line and memory is not None:
-                name = memory.get_fact("user_name")
+                name = memory.pick_user_name()
                 if name:
                     line = random.choice(STARTUP_LINES_WITH_NAME).format(user_name=name)
             if not line:
@@ -454,6 +459,7 @@ class FloatingAssistant(
             self._startup_complete
             and self._allow_random_questions
             and not getattr(self, "_focus_mode", False)
+            and not self._is_game_active()
             and not self.moving
             and not self._is_busy_with_speech()
         )
@@ -472,6 +478,8 @@ class FloatingAssistant(
         self.hide_blue_screen()
         if hasattr(self, "_ensure_single_game_window"):
             self._ensure_single_game_window()
+        if hasattr(self, "_ensure_single_paint_window"):
+            self._ensure_single_paint_window()
         self.close_camera()
         self.close_browser()
         self.close_media()
@@ -779,6 +787,8 @@ class FloatingAssistant(
         self.close_browser()
         self.close_media()
         self._ensure_single_game_window()
+        if hasattr(self, "_ensure_single_paint_window"):
+            self._ensure_single_paint_window()
         self.end_hug()
         self.hide_screen_glitch()
         self.hide_blue_screen()
@@ -817,6 +827,8 @@ class FloatingAssistant(
         self.close_browser()
         self.close_media()
         self._ensure_single_game_window()
+        if hasattr(self, "_ensure_single_paint_window"):
+            self._ensure_single_paint_window()
         self.end_hug()
         self.hide_screen_glitch()
         self.hide_blue_screen()

@@ -324,12 +324,20 @@ This project is released under the **[MIT License](LICENSE)** — free to use, m
 |------|-------------|
 | **Kinito & KinitoPET** | [KinitoPET on Steam](https://store.steampowered.com/app/2075070/KinitoPET/) by **troy_en** |
 | **Python template** | [TimTamCoder/KinitoPET-Python-Virtual-Assistant](https://github.com/TimTamCoder/KinitoPET-Python-Virtual-Assistant) by **TimTamCoder** |
+| **Sprites** | [The Spriters Resource — KinitoPET](https://www.spriters-resource.com/pc_computer/kinitopet/) |
+| **Emoji sheet** | [Pixel Art Emoji by Kuteken](https://kuteken.itch.io/pixel-art-emoji) (CC0) |
 
 This is a **fan-made** desktop assistant. It is not an official KinitoPET product and is not affiliated with the game's developers or publishers.
 
 If you fork this project or build your own desktop friend from it, **please credit this repository**, [TimTamCoder's template](https://github.com/TimTamCoder/KinitoPET-Python-Virtual-Assistant), and mention **KinitoPET** as inspiration.
 
-**In the app:** right-click Kinito → **Credits** to view attributions and open the links above.
+**In the app:** right-click Kinito → **Settings** → **Credits** to view attributions and open the links above.
+
+### Features (non-AI)
+
+- **Birthday** — Kinito may ask for your birthday once; on that day you get a startup or idle congratulations.
+- **Paint** — **Actions** → **Paint** opens a retro drawing window; save PNGs to `GameAssets/UserMedia/paintings/` and browse them in **My Paintings**.
+- **Emojis** — **Settings** → **Emojis** toggles the emoji picker setting (reserved for a future chat UI; no chat mode in this build).
 
 ---
 

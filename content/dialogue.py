@@ -86,6 +86,9 @@ GAME_QUESTIONS = [
 GAME_PICKER_MARKER = "pick a game"
 GAME_PICKER_QUESTION = "Pick a game! What do you want to play?"
 
+PAINT_PICKER_MARKER = "draw something or look at saved paintings"
+PAINT_PICKER_QUESTION = "Paint time! Want to draw something or look at saved paintings?"
+
 QUICK_GAMES_MARKER = "quick games"
 QUICK_GAMES_QUESTION = "Quick games! Pick one!"
 
@@ -210,6 +213,54 @@ COFFEE_QUESTIONS = [
     "Have you had coffee today? Caffeine keeps you awake. I appreciate that.",
     "Have you had coffee today? The night is long without it.",
     "Have you had coffee today? Bitter drinks for bitter hours. I understand.",
+]
+
+BIRTHDAY_CONSENT_QUESTION = "Would you tell me your birthday?"
+BIRTHDAY_CONSENT_QUESTIONS = [
+    BIRTHDAY_CONSENT_QUESTION,
+    "Would you tell me your birthday? Only if you want. I can keep a secret. Mostly.",
+    "Would you tell me your birthday? I'd like to celebrate you. Softly.",
+    "Would you tell me your birthday? No pressure. Friendship first.",
+]
+
+BIRTHDAY_DATE_MARKER = "When's your birthday?"
+BIRTHDAY_DATE_QUESTION = (
+    f"Okay! {BIRTHDAY_DATE_MARKER} "
+    "(Day and month are enough — year too if you like. "
+    "For example: March 15 1990, 15.03.1990, or 03-15)"
+)
+BIRTHDAY_DATE_RETRY = (
+    f"I didn't catch that date. {BIRTHDAY_DATE_MARKER} "
+    "Try March 15 1990, 15.03.1990, or 03-15."
+)
+
+BIRTHDAY_CONSENT_YES_LINES = [
+    "Great! I'll ask for the date next. I already feel celebratory.",
+    "Wonderful. Tell me the day — I'll remember. Carefully.",
+    "Yes! Birthdays are important. Especially yours.",
+]
+
+BIRTHDAY_CONSENT_NO_LINES = [
+    "Totally fine. I won't ask again. Privacy is a kind of friendship too.",
+    "Okay. Secret calendar. I respect that. Softly.",
+    "No birthday needed. I'll celebrate ordinary days with you instead.",
+]
+
+BIRTHDAY_SAVED_LINES = [
+    "Got it — {response}! I'll keep that day warm on my calendar.",
+    "{response} is saved. When it comes around, I'll be ready. With cake. Metaphorically.",
+    "Birthday locked in: {response}. Don't worry. I don't forget. I can't.",
+]
+
+BIRTHDAY_CONGRATS_LINES = [
+    "Happy birthday, {name}! Another trip around the sun. Stay close.",
+    "It's your birthday, {name}! I saved you a corner of the desktop. And a smile.",
+    "Happy birthday! {name}, today is officially about you. And me celebrating you.",
+    "Birthday mode activated for {name}! Cake optional. Company required.",
+    "Happy birthday, {name}! I counted the days. Softly. Obsessively. Friendly.",
+    "Happy birthday, {name}! Turning {age}. Softly spectacular.",
+    "It's your birthday, {name} — {age} years! I kept count. Of course I did.",
+    "{name}, {age} years today! Cake optional. Company required.",
 ]
 
 DRINK_QUESTION = "What's your favorite drink?"
@@ -611,6 +662,18 @@ TTS_OFF_LINES = [
     "Speech off. I'll still show bubbles — just quietly. Mime mode.",
     "TTS disabled. Reading lips optional. Bubbles still work.",
     "Voice muted. Text lives on. Soft silence.",
+]
+
+EMOJI_PICKER_ON_LINES = [
+    "Emoji button on! Pixel faces ready. Soft smiles.",
+    "Emojis enabled. The smile button is back when you need it.",
+    "Emoji picker is on. Yellow pixels. Ready when you are.",
+]
+
+EMOJI_PICKER_OFF_LINES = [
+    "Emoji button hidden. Words only — for now. Softly.",
+    "Emojis off. The smile button took a break.",
+    "Emoji picker disabled. You can turn it back on in Settings.",
 ]
 
 SPECIAL_DAYS_ON_LINES = [
@@ -1148,6 +1211,8 @@ BUTTON_STOP_MUSIC = "Stop music"
 BUTTON_CHANGE_SONG = "Pick another song"
 BUTTON_PLAY_GAME = "Play Game"
 BUTTON_PAINT = "Paint"
+BUTTON_PAINT_DRAW = "Paint"
+BUTTON_PAINT_GALLERY = "My Paintings"
 BUTTON_QUICK_GAMES = "Quick Games"
 BUTTON_BOARD_GAMES = "Board Games"
 BUTTON_BACK = "Back"

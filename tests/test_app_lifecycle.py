@@ -209,8 +209,9 @@ def test_play_startup_line_uses_name_when_known(tmp_path):
     app._startup_complete = False
     app.speak = MagicMock()
     line = STARTUP_LINES_WITH_NAME[0]
-    with patch("kinito.app.random.choice", return_value=line):
-        FloatingAssistant._play_startup_line(app)
+    with patch.object(app._memory, "pick_user_name", return_value="Alex"):
+        with patch("kinito.app.random.choice", return_value=line):
+            FloatingAssistant._play_startup_line(app)
     app.speak.assert_called_once_with(line.format(user_name="Alex"))
     assert app._startup_complete is True
 

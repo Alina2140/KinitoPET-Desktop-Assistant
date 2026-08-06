@@ -31,6 +31,10 @@ ads_directory = os.path.join(assets_directory, "ads")
 websites_directory = os.path.join(assets_directory, "websites")
 user_media_directory = os.path.join(assets_directory, "UserMedia")
 user_videos_directory = os.path.join(user_media_directory, "videos")
+paintings_directory = os.path.join(user_media_directory, "paintings")
+emojis_directory = os.path.join(assets_directory, "emojis")
+emoji_sheet_path = os.path.join(emojis_directory, "emojis.png")
+emoji_catalog_path = os.path.join(emojis_directory, "catalog.json")
 crash_directory = os.path.join(assets_directory, "crash")
 balconexe_directory = os.path.join(programs_directory, "balcon.exe")
 
@@ -109,6 +113,7 @@ def ensure_user_media_directories():
     """Create GameAssets/UserMedia folders if they do not exist yet."""
     os.makedirs(user_media_directory, exist_ok=True)
     os.makedirs(user_videos_directory, exist_ok=True)
+    os.makedirs(paintings_directory, exist_ok=True)
 
 
 def _first_existing_sound(name_without_ext: str) -> str:

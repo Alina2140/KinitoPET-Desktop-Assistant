@@ -18,6 +18,13 @@ def test_credits_dialog_spec_has_link_buttons():
     assert dlg.BUTTON_OKAY in spec.ui.buttons
 
 
+def test_credits_text_mentions_third_party_assets():
+    assert "Spriters Resource" in credits.CREDITS_TEXT
+    assert "Kuteken" in credits.CREDITS_TEXT
+    assert credits.CREDITS_URL_SPRITERS
+    assert credits.CREDITS_URL_EMOJIS
+
+
 @patch("content.dialog_registry.webbrowser.open")
 def test_credits_handler_opens_steam_link(mock_open):
     app = MagicMock()

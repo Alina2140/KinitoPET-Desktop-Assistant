@@ -42,6 +42,7 @@ def _menu_app(**kwargs):
     app._screen_effects_enabled = kwargs.get("screen_effects_enabled", True)
     app._ambient_reminders_enabled = kwargs.get("ambient_reminders_enabled", True)
     app._app_awareness_enabled = kwargs.get("app_awareness_enabled", True)
+    app._emoji_picker_enabled = kwargs.get("emoji_picker_enabled", True)
     app._snoring_enabled = kwargs.get("snoring_enabled", True)
     return app
 
@@ -127,6 +128,7 @@ def test_settings_and_actions_options():
         dlg.BUTTON_SNORING_ON,
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
+        dlg.BUTTON_EMOJI_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
@@ -141,6 +143,7 @@ def test_settings_and_actions_options():
         dlg.BUTTON_SNORING_ON,
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
+        dlg.BUTTON_EMOJI_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
@@ -155,6 +158,7 @@ def test_settings_and_actions_options():
         dlg.BUTTON_SNORING_ON,
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
+        dlg.BUTTON_EMOJI_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
@@ -171,6 +175,7 @@ def test_settings_and_actions_options():
         dlg.BUTTON_SHOW_MEDIA,
         dlg.BUTTON_PLAY_MUSIC,
         dlg.BUTTON_PLAY_GAME,
+        dlg.BUTTON_PAINT,
         dlg.BUTTON_GIVE_HUG,
         dlg.BUTTON_BACK,
     ]

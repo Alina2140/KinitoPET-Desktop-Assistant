@@ -266,6 +266,17 @@ class MemoryStore:
         trimmed_value = value.strip()[:MAX_FACT_VALUE_LEN]
         if not trimmed_value:
             return
+        if trimmed_key == "birthday":
+            from content.birthday import BIRTHDAY_DECLINED, parse_birthday
+
+            lowered = trimmed_value.casefold()
+            if lowered in {BIRTHDAY_DECLINED, "no", "private", "none"}:
+                trimmed_value = BIRTHDAY_DECLINED
+            else:
+                parsed = parse_birthday(trimmed_value)
+                if parsed is None:
+                    return
+                trimmed_value = parsed
         facts: dict[str, Any] = self._data["facts"]
         if trimmed_key not in facts and len(facts) >= MAX_FACTS:
             return

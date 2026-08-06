@@ -86,6 +86,11 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
                 frozenset({dlg.BUTTON_TTS_ON, dlg.BUTTON_TTS_OFF}),
             ),
             (
+                "settings.emojis",
+                "Emojis",
+                frozenset({dlg.BUTTON_EMOJI_ON, dlg.BUTTON_EMOJI_OFF}),
+            ),
+            (
                 "settings.special_days",
                 "Special Days",
                 frozenset({dlg.BUTTON_SPECIAL_DAYS_ON, dlg.BUTTON_SPECIAL_DAYS_OFF}),
@@ -124,6 +129,7 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
             ),
             ("actions.music", "Play Music", frozenset({dlg.BUTTON_PLAY_MUSIC})),
             ("actions.game", "Play Game", frozenset({dlg.BUTTON_PLAY_GAME})),
+            ("actions.paint", "Paint", frozenset({dlg.BUTTON_PAINT})),
             ("actions.hug", "Hug", frozenset({dlg.BUTTON_GIVE_HUG})),
             ("actions.back", "Back", frozenset({dlg.BUTTON_BACK})),
         ),

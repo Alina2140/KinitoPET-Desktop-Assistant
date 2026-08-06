@@ -156,6 +156,11 @@ def settings_options_for(app) -> list[str]:
         if getattr(app, "_tts_enabled", True)
         else dlg.BUTTON_TTS_OFF
     )
+    emoji_label = (
+        dlg.BUTTON_EMOJI_ON
+        if getattr(app, "_emoji_picker_enabled", True)
+        else dlg.BUTTON_EMOJI_OFF
+    )
     special_days_label = (
         dlg.BUTTON_SPECIAL_DAYS_ON
         if getattr(app, "_special_days_enabled", True)
@@ -170,6 +175,7 @@ def settings_options_for(app) -> list[str]:
             snoring_label,
             window_play_label,
             tts_label,
+            emoji_label,
             special_days_label,
             dlg.BUTTON_MENU_BUTTONS,
             dlg.BUTTON_REMEMBER,
@@ -193,6 +199,7 @@ def actions_options_for(app) -> list[str]:
             dlg.BUTTON_SHOW_MEDIA,
             dlg.BUTTON_PLAY_MUSIC,
             dlg.BUTTON_PLAY_GAME,
+            dlg.BUTTON_PAINT,
             dlg.BUTTON_GIVE_HUG,
             dlg.BUTTON_BACK,
         ],
@@ -338,6 +345,42 @@ def _yes_no_lines_with_memory(marker: str, fact_key: str, yes_lines, no_lines) -
     return handler
 
 
+def _handle_birthday_consent(app, response: str) -> None:
+    """Ask for consent first; on yes open the date prompt, on no store decline."""
+    from content.birthday import BIRTHDAY_DECLINED
+
+    memory = getattr(app, "_memory", None)
+    if response == dlg.BUTTON_NO:
+        if memory is not None:
+            memory.set_fact("birthday", BIRTHDAY_DECLINED)
+            memory.mark_answered(dlg.BIRTHDAY_CONSENT_QUESTION)
+        app.speak(dlg.pick_declined_line(dlg.BIRTHDAY_CONSENT_NO_LINES))
+        return
+    if response == dlg.BUTTON_YES:
+        if memory is not None:
+            memory.mark_answered(dlg.BIRTHDAY_CONSENT_QUESTION)
+        app.speak(dlg.BIRTHDAY_DATE_QUESTION, 45, True)
+
+
+def _handle_birthday_date(app, response: str) -> None:
+    """Parse and store a birthday date, or re-prompt on invalid input."""
+    from content.birthday import format_birthday_display, parse_birthday
+
+    parsed = parse_birthday(response)
+    if not parsed:
+        app.speak(dlg.BIRTHDAY_DATE_RETRY, 45, True)
+        return
+
+    memory = getattr(app, "_memory", None)
+    if memory is not None:
+        memory.set_fact("birthday", parsed)
+        memory.mark_answered(dlg.BIRTHDAY_CONSENT_QUESTION)
+        memory.mark_answered(dlg.BIRTHDAY_DATE_MARKER)
+
+    display = format_birthday_display(parsed) or response.strip() or parsed
+    app.speak(dlg.pick_line(dlg.BIRTHDAY_SAVED_LINES).format(response=display))
+
+
 def _okay_not_now(
     yes_fn: Handler, declined_lines, *, minimize_count: int = 0, speak_pitch: int = 45
 ) -> Handler:
@@ -409,6 +452,9 @@ def _menu_action_handlers() -> dict[str, Handler]:
         dlg.BUTTON_TTS: lambda a: a.toggle_tts(),
         dlg.BUTTON_TTS_ON: lambda a: a.toggle_tts(),
         dlg.BUTTON_TTS_OFF: lambda a: a.toggle_tts(),
+        dlg.BUTTON_EMOJI: lambda a: a.toggle_emoji_picker_setting(),
+        dlg.BUTTON_EMOJI_ON: lambda a: a.toggle_emoji_picker_setting(),
+        dlg.BUTTON_EMOJI_OFF: lambda a: a.toggle_emoji_picker_setting(),
         dlg.BUTTON_SPECIAL_DAYS: lambda a: a.toggle_special_days(),
         dlg.BUTTON_SPECIAL_DAYS_ON: lambda a: a.toggle_special_days(),
         dlg.BUTTON_SPECIAL_DAYS_OFF: lambda a: a.toggle_special_days(),
@@ -421,6 +467,7 @@ def _menu_action_handlers() -> dict[str, Handler]:
         dlg.BUTTON_SHOW_MEDIA: lambda a: a.ask_media_type(),
         dlg.BUTTON_PLAY_MUSIC: lambda a: a.ask_music_player_pick(),
         dlg.BUTTON_PLAY_GAME: lambda a: a.offer_game_picker(),
+        dlg.BUTTON_PAINT: lambda a: a.offer_paint_picker(),
         dlg.BUTTON_GIVE_HUG: lambda a: a.give_hug(),
         dlg.BUTTON_TELL_TIME: lambda a: a.print_current_datetime(),
         dlg.BUTTON_SHOW_CREDITS: lambda a: a.show_credits(),
@@ -558,6 +605,16 @@ def _handle_game_picker(app, response: str) -> None:
     action = actions.get(response)
     if action:
         action(app)
+
+
+def _handle_paint_picker(app, response: str) -> None:
+    """Open Paint canvas or gallery, or return to Actions."""
+    if response == dlg.BUTTON_PAINT_DRAW:
+        app.open_paint()
+    elif response == dlg.BUTTON_PAINT_GALLERY:
+        app.open_paint_gallery()
+    elif response == dlg.BUTTON_BACK:
+        _open_actions_menu(app)
 
 
 def _handle_quick_games(app, response: str) -> None:
@@ -872,6 +929,18 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
         _handle_game_picker,
     ),
     DialogSpec(
+        dlg.PAINT_PICKER_MARKER,
+        DialogUI(
+            "buttons",
+            buttons=(
+                dlg.BUTTON_PAINT_DRAW,
+                dlg.BUTTON_PAINT_GALLERY,
+                dlg.BUTTON_BACK,
+            ),
+        ),
+        _handle_paint_picker,
+    ),
+    DialogSpec(
         dlg.RPS_MARKER,
         DialogUI(
             "buttons",
@@ -1079,6 +1148,16 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
             dlg.COFFEE_YES_LINES,
             dlg.COFFEE_NO_LINES,
         ),
+    ),
+    DialogSpec(
+        dlg.BIRTHDAY_CONSENT_QUESTION,
+        DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
+        _handle_birthday_consent,
+    ),
+    DialogSpec(
+        dlg.BIRTHDAY_DATE_MARKER,
+        DialogUI("textbox", textbox_prompt=dlg.BIRTHDAY_DATE_QUESTION),
+        _handle_birthday_date,
     ),
     DialogSpec(
         dlg.DRINK_QUESTION,
