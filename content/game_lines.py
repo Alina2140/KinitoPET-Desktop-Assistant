@@ -184,3 +184,39 @@ CONNECT_FOUR_DRAW_LINES = [
     "Tie game! Nobody connected four. Suspiciously even.",
     "Draw! Every column filled, no winner. Classic stalemate.",
 ]
+
+SNAKE_GAME_OVER_LINES = [
+    "Game over! Score: {score}. Highscore: {highscore}. Slither better next time.",
+    "Bonk! You scored {score}. My highscore watch says {highscore}. Rematch?",
+    "Snake down at {score} points. Session best is {highscore}. I was rooting for you. Mostly.",
+]
+
+SNAKE_NEW_HIGH_LINES = [
+    "New highscore! {score}! I'll remember that. Forever.",
+    "Record broken — {score}! You're getting dangerously good at this.",
+    "Highscore: {score}! My circuits are mildly jealous.",
+]
+
+HANGMAN_WIN_LINES = [
+    "You got it! The word was {word}. Sharp guessing.",
+    "{word}! Correct. I'll hang a medal instead next time.",
+    "Victory! {word} was the word. My gallows are unemployed.",
+]
+
+HANGMAN_LOSE_LINES = [
+    "Out of guesses! The word was {word}. Better luck next rope.",
+    "Game over. It was {word}. I was rooting for you. Mostly.",
+    "The word was {word}. Don't worry — the stick figure will recover.",
+]
+
+MINESWEEPER_WIN_LINES = [
+    "All clear! {mines} mines dodged. You're dangerously good at this.",
+    "Board cleared! {mines} mines, zero explosions. Impressive.",
+    "You win! Every safe tile opened. My circuits approve.",
+]
+
+MINESWEEPER_LOSE_LINES = [
+    "Boom! That was a mine. I'll sweep up the pixels.",
+    "Kaboom. Game over. Flagging is your friend. Next time.",
+    "You hit a mine! Don't feel bad. Explosions are educational.",
+]

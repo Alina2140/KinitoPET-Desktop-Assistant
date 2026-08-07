@@ -91,6 +91,25 @@ def test_handle_board_games_connect_four(mock_app):
     mock_app.start_connect_four.assert_called_once()
 
 
+def test_handle_board_games_snake(mock_app):
+    spec = find_dialog_spec(dlg.BOARD_GAMES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_GAME_SNAKE)
+    mock_app.start_snake.assert_called_once()
+
+
+def test_handle_board_games_hangman(mock_app):
+    spec = find_dialog_spec(dlg.BOARD_GAMES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_GAME_HANGMAN)
+    mock_app.start_hangman.assert_called_once()
+
+
+def test_handle_board_games_minesweeper(mock_app):
+    spec = find_dialog_spec(dlg.BOARD_GAMES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_GAME_MINESWEEPER)
+    mock_app.start_minesweeper.assert_called_once()
+
+
+
 def test_handle_board_games_back(mock_app):
     spec = find_dialog_spec(dlg.BOARD_GAMES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_BACK)

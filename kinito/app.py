@@ -52,7 +52,6 @@ from kinito.features.content import ContentMixin
 from kinito.features.games import GamesMixin
 from kinito.features.glitch import GlitchMixin
 from kinito.features.hug import HugMixin
-from kinito.features.media import MediaMixin
 from kinito.features.memory import MemoryMixin
 from kinito.features.menu_settings import MenuSettingsMixin
 from kinito.features.music import MusicMixin
@@ -119,7 +118,6 @@ class FloatingAssistant(
     ProgramsMixin,
     CameraMixin,
     BrowserMixin,
-    MediaMixin,
     AppAwarenessMixin,
 ):
     """Borderless desktop friend that combines speech, movement, and feature mixins."""
@@ -278,14 +276,6 @@ class FloatingAssistant(
         self._browser_active = False
         self._browser_process = None
         self._browser_category = None
-        self._media_active = False
-        self._media_process = None
-        self._media_window = None
-        self._media_label = None
-        self._media_video_cap = None
-        self._media_frame_timer = None
-        self._media_last_frame = None
-        self._media_window_size = None
         self._hug_timer = None
         self._bubble_close_timer = None
         self._speech_epoch = 0
@@ -482,7 +472,6 @@ class FloatingAssistant(
             self._ensure_single_paint_window()
         self.close_camera()
         self.close_browser()
-        self.close_media()
         self.speak(dlg.pick_line(dlg.FOCUS_ON_LINES))
         self._focus_mode = True
 
@@ -785,7 +774,6 @@ class FloatingAssistant(
             self.stop_background_music()
         self.close_camera()
         self.close_browser()
-        self.close_media()
         self._ensure_single_game_window()
         if hasattr(self, "_ensure_single_paint_window"):
             self._ensure_single_paint_window()
@@ -825,7 +813,6 @@ class FloatingAssistant(
             self.stop_background_music()
         self.close_camera()
         self.close_browser()
-        self.close_media()
         self._ensure_single_game_window()
         if hasattr(self, "_ensure_single_paint_window"):
             self._ensure_single_paint_window()

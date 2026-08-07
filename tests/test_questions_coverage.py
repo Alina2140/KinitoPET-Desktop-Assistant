@@ -172,7 +172,6 @@ def test_settings_and_actions_options():
         dlg.BUTTON_SING_SONG,
         dlg.BUTTON_FUN_FACT,
         dlg.BUTTON_VISIT_WEBSITE,
-        dlg.BUTTON_SHOW_MEDIA,
         dlg.BUTTON_PLAY_MUSIC,
         dlg.BUTTON_PLAY_GAME,
         dlg.BUTTON_PAINT,

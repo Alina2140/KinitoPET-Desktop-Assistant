@@ -106,9 +106,8 @@ For a **full beginner walkthrough** (screenshots-level detail), see **[docs/INST
 - **Sing** — recites a random poem (some include background music)
 - **Fun Fact** — random fact
 - **Visit a Website** — pick a category (Animals, Knowledge, Games, Horror, Surprise Me)
-- **Show Picture or Video** — open a user image or allow-listed video in a window
 - **Play Music** — pick an MP3 or play a random one from your Music/Downloads folders
-- **Play a Game** — mini-games (quick games and board games)
+- **Play a Game** — mini-games (quick games and board games including Snake, Hangman, Minesweeper)
 - **Hug** — hug pose sprites + hug line
 - **Goodbye** — farewell line, then closes the app
 
@@ -137,13 +136,9 @@ Some choices trigger **KinitoPET-style surprises** — not bugs:
 
 Kinito only opens URLs from a **manual whitelist** in `content/allowed_sites.py`. Navigation to other HTTPS sites is blocked inside the built-in browser window.
 
-### User media (pictures & videos)
+### Paintings
 
-- **Images:** drop files into `GameAssets/UserMedia/` (PNG, JPG, WEBP, GIF, BMP)
-- **Local videos:** drop files into `GameAssets/UserMedia/videos/` (MP4, WEBM, MOV, MKV, AVI)
-- **Online videos:** curated whitelist in `content/allowed_videos.py` (same safety model as websites)
-
-Kinito only opens media from these folders or the video whitelist — never arbitrary paths on your PC.
+Saved drawings from **Paint** live in `GameAssets/UserMedia/paintings/` (created automatically).
 
 ### Memory (persistent user facts)
 
@@ -171,18 +166,16 @@ KinitoPET-Python-Virtual-Assistant/
 │   ├── bubble_ui.py         # Chamfered bubble chrome & buttons
 │   ├── movement.py          # Drag, wander, idle animations
 │   ├── assets.py            # Paths to GameAssets files
-│   └── features/            # Browser, camera, music, hug, programs, content, games, media
+│   └── features/            # Browser, camera, music, hug, programs, content, games, paint
 ├── content/                 # All dialogue & data (easy to edit!)
 │   ├── dialogue.py          # Questions, buttons, response lines
 │   ├── dialog_registry.py   # Links questions → UI → actions
 │   ├── questions.py         # Pool of random questions
 │   ├── allowed_sites.py     # Browser whitelist
-│   ├── allowed_videos.py    # Online video whitelist
 │   ├── facts.py, poems.py, stories.py, ...
-│   ├── site_validator.py    # URL safety checks
-│   └── media_validator.py   # User media path & video URL checks
+│   └── site_validator.py    # URL safety checks
 ├── GameAssets/              # Sprites, MP3s, balcon.exe (required)
-├── tests/                   # Automated tests (815+)
+├── tests/                   # Automated tests
 ├── docs/                    # Detailed guides
 ├── requirements.txt         # Runtime dependencies
 └── requirements-dev.txt     # pytest, ruff (for contributors)

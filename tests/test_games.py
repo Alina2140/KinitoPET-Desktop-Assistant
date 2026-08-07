@@ -5,6 +5,7 @@ import random
 import pytest
 
 from content import dialogue as dlg
+from content.hangman_words import WORDS, pick_word
 from content.magic_8_ball import MAGIC_8_BALL_ANSWERS
 from content.trivia_questions import (
     ROUND_SIZE,
@@ -14,6 +15,9 @@ from content.trivia_questions import (
     pick_random_question,
 )
 from kinito.features.games import connect_four as c4
+from kinito.features.games import hangman as hangman_game
+from kinito.features.games import minesweeper as ms
+from kinito.features.games import snake as snake_game
 from kinito.features.games.battleships import (
     GRID_SIZE,
     MAX_SHOTS,
@@ -33,6 +37,7 @@ from kinito.features.games.coin_dice import (
     flip_coin,
     roll_dice,
 )
+from kinito.features.games.hangman import MAX_MISSES, apply_guess, display_word
 from kinito.features.games.magic_8_ball import pick_answer
 from kinito.features.games.memory import DEFAULT_PAIRS, build_deck, is_match
 from kinito.features.games.number_guess import (
@@ -41,6 +46,16 @@ from kinito.features.games.number_guess import (
     parse_guess,
 )
 from kinito.features.games.rock_paper_scissors import MOVES, rps_winner
+from kinito.features.games.snake import (
+    BASE_DELAY_MS,
+    LEFT,
+    MIN_DELAY_MS,
+    RIGHT,
+    UP,
+    queue_direction,
+    step,
+    tick_delay_ms,
+)
 from kinito.features.games.tic_tac_toe import (
     EMPTY,
     KINITO,
@@ -346,3 +361,170 @@ def test_ttt_ai_blocks_fork():
     from kinito.features.games.tic_tac_toe import _fork_move
 
     assert _fork_move(trial, PLAYER) is None
+
+def test_snake_rejects_180_turn():
+    state = snake_game.new_game(rng=random.Random(0))
+    assert state["direction"] == RIGHT
+    assert queue_direction(state, *LEFT) is False
+    assert state["pending_direction"] == RIGHT
+    assert queue_direction(state, *UP) is True
+    assert state["pending_direction"] == UP
+
+def test_snake_step_without_food_keeps_length():
+    state = snake_game.new_game(rng=random.Random(0))
+    state["food"] = (0, 0)
+    length_before = len(state["snake"])
+    head_before = state["snake"][0]
+    assert step(state) == "ok"
+    assert len(state["snake"]) == length_before
+    assert state["snake"][0] == (head_before[0] + 1, head_before[1])
+    assert state["alive"] is True
+
+def test_snake_eating_grows_and_scores():
+    state = snake_game.new_game(rng=random.Random(0))
+    head = state["snake"][0]
+    state["food"] = (head[0] + 1, head[1])
+    length_before = len(state["snake"])
+    assert step(state) == "ate"
+    assert state["score"] == 1
+    assert len(state["snake"]) == length_before + 1
+    assert state["food"] not in state["snake"]
+
+def test_snake_wall_collision_kills():
+    state = snake_game.new_game(rng=random.Random(0))
+    state["snake"] = [(snake_game.GRID_SIZE - 1, 5)]
+    state["direction"] = RIGHT
+    state["pending_direction"] = RIGHT
+    state["food"] = (0, 0)
+    assert step(state) == "dead"
+    assert state["alive"] is False
+
+def test_snake_self_collision_kills():
+    state = snake_game.new_game(rng=random.Random(0))
+    # Head at (5,5) moving right into body at (6,5).
+    state["snake"] = [(5, 5), (5, 6), (6, 6), (6, 5), (6, 4)]
+    state["direction"] = RIGHT
+    state["pending_direction"] = RIGHT
+    state["food"] = (0, 0)
+    assert step(state) == "dead"
+    assert state["alive"] is False
+
+def test_snake_tick_delay_decreases_with_floor():
+    assert tick_delay_ms(0) == BASE_DELAY_MS
+    assert tick_delay_ms(5) < BASE_DELAY_MS
+    assert tick_delay_ms(100) == MIN_DELAY_MS
+
+def test_hangman_words_are_playable():
+    assert len(WORDS) >= 120
+    for word in WORDS:
+        assert 4 <= len(word) <= 10
+        assert word.isalpha() and word.isupper()
+        assert word.isascii()
+
+def test_hangman_pick_word_from_list():
+    word = pick_word(rng=random.Random(0))
+    assert word in WORDS
+
+def test_hangman_pick_word_avoids_used():
+    used = set(WORDS[:-1])
+    word = pick_word(rng=random.Random(1), used=used)
+    assert word == WORDS[-1]
+
+def test_hangman_hit_reveals_letters():
+    state = hangman_game.new_game("CAT")
+    assert apply_guess(state, "a") == "hit"
+    assert display_word(state) == "_ A _"
+    assert state["misses"] == 0
+
+def test_hangman_miss_increments():
+    state = hangman_game.new_game("CAT")
+    assert apply_guess(state, "z") == "miss"
+    assert state["misses"] == 1
+    assert display_word(state) == "_ _ _"
+
+def test_hangman_repeat_guess_ignored():
+    state = hangman_game.new_game("CAT")
+    apply_guess(state, "z")
+    before = dict(state)
+    before["guessed"] = set(state["guessed"])
+    before["revealed"] = list(state["revealed"])
+    assert apply_guess(state, "z") == "repeat"
+    assert state["misses"] == before["misses"]
+    assert state["guessed"] == before["guessed"]
+
+def test_hangman_win_when_all_revealed():
+    state = hangman_game.new_game("HI")
+    assert apply_guess(state, "h") == "hit"
+    assert apply_guess(state, "i") == "hit"
+    assert state["status"] == "won"
+    assert display_word(state) == "H I"
+
+def test_hangman_lose_at_max_misses():
+    state = hangman_game.new_game("AB")
+    for letter in "CDEFGH":
+        apply_guess(state, letter)
+    assert state["misses"] == MAX_MISSES
+    assert state["status"] == "lost"
+    assert display_word(state) == "A B"
+
+def test_minesweeper_ensure_mines_avoids_safe_zone():
+    state = ms.new_game()
+    safe = 40  # center-ish
+    ms.ensure_mines(state, safe, rng=random.Random(0))
+    assert len(state["mines"]) == ms.MINE_COUNT
+    assert safe not in state["mines"]
+    for neighbor in ms._neighbors(safe):
+        assert neighbor not in state["mines"]
+    assert state["started"] is True
+
+def test_minesweeper_flood_fill_on_zero():
+    state = ms.new_game()
+    # Place mines only in a corner so center opens wide.
+    state["mines"] = {0, 1, 2, 9, 10, 18, 19, 20, 27, 28}
+    state["started"] = True
+    result = ms.reveal_cell(state, 80)  # bottom-right
+    assert result in ("ok", "win")
+    assert 80 in state["revealed"]
+    assert len(state["revealed"]) > 1
+    assert ms.neighbor_count(state, 80) == 0
+
+def test_minesweeper_reveal_mine_loses():
+    state = ms.new_game()
+    state["mines"] = {5}
+    state["started"] = True
+    assert ms.reveal_cell(state, 5) == "lose"
+    assert state["finished"] is True
+    assert state["won"] is False
+
+def test_minesweeper_clear_board_wins():
+    state = ms.new_game()
+    state["mines"] = {0}
+    state["started"] = True
+    result = "ok"
+    for index in range(1, ms.CELL_COUNT):
+        outcome = ms.reveal_cell(state, index)
+        if outcome != "ignored":
+            result = outcome
+    assert result == "win"
+    assert state["won"] is True
+    assert state["finished"] is True
+
+def test_minesweeper_flag_toggle_and_block_revealed():
+    state = ms.new_game()
+    state["mines"] = {10}
+    state["started"] = True
+    assert ms.toggle_flag(state, 0) is True
+    assert 0 in state["flags"]
+    assert ms.toggle_flag(state, 0) is True
+    assert 0 not in state["flags"]
+    ms.reveal_cell(state, 1)
+    assert ms.toggle_flag(state, 1) is False
+
+def test_minesweeper_flagged_cell_not_revealed():
+    state = ms.new_game()
+    state["mines"] = {0}
+    state["started"] = True
+    ms.toggle_flag(state, 5)
+    assert ms.reveal_cell(state, 5) == "ignored"
+    assert 5 not in state["revealed"]
+

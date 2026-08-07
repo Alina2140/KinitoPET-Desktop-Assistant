@@ -196,7 +196,6 @@ def actions_options_for(app) -> list[str]:
             dlg.BUTTON_SING_SONG,
             dlg.BUTTON_FUN_FACT,
             dlg.BUTTON_VISIT_WEBSITE,
-            dlg.BUTTON_SHOW_MEDIA,
             dlg.BUTTON_PLAY_MUSIC,
             dlg.BUTTON_PLAY_GAME,
             dlg.BUTTON_PAINT,
@@ -464,7 +463,6 @@ def _menu_action_handlers() -> dict[str, Handler]:
         dlg.BUTTON_REMEMBER: lambda a: a.show_memory_summary(),
         dlg.BUTTON_FORGET: lambda a: a.forget_memory(),
         dlg.BUTTON_VISIT_WEBSITE: lambda a: a.ask_browser_category(),
-        dlg.BUTTON_SHOW_MEDIA: lambda a: a.ask_media_type(),
         dlg.BUTTON_PLAY_MUSIC: lambda a: a.ask_music_player_pick(),
         dlg.BUTTON_PLAY_GAME: lambda a: a.offer_game_picker(),
         dlg.BUTTON_PAINT: lambda a: a.offer_paint_picker(),
@@ -558,14 +556,6 @@ def _handle_browser_category(app, response: str) -> None:
         app.open_allowed_site(category)
 
 
-def _handle_media_type(app, response: str) -> None:
-    """Map picture/video buttons to the matching media action."""
-    if response == dlg.BUTTON_SHOW_PICTURE:
-        app.show_allowed_image()
-    elif response == dlg.BUTTON_SHOW_VIDEO:
-        app.show_allowed_video()
-
-
 def _handle_music_pick(app, response: str) -> None:
     """Open file picker or play a random MP3 based on the user's choice."""
     if response == dlg.BUTTON_NOT_NOW:
@@ -643,7 +633,10 @@ def _handle_board_games(app, response: str) -> None:
         dlg.BUTTON_GAME_TIC_TAC_TOE: lambda a: a.start_tic_tac_toe(),
         dlg.BUTTON_GAME_MEMORY: lambda a: a.start_memory(),
         dlg.BUTTON_GAME_BATTLESHIPS: lambda a: a.start_battleships(),
+        dlg.BUTTON_GAME_SNAKE: lambda a: a.start_snake(),
         dlg.BUTTON_GAME_CONNECT_FOUR: lambda a: a.start_connect_four(),
+        dlg.BUTTON_GAME_HANGMAN: lambda a: a.start_hangman(),
+        dlg.BUTTON_GAME_MINESWEEPER: lambda a: a.start_minesweeper(),
     }
     action = actions.get(response)
     if action:
@@ -868,7 +861,10 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
                 dlg.BUTTON_GAME_TIC_TAC_TOE,
                 dlg.BUTTON_GAME_MEMORY,
                 dlg.BUTTON_GAME_BATTLESHIPS,
+                dlg.BUTTON_GAME_SNAKE,
                 dlg.BUTTON_GAME_CONNECT_FOUR,
+                dlg.BUTTON_GAME_HANGMAN,
+                dlg.BUTTON_GAME_MINESWEEPER,
                 dlg.BUTTON_BACK,
             ),
         ),
@@ -987,14 +983,6 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
             ),
         ),
         _handle_browser_category,
-    ),
-    DialogSpec(
-        dlg.MEDIA_TYPE_MARKER,
-        DialogUI(
-            "buttons",
-            buttons=(dlg.BUTTON_SHOW_PICTURE, dlg.BUTTON_SHOW_VIDEO),
-        ),
-        _handle_media_type,
     ),
     DialogSpec(
         dlg.MUSIC_PLAYER_PICK_MARKER,

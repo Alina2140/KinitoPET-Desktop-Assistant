@@ -61,7 +61,6 @@ class ContentMixin:
             self.say_random_poem,
             self.say_random_fact,
             self.offer_browser_visit,
-            self.show_random_media,
             self.offer_random_music,
             self.offer_game_picker,
             self.ask_for_hug,
