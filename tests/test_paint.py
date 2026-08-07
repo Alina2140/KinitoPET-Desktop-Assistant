@@ -119,17 +119,100 @@ def test_paint_window_commit_shapes():
     window.canvas = MagicMock()
     window._set_color("#0000ff")
 
-    window._set_tool("line")
+    window._set_shape_tool("line", 10)
     window._commit_shape(0, 0, 30, 30)
     window.canvas.create_line.assert_called()
+    assert window._tool == "line"
+    assert window._tip_size == 10
 
-    window._set_tool("circle")
+    window._set_shape_tool("circle", 16)
     window._commit_shape(5, 5, 40, 40)
     window.canvas.create_oval.assert_called()
+    assert window._tip_size == 16
 
-    window._set_tool("rect")
+    window._set_shape_tool("rect", 4)
     window._commit_shape(5, 5, 40, 40)
     window.canvas.create_rectangle.assert_called()
+    assert window._tip_size == 4
+
+
+def test_paint_commit_shapes_reversed_drag():
+    """PIL rejects inverted boxes; dragging up/left must still commit."""
+    app = MagicMock()
+    window = PaintWindow(app)
+    window.canvas = MagicMock()
+    window._set_color("#00ff00")
+
+    window._set_shape_tool("circle", 10)
+    window._commit_shape(40, 40, 5, 10)  # right→left, bottom→top
+    window.canvas.create_oval.assert_called_with(5, 10, 40, 40, outline="#00ff00", width=3)
+    # Outline pixel near the normalized box edge should be green.
+    assert window._image.getpixel((5, 25)) == (0, 255, 0)
+
+    window._set_shape_tool("rect", 10)
+    window._commit_shape(50, 5, 10, 40)
+    window.canvas.create_rectangle.assert_called_with(
+        10, 5, 50, 40, outline="#00ff00", width=3
+    )
+
+
+def test_paint_shape_tip_switches_back_to_pencil():
+    app = MagicMock()
+    window = PaintWindow(app)
+    window._set_shape_tool("line", 10)
+    assert window._tool == "line"
+    window._set_tip("circle", 10)
+    assert window._tool == "pencil"
+    assert window._tip_shape == "circle"
+    assert window._tip_size == 10
+
+
+def test_paint_tool_defs_exclude_shapes():
+    from kinito.features.paint import _SHAPE_TIP_SPECS, _TOOL_DEFS
+
+    tool_ids = [t for t, _ in _TOOL_DEFS]
+    assert tool_ids == ["eraser", "pencil", "spray", "fill"]
+    shape_tools = {t for t, _, _ in _SHAPE_TIP_SPECS}
+    assert shape_tools == {"line", "circle", "rect"}
+    assert all(
+        sum(1 for t, _, _ in _SHAPE_TIP_SPECS if t == shape) == 3
+        for shape in ("line", "circle", "rect")
+    )
+
+
+def test_tool_icon_images():
+    from kinito.features.paint import _TOOL_DEFS, _TOOL_ICON_SIZE, _tool_icon_image
+
+    for tool_id, _ in _TOOL_DEFS:
+        icon = _tool_icon_image(tool_id)
+        assert icon.size == (_TOOL_ICON_SIZE, _TOOL_ICON_SIZE)
+        assert icon.mode == "RGBA"
+        alpha = icon.split()[-1]
+        assert alpha.getextrema()[1] > 0
+
+
+def test_paint_fill_floods_region():
+    app = MagicMock()
+    window = PaintWindow(app)
+    window.canvas = MagicMock()
+    window._set_color("#ff0000")
+    # Closed black box on white canvas; fill inside should turn red.
+    window._draw.rectangle((10, 10, 40, 40), outline=(0, 0, 0))
+    window._set_tool("fill")
+    with patch.object(window, "_sync_canvas_from_image") as sync:
+        window._flood_fill_at(25, 25)
+        sync.assert_called_once()
+    assert window._image.getpixel((25, 25)) == (255, 0, 0)
+    assert window._image.getpixel((0, 0)) == (255, 255, 255)
+
+
+def test_paint_fill_tip_switches_to_pencil():
+    app = MagicMock()
+    window = PaintWindow(app)
+    window._set_tool("fill")
+    window._set_tip("rect", 4)
+    assert window._tool == "pencil"
+    assert window._tip_shape == "rect"
 
 
 def test_spray_uses_tip_size_and_throttles():

@@ -51,6 +51,7 @@ _PALETTE = (
     "#c46b47",
 )
 
+# Freehand stamp tips (circle/square brush). Name is unused; kept for readability.
 _TIP_SPECS = (
     ("circle", "large", 16),
     ("circle", "medium", 10),
@@ -60,14 +61,55 @@ _TIP_SPECS = (
     ("rect", "small", 4),
 )
 
+# Shape tools live in the tip panel: each has three stroke thicknesses.
+_SHAPE_TIP_SPECS = (
+    ("line", "large", 16),
+    ("line", "medium", 10),
+    ("line", "small", 4),
+    ("circle", "large", 16),
+    ("circle", "medium", 10),
+    ("circle", "small", 4),
+    ("rect", "large", 16),
+    ("rect", "medium", 10),
+    ("rect", "small", 4),
+)
+
+_SHAPE_TOOLS = frozenset({"line", "circle", "rect"})
+
 _TOOL_DEFS = (
     ("eraser", "Eraser"),
     ("pencil", "Pencil"),
     ("spray", "Spray"),
-    ("line", "Line"),
-    ("circle", "Circle"),
-    ("rect", "Rect"),
+    ("fill", "Fill"),
 )
+
+_TOOL_ICON_SIZE = 22
+
+# Fixed tip-button chrome so glyph size never changes cell size.
+_TIP_BTN_FONT = ("TkDefaultFont", 10)
+_TIP_BTN_WIDTH = 3
+_TIP_BTN_HEIGHT = 1
+
+_TIP_GLYPHS = {
+    ("circle", 16): "⬤",
+    ("circle", 10): "●",
+    ("circle", 4): "•",
+    ("rect", 16): "⬛",
+    ("rect", 10): "■",
+    ("rect", 4): "▪",
+}
+
+_SHAPE_GLYPHS = {
+    ("line", 16): "/",
+    ("line", 10): "/",
+    ("line", 4): "/",
+    ("circle", 16): "◯",
+    ("circle", 10): "○",
+    ("circle", 4): "∘",
+    ("rect", 16): "⬜",
+    ("rect", 10): "□",
+    ("rect", 4): "▫",
+}
 
 _UI_BG = "#e6ded5"
 _CANVAS_BG = "#ffffff"
@@ -79,6 +121,50 @@ _GALLERY_COLS = 3
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
     value = color.lstrip("#")
     return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def _tool_icon_image(tool_id: str, size: int = _TOOL_ICON_SIZE) -> Image.Image:
+    """Draw a tiny Win95-style tool glyph (transparent RGBA)."""
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    ink = (32, 32, 32, 255)
+    mid = (90, 90, 90, 255)
+    accent = (20, 20, 20, 255)
+
+    if tool_id == "eraser":
+        # Angled eraser block with a lighter pad.
+        body = [(4, 14), (12, 6), (18, 12), (10, 20)]
+        draw.polygon(body, fill=(220, 180, 180, 255), outline=ink)
+        pad = [(10, 20), (18, 12), (20, 14), (12, 22)]
+        draw.polygon(pad, fill=(245, 245, 245, 255), outline=ink)
+    elif tool_id == "pencil":
+        # Pencil shaft + tip.
+        draw.polygon([(7, 18), (15, 4), (18, 6), (10, 20)], fill=(240, 200, 80, 255), outline=ink)
+        draw.polygon([(7, 18), (10, 20), (6, 21)], fill=(180, 140, 60, 255), outline=ink)
+        draw.polygon([(15, 4), (18, 6), (17, 3)], fill=accent)
+        draw.line([(9, 16), (16, 6)], fill=mid, width=1)
+    elif tool_id == "spray":
+        # Spray can body + nozzle mist.
+        draw.rectangle((7, 10, 15, 20), fill=(70, 140, 200, 255), outline=ink)
+        draw.rectangle((9, 7, 13, 10), fill=mid, outline=ink)
+        draw.rectangle((10, 5, 12, 7), fill=ink)
+        for px, py in ((16, 4), (18, 6), (17, 8), (19, 5), (20, 7), (18, 9)):
+            draw.point((px, py), fill=ink)
+            draw.point((px + 1, py), fill=ink)
+    elif tool_id == "fill":
+        # Paint bucket tipped with a spill drop.
+        draw.polygon(
+            [(5, 8), (16, 8), (14, 18), (7, 18)],
+            fill=(200, 90, 50, 255),
+            outline=ink,
+        )
+        draw.arc((3, 5, 11, 13), start=200, end=340, fill=ink, width=1)
+        draw.ellipse((14, 14, 19, 19), fill=(200, 90, 50, 255), outline=ink)
+        draw.line([(16, 8), (18, 12)], fill=ink, width=1)
+    else:
+        draw.rectangle((4, 4, size - 5, size - 5), outline=ink)
+
+    return img
 
 
 def _thumbnail_image(path: str, size: tuple[int, int] = _THUMB_SIZE) -> Image.Image | None:
@@ -127,8 +213,11 @@ class PaintWindow:
         self._shape_start: tuple[int, int] | None = None
         self._preview_id: int | None = None
         self._tool_buttons: dict[str, Button] = {}
+        self._tool_icons: dict[str, ImageTk.PhotoImage] = {}
         self._tip_buttons: list[tuple[Button, str, int]] = []
+        self._shape_tip_buttons: list[tuple[Button, str, int]] = []
         self._color_preview: tk.Canvas | None = None
+        self._canvas_photo: ImageTk.PhotoImage | None = None
         self._dirty = False
         self._saved_name: str | None = None
         self._line_timer = None
@@ -159,13 +248,19 @@ class PaintWindow:
 
         tools = Frame(sidebar, bg=_UI_BG, bd=2, relief=tk.SUNKEN)
         tools.pack(fill=tk.X, pady=(0, 6))
-        for index, (tool_id, label) in enumerate(_TOOL_DEFS):
+        for col in range(2):
+            tools.grid_columnconfigure(col, weight=1, uniform="tool")
+        for row in range(2):
+            tools.grid_rowconfigure(row, weight=1, uniform="tool")
+        for index, (tool_id, _label) in enumerate(_TOOL_DEFS):
             row, col = divmod(index, 2)
+            icon = ImageTk.PhotoImage(_tool_icon_image(tool_id))
+            self._tool_icons[tool_id] = icon
             btn = Button(
                 tools,
-                text=label,
-                width=7,
-                font=("TkDefaultFont", 7),
+                image=icon,
+                width=_TOOL_ICON_SIZE + 10,
+                height=_TOOL_ICON_SIZE + 6,
                 command=lambda t=tool_id: self._set_tool(t),
             )
             btn.grid(row=row, column=col, padx=1, pady=1, sticky="nsew")
@@ -183,18 +278,38 @@ class PaintWindow:
 
         tips = Frame(sidebar, bg=_UI_BG, bd=2, relief=tk.SUNKEN)
         tips.pack(fill=tk.X, pady=(0, 6))
+        for col in range(3):
+            tips.grid_columnconfigure(col, weight=1, uniform="tip")
+        tip_row_count = (len(_TIP_SPECS) + 2) // 3 + (len(_SHAPE_TIP_SPECS) + 2) // 3
+        for row in range(tip_row_count):
+            tips.grid_rowconfigure(row, weight=1, uniform="tip")
+
         for index, (shape, _name, size) in enumerate(_TIP_SPECS):
             row, col = divmod(index, 3)
-            glyph = "●" if shape == "circle" else "■"
             btn = Button(
                 tips,
-                text=glyph,
-                font=("TkDefaultFont", 6 + size // 4),
-                width=3,
+                text=_TIP_GLYPHS[(shape, size)],
+                font=_TIP_BTN_FONT,
+                width=_TIP_BTN_WIDTH,
+                height=_TIP_BTN_HEIGHT,
                 command=lambda s=shape, z=size: self._set_tip(s, z),
             )
-            btn.grid(row=row, column=col, padx=1, pady=1)
+            btn.grid(row=row, column=col, padx=1, pady=1, sticky="nsew")
             self._tip_buttons.append((btn, shape, size))
+
+        tip_rows = (len(_TIP_SPECS) + 2) // 3
+        for index, (tool_id, _name, size) in enumerate(_SHAPE_TIP_SPECS):
+            row, col = divmod(index, 3)
+            btn = Button(
+                tips,
+                text=_SHAPE_GLYPHS[(tool_id, size)],
+                font=_TIP_BTN_FONT,
+                width=_TIP_BTN_WIDTH,
+                height=_TIP_BTN_HEIGHT,
+                command=lambda t=tool_id, z=size: self._set_shape_tool(t, z),
+            )
+            btn.grid(row=tip_rows + row, column=col, padx=1, pady=1, sticky="nsew")
+            self._shape_tip_buttons.append((btn, tool_id, size))
 
         Button(sidebar, text="Save", command=self.save).pack(fill=tk.X, pady=(4, 0))
         Button(sidebar, text="Clear", command=self.clear_canvas).pack(fill=tk.X, pady=(4, 0))
@@ -298,17 +413,42 @@ class PaintWindow:
 
     def _set_tool(self, tool: str) -> None:
         self._tool = tool
-        for tool_id, btn in self._tool_buttons.items():
-            if tool_id == tool:
-                btn.configure(relief=tk.SUNKEN, bg=_SELECTED_BG)
-            else:
-                btn.configure(relief=tk.RAISED, bg=_UI_BG)
+        self._refresh_tool_highlights()
 
     def _set_tip(self, shape: str, size: int) -> None:
         self._tip_shape = shape
         self._tip_size = size
+        # Stamp tips belong to freehand tools; leave shapes/fill for their own buttons.
+        if self._tool in _SHAPE_TOOLS or self._tool == "fill":
+            self._tool = "pencil"
+        self._refresh_tool_highlights()
+
+    def _set_shape_tool(self, tool: str, size: int) -> None:
+        """Select a shape tool (line/circle/rect) with a stroke thickness."""
+        self._tool = tool
+        self._tip_size = size
+        self._refresh_tool_highlights()
+
+    def _refresh_tool_highlights(self) -> None:
+        for tool_id, btn in self._tool_buttons.items():
+            if tool_id == self._tool:
+                btn.configure(relief=tk.SUNKEN, bg=_SELECTED_BG)
+            else:
+                btn.configure(relief=tk.RAISED, bg=_UI_BG)
+
+        freehand = self._tool not in _SHAPE_TOOLS
         for btn, tip_shape, tip_size in self._tip_buttons:
-            if tip_shape == shape and tip_size == size:
+            if freehand and tip_shape == self._tip_shape and tip_size == self._tip_size:
+                btn.configure(relief=tk.SUNKEN, bg=_SELECTED_BG)
+            else:
+                btn.configure(relief=tk.RAISED, bg=_UI_BG)
+
+        for btn, shape_tool, tip_size in self._shape_tip_buttons:
+            if (
+                not freehand
+                and shape_tool == self._tool
+                and tip_size == self._tip_size
+            ):
                 btn.configure(relief=tk.SUNKEN, bg=_SELECTED_BG)
             else:
                 btn.configure(relief=tk.RAISED, bg=_UI_BG)
@@ -329,6 +469,23 @@ class PaintWindow:
             max(0, min(self.CANVAS_W - 1, int(x))),
             max(0, min(self.CANVAS_H - 1, int(y))),
         )
+
+    def _sync_canvas_from_image(self) -> None:
+        """Replace canvas items with the current backing image (e.g. after fill)."""
+        assert self.canvas is not None
+        self.canvas.delete("all")
+        self._preview_id = None
+        self._canvas_photo = ImageTk.PhotoImage(self._image)
+        self.canvas.create_image(0, 0, anchor=tk.NW, image=self._canvas_photo)
+
+    def _flood_fill_at(self, x: int, y: int) -> None:
+        """Paint-bucket fill from (x, y) with the active color."""
+        fill_rgb = self._active_rgb()
+        target = self._image.getpixel((x, y))
+        if target == fill_rgb:
+            return
+        ImageDraw.floodfill(self._image, (x, y), fill_rgb, thresh=0)
+        self._sync_canvas_from_image()
 
     def _stamp(self, x: int, y: int) -> None:
         assert self.canvas is not None
@@ -390,13 +547,18 @@ class PaintWindow:
         assert self.canvas is not None
         self._clear_preview()
         color = self._color
+        width = max(1, self._tip_size // 3)
         if self._tool == "line":
-            self._preview_id = self.canvas.create_line(x0, y0, x1, y1, fill=color, width=2)
+            self._preview_id = self.canvas.create_line(
+                x0, y0, x1, y1, fill=color, width=width
+            )
         elif self._tool == "circle":
-            self._preview_id = self.canvas.create_oval(x0, y0, x1, y1, outline=color, width=2)
+            self._preview_id = self.canvas.create_oval(
+                x0, y0, x1, y1, outline=color, width=width
+            )
         elif self._tool == "rect":
             self._preview_id = self.canvas.create_rectangle(
-                x0, y0, x1, y1, outline=color, width=2
+                x0, y0, x1, y1, outline=color, width=width
             )
 
     def _commit_shape(self, x0: int, y0: int, x1: int, y1: int) -> None:
@@ -405,23 +567,32 @@ class PaintWindow:
         color = self._color
         rgb = _hex_to_rgb(color)
         width = max(1, self._tip_size // 3)
+        # PIL ellipse/rectangle require ordered corners; drag may go any direction.
+        left, right = sorted((x0, x1))
+        top, bottom = sorted((y0, y1))
         if self._tool == "line":
             self.canvas.create_line(x0, y0, x1, y1, fill=color, width=width)
             self._draw.line((x0, y0, x1, y1), fill=rgb, width=width)
         elif self._tool == "circle":
-            self.canvas.create_oval(x0, y0, x1, y1, outline=color, width=width)
-            self._draw.ellipse((x0, y0, x1, y1), outline=rgb, width=width)
+            self.canvas.create_oval(left, top, right, bottom, outline=color, width=width)
+            self._draw.ellipse((left, top, right, bottom), outline=rgb, width=width)
         elif self._tool == "rect":
-            self.canvas.create_rectangle(x0, y0, x1, y1, outline=color, width=width)
-            self._draw.rectangle((x0, y0, x1, y1), outline=rgb, width=width)
+            self.canvas.create_rectangle(
+                left, top, right, bottom, outline=color, width=width
+            )
+            self._draw.rectangle((left, top, right, bottom), outline=rgb, width=width)
 
     def _on_press(self, event) -> None:
         x, y = self._clamp(event.x, event.y)
         self._drawing = True
         self._last_xy = (x, y)
         self._last_spray_xy = None
-        if self._tool in ("line", "circle", "rect"):
+        if self._tool in _SHAPE_TOOLS:
             self._shape_start = (x, y)
+            return
+        if self._tool == "fill":
+            self._flood_fill_at(x, y)
+            self._dirty = True
             return
         if self._tool == "spray":
             self._spray_at(x, y)
@@ -432,8 +603,10 @@ class PaintWindow:
     def _on_drag(self, event) -> None:
         if not self._drawing:
             return
+        if self._tool == "fill":
+            return
         x, y = self._clamp(event.x, event.y)
-        if self._tool in ("line", "circle", "rect") and self._shape_start is not None:
+        if self._tool in _SHAPE_TOOLS and self._shape_start is not None:
             self._preview_shape(self._shape_start[0], self._shape_start[1], x, y)
             return
         if self._tool == "spray":
@@ -447,7 +620,10 @@ class PaintWindow:
             return
         x, y = self._clamp(event.x, event.y)
         self._drawing = False
-        if self._tool in ("line", "circle", "rect") and self._shape_start is not None:
+        if self._tool == "fill":
+            self._last_xy = None
+            return
+        if self._tool in _SHAPE_TOOLS and self._shape_start is not None:
             self._commit_shape(self._shape_start[0], self._shape_start[1], x, y)
             self._shape_start = None
             self._dirty = True

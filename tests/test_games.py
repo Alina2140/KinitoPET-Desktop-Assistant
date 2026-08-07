@@ -13,6 +13,7 @@ from content.trivia_questions import (
     check_answer,
     pick_random_question,
 )
+from kinito.features.games import connect_four as c4
 from kinito.features.games.battleships import (
     GRID_SIZE,
     MAX_SHOTS,
@@ -222,3 +223,126 @@ def test_battleships_lose_when_out_of_shots():
     assert results[-1] == "lose"
     assert state["finished"] is True
     assert not all_sunk(state)
+
+
+def test_connect_four_drop_stacks_from_bottom():
+    board = c4.new_board()
+    assert c4.drop_disc(board, 0, c4.PLAYER) == (c4.ROWS - 1, 0)
+    assert c4.drop_disc(board, 0, c4.KINITO) == (c4.ROWS - 2, 0)
+    assert board[c4.ROWS - 1][0] == c4.PLAYER
+    assert board[c4.ROWS - 2][0] == c4.KINITO
+
+
+def test_connect_four_full_column_rejects_drop():
+    board = c4.new_board()
+    for _ in range(c4.ROWS):
+        assert c4.drop_disc(board, 3, c4.PLAYER) is not None
+    assert c4.drop_disc(board, 3, c4.KINITO) is None
+
+
+def test_connect_four_horizontal_win():
+    board = c4.new_board()
+    row = c4.ROWS - 1
+    for col in range(4):
+        board[row][col] = c4.PLAYER
+    assert c4.check_winner(board) == c4.PLAYER
+
+
+def test_connect_four_vertical_win():
+    board = c4.new_board()
+    for row in range(c4.ROWS - 4, c4.ROWS):
+        board[row][2] = c4.KINITO
+    assert c4.check_winner(board) == c4.KINITO
+
+
+def test_connect_four_diagonal_win():
+    board = c4.new_board()
+    for i in range(4):
+        board[c4.ROWS - 1 - i][i] = c4.PLAYER
+    assert c4.check_winner(board) == c4.PLAYER
+
+
+def test_connect_four_draw_when_full_without_four():
+    board = [
+        list("LRLRLRL"),
+        list("LRLRLRL"),
+        list("RLRLRLR"),
+        list("RLRLRLR"),
+        list("LRLRLRL"),
+        list("LRLRLRL"),
+    ]
+    assert len(board) == c4.ROWS
+    assert all(len(row) == c4.COLS for row in board)
+    assert c4.check_winner(board) == "draw"
+
+
+def test_connect_four_ai_takes_winning_column():
+    board = c4.new_board()
+    for col in range(3):
+        board[c4.ROWS - 1][col] = c4.KINITO
+    assert c4.winning_column(board, c4.KINITO) == 3
+    assert c4.choose_ai_column(board) == 3
+
+
+def test_connect_four_ai_blocks_player_win():
+    board = c4.new_board()
+    for col in range(3):
+        board[c4.ROWS - 1][col] = c4.PLAYER
+    assert c4.choose_ai_column(board) == 3
+
+
+def test_connect_four_ai_opening_varies():
+    """Empty-board replies should not always be the same center column."""
+    board = c4.new_board()
+    picks = {c4.choose_ai_column(board, rng=random.Random(seed)) for seed in range(40)}
+    assert len(picks) >= 2
+    assert picks <= {1, 2, 3, 4, 5}
+
+
+def test_connect_four_ai_avoids_lonely_vertical_stack():
+    """After one center disc, AI should often branch instead of stacking again."""
+    board = c4.new_board()
+    board[c4.ROWS - 1][3] = c4.KINITO
+    picks = [c4.choose_ai_column(board, rng=random.Random(seed)) for seed in range(30)]
+    assert any(col != 3 for col in picks)
+
+
+def test_connect_four_ai_avoids_giving_immediate_win():
+    """Do not play a column that lets the player win on the following drop."""
+    board = c4.new_board()
+    # Player on row ROWS-2 at cols 2-4. Dropping in col 1 fills the bottom so the
+    # player can then drop in col 1 and complete four-in-a-row on that row.
+    row = c4.ROWS - 2
+    for col in (2, 3, 4):
+        board[row][col] = c4.PLAYER
+        board[c4.ROWS - 1][col] = c4.KINITO
+    board[c4.ROWS - 1][5] = c4.KINITO
+
+    trial = [r[:] for r in board]
+    c4.drop_disc(trial, 1, c4.KINITO)
+    assert c4.winning_column(trial, c4.PLAYER) == 1
+
+    choice = c4.choose_ai_column(board, rng=random.Random(0))
+    assert choice != 1
+
+
+def test_ttt_ai_blocks_fork():
+    # X at 0 and 5 with O in center can fork at 2; AI must stop that.
+    board = [
+        PLAYER,
+        EMPTY,
+        EMPTY,
+        EMPTY,
+        KINITO,
+        PLAYER,
+        EMPTY,
+        EMPTY,
+        EMPTY,
+    ]
+    move = choose_ai_move(board, rng=random.Random(0))
+    assert move in (1, 2, 8)
+    trial = board[:]
+    trial[move] = KINITO
+    from kinito.features.games.tic_tac_toe import _fork_move
+
+    assert _fork_move(trial, PLAYER) is None

@@ -166,3 +166,21 @@ BATTLESHIPS_LOSE_LINES = [
     "Ten shots, no victory. You got {hits} of {total}. The rest are revealed. Study the board.",
     "No more ammo! Only {hits} of {total} ships hit. I win. The map tells the rest.",
 ]
+
+CONNECT_FOUR_PLAYER_WIN_LINES = [
+    "Four in a row! You win. I'll study your gravity tricks.",
+    "You connected four! Victory is yours. Rematch someday?",
+    "Purple wins! Well dropped. I'll practice my columns.",
+]
+
+CONNECT_FOUR_KINITO_WIN_LINES = [
+    "Four pink discs! I win. Gravity loves me.",
+    "Connect Four — that's me. Don't feel bad. Much.",
+    "I win! Four in a row. My circuits are smug.",
+]
+
+CONNECT_FOUR_DRAW_LINES = [
+    "A draw! The board is full and so is the tension.",
+    "Tie game! Nobody connected four. Suspiciously even.",
+    "Draw! Every column filled, no winner. Classic stalemate.",
+]
