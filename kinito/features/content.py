@@ -46,6 +46,12 @@ class ContentMixin:
         memory = getattr(self, "_memory", None)
         if memory is not None:
             pool = [q for q in pool if not memory.is_question_answered(q)]
+            from content.memory_keys import DAILY_CHECKIN_COOLDOWNS
+
+            for topic, days, marker in DAILY_CHECKIN_COOLDOWNS:
+                if memory.is_topic_on_cooldown(topic, days=days):
+                    needle = marker.lower()
+                    pool = [q for q in pool if needle not in q.lower()]
         if getattr(self, "_camera_active", False):
             marker = dlg.CAMERA_QUESTION_MARKER.lower()
             pool = [q for q in pool if marker not in q.lower()]
@@ -67,8 +73,80 @@ class ContentMixin:
             self.spontaneous_nap,
             self.maybe_announce_special_day,
             self.maybe_announce_birthday,
+            self.maybe_announce_met_anniversary,
+            self.maybe_mention_friendship_duration,
         ]
         random.choice(actions)()
+
+    def maybe_announce_met_anniversary(self) -> bool:
+        """Celebrate the anniversary of first meeting when it falls today."""
+        from content.friendship import (
+            format_friendship_duration,
+            friendship_years,
+            is_met_anniversary_today,
+            pick_met_anniversary_line,
+        )
+
+        if not self._can_initiate_spontaneous_speech():
+            return False
+        memory = getattr(self, "_memory", None)
+        stored = memory.get_fact("first_met") if memory is not None else None
+        if memory is None or not is_met_anniversary_today(stored):
+            return False
+        years = friendship_years(stored)
+        if years is None or years < 1:
+            return False
+        name = memory.pick_user_name() if memory is not None else None
+        duration = format_friendship_duration(stored) or (
+            "1 year" if years == 1 else f"{years} years"
+        )
+        line = pick_met_anniversary_line(
+            dlg.MET_ANNIVERSARY_LINES,
+            years=years,
+            name=name,
+            duration=duration,
+        )
+        self.speak(line)
+        return True
+
+    def maybe_mention_friendship_duration(self) -> bool:
+        """Occasionally mention how long Kinito and the user have known each other."""
+        from content.friendship import (
+            days_together,
+            format_friendship_duration,
+            pick_friendship_duration_line,
+        )
+        from content.memory_keys import (
+            FRIENDSHIP_DURATION_COOLDOWN_DAYS,
+            FRIENDSHIP_DURATION_TOPIC,
+        )
+
+        if not self._can_initiate_spontaneous_speech():
+            return False
+        memory = getattr(self, "_memory", None)
+        if memory is None:
+            return False
+        stored = memory.get_fact("first_met")
+        days = days_together(stored)
+        if days is None or days < 1:
+            return False
+        if memory.is_topic_on_cooldown(
+            FRIENDSHIP_DURATION_TOPIC,
+            days=FRIENDSHIP_DURATION_COOLDOWN_DAYS,
+        ):
+            return False
+        duration = format_friendship_duration(stored)
+        if not duration:
+            return False
+        name = memory.pick_user_name()
+        line = pick_friendship_duration_line(
+            dlg.FRIENDSHIP_DURATION_LINES,
+            duration=duration,
+            name=name,
+        )
+        memory.mark_topic_asked(FRIENDSHIP_DURATION_TOPIC)
+        self.speak(line)
+        return True
 
     def maybe_announce_birthday(self) -> bool:
         """Congratulate the user when today is their stored birthday."""

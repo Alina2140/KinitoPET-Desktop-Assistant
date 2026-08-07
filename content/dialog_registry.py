@@ -94,6 +94,8 @@ def menu_options_for(app) -> list[str]:
             options.append(dlg.BUTTON_WAKE_UP)
         if focus_mode:
             options.append(dlg.BUTTON_UNFOCUS)
+            if not paused:
+                options.append(dlg.BUTTON_SET_FOCUS_TIMER)
         options.append(dlg.BUTTON_SAY_GOODBYE)
         return _visible_menu_buttons(app, options)
 
@@ -112,7 +114,10 @@ def modes_options_for(app) -> list[str]:
     """Return Modes submenu labels with sleep/focus toggle names."""
     sleep_label = dlg.BUTTON_WAKE_UP if getattr(app, "paused", False) else dlg.BUTTON_SLEEP
     focus_label = dlg.BUTTON_UNFOCUS if getattr(app, "_focus_mode", False) else dlg.BUTTON_FOCUS
-    options = [sleep_label, focus_label, dlg.BUTTON_BACK]
+    options = [sleep_label, focus_label]
+    if getattr(app, "_focus_mode", False) and not getattr(app, "paused", False):
+        options.append(dlg.BUTTON_SET_FOCUS_TIMER)
+    options.append(dlg.BUTTON_BACK)
 
     allowed: set[str] = set()
     if getattr(app, "paused", False):
@@ -120,7 +125,7 @@ def modes_options_for(app) -> list[str]:
     if getattr(app, "_focus_mode", False):
         allowed |= _MODES_FOCUS_BUTTONS
     if allowed:
-        return [option for option in options if option in allowed]
+        options = [option for option in options if option in allowed]
     return _visible_menu_buttons(app, options)
 
 
@@ -215,13 +220,23 @@ _MENU_SLEEP_BUTTONS = frozenset(
     {dlg.BUTTON_WAKE_UP, dlg.BUTTON_UNFOCUS, dlg.BUTTON_SAY_GOODBYE}
 )
 _MENU_FOCUS_BUTTONS = frozenset(
-    {dlg.BUTTON_WAKE_UP, dlg.BUTTON_UNFOCUS, dlg.BUTTON_SAY_GOODBYE}
+    {
+        dlg.BUTTON_WAKE_UP,
+        dlg.BUTTON_UNFOCUS,
+        dlg.BUTTON_SET_FOCUS_TIMER,
+        dlg.BUTTON_SAY_GOODBYE,
+    }
 )
 _MODES_SLEEP_BUTTONS = frozenset(
     {dlg.BUTTON_WAKE_UP, dlg.BUTTON_UNFOCUS, dlg.BUTTON_BACK}
 )
 _MODES_FOCUS_BUTTONS = frozenset(
-    {dlg.BUTTON_WAKE_UP, dlg.BUTTON_UNFOCUS, dlg.BUTTON_BACK}
+    {
+        dlg.BUTTON_WAKE_UP,
+        dlg.BUTTON_UNFOCUS,
+        dlg.BUTTON_SET_FOCUS_TIMER,
+        dlg.BUTTON_BACK,
+    }
 )
 
 
@@ -290,6 +305,65 @@ def _good_bad(good_lines, bad_lines) -> Handler:
             app.speak(dlg.pick_line(good_lines))
         elif response == dlg.BUTTON_BAD:
             app.speak(dlg.pick_line(bad_lines))
+
+    return handler
+
+
+def _good_bad_with_mood_memory(good_lines, bad_lines) -> Handler:
+    """Like _good_bad, but store mood_today without ask-once (daily cooldown)."""
+    return _two_button_with_daily_fact(
+        fact_key="mood_today",
+        topic="mood_today",
+        button_a=dlg.BUTTON_GOOD,
+        value_a="good",
+        lines_a=good_lines,
+        button_b=dlg.BUTTON_BAD,
+        value_b="bad",
+        lines_b=bad_lines,
+    )
+
+
+def _two_button_with_daily_fact(
+    *,
+    fact_key: str,
+    topic: str,
+    button_a: str,
+    value_a: str,
+    lines_a,
+    button_b: str,
+    value_b: str,
+    lines_b,
+) -> Handler:
+    """Persist a daily fact from a two-button answer without ask-once."""
+
+    def handler(app, response: str) -> None:
+        memory = getattr(app, "_memory", None)
+        if response == button_a:
+            if memory is not None:
+                memory.set_fact(fact_key, value_a)
+                memory.mark_topic_asked(topic)
+            app.speak(dlg.pick_line(lines_a))
+        elif response == button_b:
+            if memory is not None:
+                memory.set_fact(fact_key, value_b)
+                memory.mark_topic_asked(topic)
+            app.speak(dlg.pick_line(lines_b))
+
+    return handler
+
+
+def _text_format_with_daily_memory(
+    fact_key: str, topic: str, response_lines
+) -> Handler:
+    """Persist a daily text answer without ask-once marking."""
+
+    def handler(app, response: str) -> None:
+        memory = getattr(app, "_memory", None)
+        trimmed = response.strip()
+        if memory is not None and trimmed:
+            memory.set_fact(fact_key, trimmed)
+            memory.mark_topic_asked(topic)
+        app.speak(dlg.pick_line(response_lines).format(response=response))
 
     return handler
 
@@ -428,6 +502,7 @@ def _handle_menu(app, response: str) -> None:
         dlg.BUTTON_ACTIONS: _open_actions_menu,
         dlg.BUTTON_WAKE_UP: lambda a: a.toggle_pause(),
         dlg.BUTTON_UNFOCUS: lambda a: a.toggle_focus(),
+        dlg.BUTTON_SET_FOCUS_TIMER: lambda a: a.open_focus_timer_controls(),
         dlg.BUTTON_SAY_GOODBYE: lambda a: a.say_goodbye(),
     }
     action = actions.get(response)
@@ -443,6 +518,7 @@ def _menu_action_handlers() -> dict[str, Handler]:
         dlg.BUTTON_WAKE_UP: lambda a: a.toggle_pause(),
         dlg.BUTTON_FOCUS: lambda a: a.toggle_focus(),
         dlg.BUTTON_UNFOCUS: lambda a: a.toggle_focus(),
+        dlg.BUTTON_SET_FOCUS_TIMER: lambda a: a.open_focus_timer_controls(),
         dlg.BUTTON_SCREEN_EFFECTS_ON: lambda a: a.toggle_screen_effects(),
         dlg.BUTTON_SCREEN_EFFECTS_OFF: lambda a: a.toggle_screen_effects(),
         dlg.BUTTON_REMINDERS_ON: lambda a: a.toggle_ambient_reminders(),
@@ -538,6 +614,24 @@ def _handle_reminder_manage(app, response: str) -> None:
         app.cancel_reminder()
     elif response == dlg.BUTTON_ADJUST_REMINDER:
         app.speak(dlg.REMINDER_ADJUST_PROMPT, 45, True)
+
+
+def _handle_focus_timer(app, response: str) -> None:
+    """Parse minutes from the focus-timer textbox and start the countdown."""
+    app.set_focus_timer(f"{response}")
+
+
+def _handle_focus_timer_adjust(app, response: str) -> None:
+    """Parse minutes from the adjust dialog and restart the focus timer."""
+    app.adjust_focus_timer(f"{response}")
+
+
+def _handle_focus_timer_manage(app, response: str) -> None:
+    """Cancel or open the adjust flow for the active focus timer."""
+    if response == dlg.BUTTON_CANCEL_FOCUS_TIMER:
+        app.cancel_focus_timer()
+    elif response == dlg.BUTTON_ADJUST_FOCUS_TIMER:
+        app.speak(dlg.FOCUS_TIMER_ADJUST_PROMPT, 45, True, allow_in_focus=True)
 
 
 def _handle_story(app, response: str) -> None:
@@ -961,6 +1055,24 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
         _handle_number_guess,
     ),
     DialogSpec(
+        dlg.FOCUS_TIMER_MINUTES_PROMPT,
+        DialogUI("textbox", textbox_prompt=dlg.FOCUS_TIMER_MINUTES_PROMPT),
+        _handle_focus_timer,
+    ),
+    DialogSpec(
+        dlg.FOCUS_TIMER_MANAGE_PROMPT,
+        DialogUI(
+            "buttons",
+            buttons=(dlg.BUTTON_ADJUST_FOCUS_TIMER, dlg.BUTTON_CANCEL_FOCUS_TIMER),
+        ),
+        _handle_focus_timer_manage,
+    ),
+    DialogSpec(
+        dlg.FOCUS_TIMER_ADJUST_PROMPT,
+        DialogUI("textbox", textbox_prompt=dlg.FOCUS_TIMER_ADJUST_PROMPT),
+        _handle_focus_timer_adjust,
+    ),
+    DialogSpec(
         dlg.REMINDER_MINUTES_PROMPT,
         DialogUI("textbox", textbox_prompt=dlg.REMINDER_MINUTES_PROMPT),
         _handle_reminder,
@@ -1021,7 +1133,42 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
     DialogSpec(
         dlg.DAY_QUESTION,
         DialogUI("buttons", buttons=(dlg.BUTTON_GOOD, dlg.BUTTON_BAD)),
-        _good_bad(dlg.DAY_GOOD_LINES, dlg.DAY_BAD_LINES),
+        _good_bad_with_mood_memory(dlg.DAY_GOOD_LINES, dlg.DAY_BAD_LINES),
+    ),
+    DialogSpec(
+        dlg.ENERGY_QUESTION,
+        DialogUI("buttons", buttons=(dlg.BUTTON_ENERGETIC, dlg.BUTTON_TIRED)),
+        _two_button_with_daily_fact(
+            fact_key="energy_today",
+            topic="energy_today",
+            button_a=dlg.BUTTON_ENERGETIC,
+            value_a="high",
+            lines_a=dlg.ENERGY_HIGH_LINES,
+            button_b=dlg.BUTTON_TIRED,
+            value_b="low",
+            lines_b=dlg.ENERGY_LOW_LINES,
+        ),
+    ),
+    DialogSpec(
+        dlg.FOCUS_QUESTION,
+        DialogUI("buttons", buttons=(dlg.BUTTON_BUSY, dlg.BUTTON_CHILL)),
+        _two_button_with_daily_fact(
+            fact_key="focus_today",
+            topic="focus_today",
+            button_a=dlg.BUTTON_BUSY,
+            value_a="busy",
+            lines_a=dlg.FOCUS_BUSY_LINES,
+            button_b=dlg.BUTTON_CHILL,
+            value_b="chill",
+            lines_b=dlg.FOCUS_CHILL_LINES,
+        ),
+    ),
+    DialogSpec(
+        dlg.PLANS_TONIGHT_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.PLANS_TONIGHT_QUESTION),
+        _text_format_with_daily_memory(
+            "plans_tonight", "plans_tonight", dlg.PLANS_TONIGHT_RESPONSES
+        ),
     ),
     DialogSpec(
         dlg.COLOR_QUESTION,
@@ -1172,6 +1319,152 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
         dlg.MOVIE_QUESTION,
         DialogUI("textbox", textbox_prompt=dlg.MOVIE_QUESTION),
         _text_format_with_memory(dlg.MOVIE_QUESTION, "favorite_movie", dlg.MOVIE_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.JOB_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.JOB_QUESTION),
+        _text_format_with_memory(dlg.JOB_QUESTION, "job", dlg.JOB_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.FAVORITE_GAME_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.FAVORITE_GAME_QUESTION),
+        _text_format_with_memory(
+            dlg.FAVORITE_GAME_QUESTION, "favorite_game", dlg.FAVORITE_GAME_RESPONSES
+        ),
+    ),
+    DialogSpec(
+        dlg.BEDTIME_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.BEDTIME_QUESTION),
+        _text_format_with_memory(dlg.BEDTIME_QUESTION, "bedtime", dlg.BEDTIME_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.SHOW_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.SHOW_QUESTION),
+        _text_format_with_memory(dlg.SHOW_QUESTION, "favorite_show", dlg.SHOW_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.ARTIST_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.ARTIST_QUESTION),
+        _text_format_with_memory(dlg.ARTIST_QUESTION, "favorite_artist", dlg.ARTIST_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.ANIMAL_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.ANIMAL_QUESTION),
+        _text_format_with_memory(dlg.ANIMAL_QUESTION, "favorite_animal", dlg.ANIMAL_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.COMFORT_FOOD_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.COMFORT_FOOD_QUESTION),
+        _text_format_with_memory(
+            dlg.COMFORT_FOOD_QUESTION, "comfort_food", dlg.COMFORT_FOOD_RESPONSES
+        ),
+    ),
+    DialogSpec(
+        dlg.DREAM_DESTINATION_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.DREAM_DESTINATION_QUESTION),
+        _text_format_with_memory(
+            dlg.DREAM_DESTINATION_QUESTION,
+            "dream_destination",
+            dlg.DREAM_DESTINATION_RESPONSES,
+        ),
+    ),
+    DialogSpec(
+        dlg.FAVORITE_APP_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.FAVORITE_APP_QUESTION),
+        _text_format_with_memory(
+            dlg.FAVORITE_APP_QUESTION, "favorite_app", dlg.FAVORITE_APP_RESPONSES
+        ),
+    ),
+    DialogSpec(
+        dlg.MORNING_DRINK_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.MORNING_DRINK_QUESTION),
+        _text_format_with_memory(
+            dlg.MORNING_DRINK_QUESTION, "morning_drink", dlg.MORNING_DRINK_RESPONSES
+        ),
+    ),
+    DialogSpec(
+        dlg.WAKE_TIME_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.WAKE_TIME_QUESTION),
+        _text_format_with_memory(dlg.WAKE_TIME_QUESTION, "wake_time", dlg.WAKE_TIME_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.CITY_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.CITY_QUESTION),
+        _text_format_with_memory(dlg.CITY_QUESTION, "home_city", dlg.CITY_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.CHRONOTYPE_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.CHRONOTYPE_QUESTION),
+        _text_format_with_memory(
+            dlg.CHRONOTYPE_QUESTION, "chronotype", dlg.CHRONOTYPE_RESPONSES
+        ),
+    ),
+    DialogSpec(
+        dlg.LANGUAGES_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.LANGUAGES_QUESTION),
+        _text_format_with_memory(dlg.LANGUAGES_QUESTION, "languages", dlg.LANGUAGES_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.RAIN_QUESTION,
+        DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
+        _yes_no_lines_with_memory(
+            dlg.RAIN_QUESTION,
+            "likes_rain",
+            dlg.RAIN_YES_LINES,
+            dlg.RAIN_NO_LINES,
+        ),
+    ),
+    DialogSpec(
+        dlg.HORROR_QUESTION,
+        DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
+        _yes_no_lines_with_memory(
+            dlg.HORROR_QUESTION,
+            "likes_horror",
+            dlg.HORROR_YES_LINES,
+            dlg.HORROR_NO_LINES,
+        ),
+    ),
+    DialogSpec(
+        dlg.SPICY_QUESTION,
+        DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
+        _yes_no_lines_with_memory(
+            dlg.SPICY_QUESTION,
+            "likes_spicy_food",
+            dlg.SPICY_YES_LINES,
+            dlg.SPICY_NO_LINES,
+        ),
+    ),
+    DialogSpec(
+        dlg.LATE_NIGHT_QUESTION,
+        DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
+        _yes_no_lines_with_memory(
+            dlg.LATE_NIGHT_QUESTION,
+            "likes_staying_up_late",
+            dlg.LATE_NIGHT_YES_LINES,
+            dlg.LATE_NIGHT_NO_LINES,
+        ),
+    ),
+    DialogSpec(
+        dlg.PARTNER_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.PARTNER_QUESTION),
+        _text_format_with_memory(dlg.PARTNER_QUESTION, "partner_status", dlg.PARTNER_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.SIBLINGS_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.SIBLINGS_QUESTION),
+        _text_format_with_memory(dlg.SIBLINGS_QUESTION, "siblings", dlg.SIBLINGS_RESPONSES),
+    ),
+    DialogSpec(
+        dlg.BEST_FRIEND_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.BEST_FRIEND_QUESTION),
+        _text_format_with_memory(
+            dlg.BEST_FRIEND_QUESTION, "important_person", dlg.BEST_FRIEND_RESPONSES
+        ),
+    ),
+    DialogSpec(
+        dlg.PRONOUNS_QUESTION,
+        DialogUI("textbox", textbox_prompt=dlg.PRONOUNS_QUESTION),
+        _text_format_with_memory(dlg.PRONOUNS_QUESTION, "pronouns", dlg.PRONOUNS_RESPONSES),
     ),
     DialogSpec(
         dlg.SNACK_QUESTION,

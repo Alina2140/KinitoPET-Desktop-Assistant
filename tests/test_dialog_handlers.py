@@ -286,3 +286,10 @@ def test_handle_menu_unfocus_allowed_during_focus_mode(mock_app):
     spec = find_dialog_spec(dlg.MENU_PROMPT)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_UNFOCUS)
     mock_app.toggle_focus.assert_called_once()
+
+
+def test_handle_menu_focus_timer_allowed_during_focus_mode(mock_app):
+    mock_app._focus_mode = True
+    spec = find_dialog_spec(dlg.MENU_PROMPT)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_SET_FOCUS_TIMER)
+    mock_app.open_focus_timer_controls.assert_called_once()

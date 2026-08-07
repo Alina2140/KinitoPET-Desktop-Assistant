@@ -49,6 +49,11 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
             ("modes.wake", "Wake up", frozenset({dlg.BUTTON_WAKE_UP})),
             ("modes.focus", "Focus", frozenset({dlg.BUTTON_FOCUS})),
             ("modes.unfocus", "Unfocus", frozenset({dlg.BUTTON_UNFOCUS})),
+            (
+                "modes.focus_timer",
+                "Focus Timer",
+                frozenset({dlg.BUTTON_SET_FOCUS_TIMER}),
+            ),
             ("modes.back", "Back", frozenset({dlg.BUTTON_BACK})),
         ),
     ),

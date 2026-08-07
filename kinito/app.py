@@ -242,6 +242,7 @@ class FloatingAssistant(
         self.panel.pack(side="top", anchor="n")
         self.change_sprite(self.tk_img_normal)
         self.setup_reminder_countdown_button()
+        self.setup_focus_timer_countdown_button()
         self.setup_music_control_button()
         self._assistant_controls_extended = False
 
@@ -429,6 +430,12 @@ class FloatingAssistant(
                     is_birthday_today,
                     pick_birthday_congrats_line,
                 )
+                from content.friendship import (
+                    format_friendship_duration,
+                    friendship_years,
+                    is_met_anniversary_today,
+                    pick_met_anniversary_line,
+                )
 
                 stored = memory.get_fact("birthday")
                 if is_birthday_today(stored):
@@ -438,6 +445,21 @@ class FloatingAssistant(
                         name=name,
                         age=birthday_age(stored),
                     )
+                if not line:
+                    stored_met = memory.get_fact("first_met")
+                    if is_met_anniversary_today(stored_met):
+                        years = friendship_years(stored_met)
+                        if years is not None and years >= 1:
+                            name = memory.pick_user_name()
+                            duration = format_friendship_duration(stored_met) or (
+                                "1 year" if years == 1 else f"{years} years"
+                            )
+                            line = pick_met_anniversary_line(
+                                dlg.MET_ANNIVERSARY_LINES,
+                                years=years,
+                                name=name,
+                                duration=duration,
+                            )
             if not line and getattr(self, "_special_days_enabled", True):
                 from content.special_days import pick_special_day_line
 
@@ -467,6 +489,8 @@ class FloatingAssistant(
         """Toggle quiet focus mode: roam and animate only, no speech or features."""
         if self._focus_mode:
             self._focus_mode = False
+            if hasattr(self, "_clear_focus_timer"):
+                self._clear_focus_timer()
             self.speak(dlg.pick_line(dlg.FOCUS_OFF_LINES))
             return
 
@@ -652,6 +676,7 @@ class FloatingAssistant(
             "_camera_frame_timer",
             "_camera_comment_timer",
             "_reminder_tick_timer",
+            "_focus_timer_tick_timer",
             "_throw_after_id",
         ):
             cancel_after(self.root, self, attr)
@@ -779,6 +804,8 @@ class FloatingAssistant(
         self._cancel_auto_wake_timer()
         if hasattr(self, "_clear_reminder"):
             self._clear_reminder()
+        if hasattr(self, "_clear_focus_timer"):
+            self._clear_focus_timer()
         if hasattr(self, "stop_background_music"):
             self.stop_background_music()
         self.close_camera()
@@ -818,6 +845,8 @@ class FloatingAssistant(
             self._cancel_bubble_close_timer()
         if hasattr(self, "_clear_reminder"):
             self._clear_reminder()
+        if hasattr(self, "_clear_focus_timer"):
+            self._clear_focus_timer()
         if hasattr(self, "stop_background_music"):
             self.stop_background_music()
         self.close_camera()

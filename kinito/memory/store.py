@@ -277,6 +277,41 @@ class MemoryStore:
                 if parsed is None:
                     return
                 trimmed_value = parsed
+        elif trimmed_key == "first_met":
+            from content.friendship import parse_first_met
+
+            parsed = parse_first_met(trimmed_value)
+            if parsed is None:
+                return
+            trimmed_value = parsed.isoformat()
+        elif trimmed_key == "mood_today":
+            lowered = trimmed_value.casefold()
+            if lowered in {"good", "great", "fine", "ok", "okay"}:
+                trimmed_value = "good"
+            elif lowered in {"bad", "rough", "sad", "awful", "terrible"}:
+                trimmed_value = "bad"
+            else:
+                return
+        elif trimmed_key == "energy_today":
+            lowered = trimmed_value.casefold()
+            if lowered in {"high", "energetic", "full", "good"}:
+                trimmed_value = "high"
+            elif lowered in {"low", "tired", "exhausted", "drained"}:
+                trimmed_value = "low"
+            else:
+                return
+        elif trimmed_key == "focus_today":
+            lowered = trimmed_value.casefold()
+            if lowered in {"busy", "packed", "hectic"}:
+                trimmed_value = "busy"
+            elif lowered in {"chill", "free", "relaxed", "calm"}:
+                trimmed_value = "chill"
+            else:
+                return
+        elif trimmed_key == "partner_status":
+            lowered = trimmed_value.casefold()
+            if lowered in {"private", "prefer not", "prefer not to say", "none of your business"}:
+                trimmed_value = "private"
         facts: dict[str, Any] = self._data["facts"]
         if trimmed_key not in facts and len(facts) >= MAX_FACTS:
             return

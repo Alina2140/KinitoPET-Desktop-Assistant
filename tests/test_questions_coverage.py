@@ -48,6 +48,7 @@ def _menu_app(**kwargs):
     app._window_grab_enabled = kwargs.get("window_grab_enabled", True)
     app._tts_enabled = kwargs.get("tts_enabled", True)
     app._special_days_enabled = kwargs.get("special_days_enabled", True)
+    app._hidden_menu_buttons = kwargs.get("hidden_menu_buttons", set())
     return app
 
 
@@ -81,7 +82,11 @@ def test_menu_options_show_wake_up_and_unfocus_when_sleeping_in_focus_mode():
 
 def test_menu_options_hide_blocked_actions_in_focus_mode():
     opts = menu_options_for(_menu_app(focus_mode=True))
-    assert opts == [dlg.BUTTON_UNFOCUS, dlg.BUTTON_SAY_GOODBYE]
+    assert opts == [
+        dlg.BUTTON_UNFOCUS,
+        dlg.BUTTON_SET_FOCUS_TIMER,
+        dlg.BUTTON_SAY_GOODBYE,
+    ]
     assert dlg.BUTTON_MODES not in opts
     assert dlg.BUTTON_SETTINGS not in opts
     assert dlg.BUTTON_ACTIONS not in opts
@@ -99,7 +104,7 @@ def test_menu_options_include_all_top_level_actions():
     assert len(opts) == 4
 
 
-def test_modes_options_default_and_toggles():
+def test_modes_options_default_and_focus_timer():
     from content.dialog_registry import modes_options_for
 
     assert modes_options_for(_menu_app()) == [
@@ -109,6 +114,7 @@ def test_modes_options_default_and_toggles():
     ]
     assert modes_options_for(_menu_app(focus_mode=True)) == [
         dlg.BUTTON_UNFOCUS,
+        dlg.BUTTON_SET_FOCUS_TIMER,
         dlg.BUTTON_BACK,
     ]
     assert modes_options_for(_menu_app(paused=True)) == [
@@ -269,6 +275,7 @@ def test_settings_and_actions_options():
         dlg.BUTTON_SHOW_CREDITS,
         dlg.BUTTON_BACK,
     ]
+
     assert settings_options_for(_menu_app(special_days_enabled=False)) == [
         dlg.BUTTON_SCREEN_EFFECTS_ON,
         dlg.BUTTON_REMINDERS_ON,
@@ -283,6 +290,36 @@ def test_settings_and_actions_options():
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
         dlg.BUTTON_SHOW_CREDITS,
+        dlg.BUTTON_BACK,
+    ]
+
+    assert settings_options_for(
+        _menu_app(hidden_menu_buttons={"actions.hug"})
+    ) == [
+        dlg.BUTTON_SCREEN_EFFECTS_ON,
+        dlg.BUTTON_REMINDERS_ON,
+        dlg.BUTTON_APP_AWARENESS_ON,
+        dlg.BUTTON_SCREEN_COMMENTS_ON,
+        dlg.BUTTON_PAINT_RECALL_ON,
+        dlg.BUTTON_SNORING_ON,
+        dlg.BUTTON_WINDOW_PLAY_ON,
+        dlg.BUTTON_TTS_ON,
+        dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MENU_BUTTONS,
+        dlg.BUTTON_REMEMBER,
+        dlg.BUTTON_FORGET,
+        dlg.BUTTON_SHOW_CREDITS,
+        dlg.BUTTON_BACK,
+    ]
+    assert actions_options_for(_menu_app(hidden_menu_buttons={"actions.hug"})) == [
+        dlg.BUTTON_SET_REMINDER,
+        dlg.BUTTON_TELL_TIME,
+        dlg.BUTTON_SING_SONG,
+        dlg.BUTTON_FUN_FACT,
+        dlg.BUTTON_VISIT_WEBSITE,
+        dlg.BUTTON_PLAY_MUSIC,
+        dlg.BUTTON_PLAY_GAME,
+        dlg.BUTTON_PAINT,
         dlg.BUTTON_BACK,
     ]
     assert actions_options_for(_menu_app()) == [
