@@ -141,6 +141,16 @@ def settings_options_for(app) -> list[str]:
         if getattr(app, "_app_awareness_enabled", True)
         else dlg.BUTTON_APP_AWARENESS_OFF
     )
+    screen_comments_label = (
+        dlg.BUTTON_SCREEN_COMMENTS_ON
+        if getattr(app, "_screen_comments_enabled", True)
+        else dlg.BUTTON_SCREEN_COMMENTS_OFF
+    )
+    paint_recall_label = (
+        dlg.BUTTON_PAINT_RECALL_ON
+        if getattr(app, "_paint_recall_enabled", True)
+        else dlg.BUTTON_PAINT_RECALL_OFF
+    )
     snoring_label = (
         dlg.BUTTON_SNORING_ON
         if getattr(app, "_snoring_enabled", True)
@@ -156,11 +166,6 @@ def settings_options_for(app) -> list[str]:
         if getattr(app, "_tts_enabled", True)
         else dlg.BUTTON_TTS_OFF
     )
-    emoji_label = (
-        dlg.BUTTON_EMOJI_ON
-        if getattr(app, "_emoji_picker_enabled", True)
-        else dlg.BUTTON_EMOJI_OFF
-    )
     special_days_label = (
         dlg.BUTTON_SPECIAL_DAYS_ON
         if getattr(app, "_special_days_enabled", True)
@@ -172,10 +177,11 @@ def settings_options_for(app) -> list[str]:
             screen_effects_label,
             reminders_label,
             app_awareness_label,
+            screen_comments_label,
+            paint_recall_label,
             snoring_label,
             window_play_label,
             tts_label,
-            emoji_label,
             special_days_label,
             dlg.BUTTON_MENU_BUTTONS,
             dlg.BUTTON_REMEMBER,
@@ -443,6 +449,12 @@ def _menu_action_handlers() -> dict[str, Handler]:
         dlg.BUTTON_REMINDERS_OFF: lambda a: a.toggle_ambient_reminders(),
         dlg.BUTTON_APP_AWARENESS_ON: lambda a: a.toggle_app_awareness(),
         dlg.BUTTON_APP_AWARENESS_OFF: lambda a: a.toggle_app_awareness(),
+        dlg.BUTTON_SCREEN_COMMENTS: lambda a: a.toggle_screen_comments(),
+        dlg.BUTTON_SCREEN_COMMENTS_ON: lambda a: a.toggle_screen_comments(),
+        dlg.BUTTON_SCREEN_COMMENTS_OFF: lambda a: a.toggle_screen_comments(),
+        dlg.BUTTON_PAINT_RECALL: lambda a: a.toggle_paint_recall(),
+        dlg.BUTTON_PAINT_RECALL_ON: lambda a: a.toggle_paint_recall(),
+        dlg.BUTTON_PAINT_RECALL_OFF: lambda a: a.toggle_paint_recall(),
         dlg.BUTTON_SNORING_ON: lambda a: a.toggle_snoring(),
         dlg.BUTTON_SNORING_OFF: lambda a: a.toggle_snoring(),
         dlg.BUTTON_WINDOW_PLAY: lambda a: a.toggle_window_grab(),
@@ -451,9 +463,6 @@ def _menu_action_handlers() -> dict[str, Handler]:
         dlg.BUTTON_TTS: lambda a: a.toggle_tts(),
         dlg.BUTTON_TTS_ON: lambda a: a.toggle_tts(),
         dlg.BUTTON_TTS_OFF: lambda a: a.toggle_tts(),
-        dlg.BUTTON_EMOJI: lambda a: a.toggle_emoji_picker_setting(),
-        dlg.BUTTON_EMOJI_ON: lambda a: a.toggle_emoji_picker_setting(),
-        dlg.BUTTON_EMOJI_OFF: lambda a: a.toggle_emoji_picker_setting(),
         dlg.BUTTON_SPECIAL_DAYS: lambda a: a.toggle_special_days(),
         dlg.BUTTON_SPECIAL_DAYS_ON: lambda a: a.toggle_special_days(),
         dlg.BUTTON_SPECIAL_DAYS_OFF: lambda a: a.toggle_special_days(),

@@ -98,6 +98,8 @@ For a **full beginner walkthrough** (screenshots-level detail), see **[docs/INST
 - **Screen Effects on** / **Screen Effects off** — rare glitch effects; label shows current state
 - **Ambient Reminders on** / **Ambient Reminders off** — optional idle nudges
 - **App Awareness on** / **App Awareness off** — comments on open/active apps by process name (Windows; unknown apps use FileDescription when available)
+- **Screen Comments on** / **Screen Comments off** — occasional scripted desktop commentary (no screenshot or AI vision)
+- **Painting Popups on** / **Painting Popups off** — random popups of saved paintings with scripted lines
 - **Snoring on** / **Snoring off** — occasional snore sounds while idle
 - **Window Play on** / **Window Play off** — rare hand-sprite window grabs (Windows)
 - **Speech on** / **Speech off** — toggle spoken TTS (bubbles still appear)
@@ -138,7 +140,7 @@ Kinito only opens URLs from a **manual whitelist** in `content/allowed_sites.py`
 
 ### Paintings
 
-Saved drawings from **Paint** live in `GameAssets/UserMedia/paintings/` (created automatically).
+Saved drawings from **Paint** live in `GameAssets/UserMedia/paintings/` (created automatically). With **Painting Popups** enabled, Kinito may occasionally show a saved painting in a popup and speak a short scripted comment.
 
 ### Memory (persistent user facts)
 
@@ -330,7 +332,8 @@ If you fork this project or build your own desktop friend from it, **please cred
 
 - **Birthday** — Kinito may ask for your birthday once; on that day you get a startup or idle congratulations.
 - **Paint** — **Actions** → **Paint** opens a retro drawing window; save PNGs to `GameAssets/UserMedia/paintings/` and browse them in **My Paintings**.
-- **Emojis** — **Settings** → **Emojis** toggles the emoji picker setting (reserved for a future chat UI; no chat mode in this build).
+- **Screen Comments** — **Settings** → **Screen Comments** toggles occasional scripted desktop commentary (no AI vision).
+- **Painting Popups** — **Settings** → **Painting Popups** toggles random gallery popups with scripted lines.
 
 ---
 

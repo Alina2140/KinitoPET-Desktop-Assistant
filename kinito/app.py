@@ -58,6 +58,7 @@ from kinito.features.music import MusicMixin
 from kinito.features.nudges import NudgesMixin
 from kinito.features.paint import PaintMixin
 from kinito.features.programs import ProgramsMixin
+from kinito.features.screen_comments import ScreenCommentsMixin
 from kinito.features.window_grab import WindowGrabMixin
 from kinito.movement import MovementMixin
 from kinito.settings_store import SettingsStore
@@ -107,6 +108,7 @@ class FloatingAssistant(
     AdsMixin,
     NudgesMixin,
     WindowGrabMixin,
+    ScreenCommentsMixin,
     MenuSettingsMixin,
     MovementMixin,
     HugMixin,
@@ -295,11 +297,15 @@ class FloatingAssistant(
         self._window_grab_active = False
         self._window_grab_state = None
         self._window_grab_timer = None
+        self._screen_comments_enabled = self._settings.get("screen_comments_enabled", True)
+        self._last_screen_comment_at = 0.0
+        self._paint_recall_enabled = self._settings.get("paint_recall_enabled", True)
+        self._last_paint_recall_at = 0.0
+        self._paint_recall_popup = None
         self._hand_window = None
         self._hand_photo_ref = None
         self._tts_enabled = self._settings.get("tts_enabled", True)
         self._special_days_enabled = self._settings.get("special_days_enabled", True)
-        self._emoji_picker_enabled = self._settings.get("emoji_picker_enabled", True)
         get_hidden_menu = getattr(self._settings, "get_hidden_menu_buttons", None)
         self._hidden_menu_buttons = (
             get_hidden_menu() if callable(get_hidden_menu) else set()
@@ -395,11 +401,14 @@ class FloatingAssistant(
             app_awareness_enabled=bool(
                 getattr(self, "_app_awareness_enabled", True)
             ),
+            screen_comments_enabled=bool(
+                getattr(self, "_screen_comments_enabled", True)
+            ),
+            paint_recall_enabled=bool(getattr(self, "_paint_recall_enabled", True)),
             snoring_enabled=bool(getattr(self, "_snoring_enabled", True)),
             window_grab_enabled=bool(getattr(self, "_window_grab_enabled", True)),
             tts_enabled=bool(getattr(self, "_tts_enabled", True)),
             special_days_enabled=bool(getattr(self, "_special_days_enabled", True)),
-            emoji_picker_enabled=bool(getattr(self, "_emoji_picker_enabled", True)),
         )
         set_hidden_menu = getattr(store, "set_hidden_menu_buttons", None)
         if callable(set_hidden_menu):

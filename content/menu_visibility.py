@@ -71,6 +71,28 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
                 frozenset({dlg.BUTTON_APP_AWARENESS_ON, dlg.BUTTON_APP_AWARENESS_OFF}),
             ),
             (
+                "settings.screen_comments",
+                "Screen Comments",
+                frozenset(
+                    {
+                        dlg.BUTTON_SCREEN_COMMENTS,
+                        dlg.BUTTON_SCREEN_COMMENTS_ON,
+                        dlg.BUTTON_SCREEN_COMMENTS_OFF,
+                    }
+                ),
+            ),
+            (
+                "settings.paint_recall",
+                "Painting Popups",
+                frozenset(
+                    {
+                        dlg.BUTTON_PAINT_RECALL,
+                        dlg.BUTTON_PAINT_RECALL_ON,
+                        dlg.BUTTON_PAINT_RECALL_OFF,
+                    }
+                ),
+            ),
+            (
                 "settings.snoring",
                 "Snoring",
                 frozenset({dlg.BUTTON_SNORING_ON, dlg.BUTTON_SNORING_OFF}),
@@ -84,11 +106,6 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
                 "settings.tts",
                 "Speech (TTS)",
                 frozenset({dlg.BUTTON_TTS_ON, dlg.BUTTON_TTS_OFF}),
-            ),
-            (
-                "settings.emojis",
-                "Emojis",
-                frozenset({dlg.BUTTON_EMOJI_ON, dlg.BUTTON_EMOJI_OFF}),
             ),
             (
                 "settings.special_days",

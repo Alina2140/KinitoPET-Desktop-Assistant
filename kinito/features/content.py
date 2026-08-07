@@ -70,20 +70,6 @@ class ContentMixin:
         ]
         random.choice(actions)()
 
-    def toggle_emoji_picker_setting(self) -> None:
-        """Enable or disable the emoji picker setting (reserved for future chat UI)."""
-        self._emoji_picker_enabled = not getattr(self, "_emoji_picker_enabled", True)
-        if not self._emoji_picker_enabled and hasattr(self, "_close_emoji_picker"):
-            self._close_emoji_picker()
-        if hasattr(self, "_persist_settings"):
-            self._persist_settings()
-        lines = (
-            dlg.EMOJI_PICKER_ON_LINES
-            if self._emoji_picker_enabled
-            else dlg.EMOJI_PICKER_OFF_LINES
-        )
-        self.speak(dlg.pick_line(lines), skip_ai=True)
-
     def maybe_announce_birthday(self) -> bool:
         """Congratulate the user when today is their stored birthday."""
         from content.birthday import birthday_age, is_birthday_today, pick_birthday_congrats_line

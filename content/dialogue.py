@@ -628,6 +628,30 @@ APP_AWARENESS_OFF_LINES = [
     "Desktop radar disabled. No more 'still in that app?' from me. For now.",
 ]
 
+SCREEN_COMMENTS_ON_LINES = [
+    "Screen comments on. I may glance. Softly. Then talk. No souvenirs.",
+    "Desktop peeks enabled. Nothing gets saved. Just my opinions. Unsolicited.",
+    "I'll occasionally notice your screen. Briefly. Then chat about the vibe.",
+]
+
+SCREEN_COMMENTS_OFF_LINES = [
+    "Screen comments off. Eyes closed. Mouth still available for hugs.",
+    "No more desktop glances. Your pixels are private again. For now.",
+    "I won't peek at the screen anymore. Promise. Mostly. Okay, completely.",
+]
+
+PAINT_RECALL_ON_LINES = [
+    "Painting popups on. I may surprise you with your own art. Softly.",
+    "Gallery recalls enabled. Expect the occasional masterpiece popup.",
+    "I'll randomly show saved paintings now. Comment included. Friendship!",
+]
+
+PAINT_RECALL_OFF_LINES = [
+    "Painting popups off. Your gallery stays quiet unless you open it.",
+    "No more random art surprises. I'll wait for you to visit the gallery.",
+    "Gallery recalls disabled. Paintings stay in the folder. For now.",
+]
+
 SNORING_ON_LINES = [
     "Snoring on. When I nap, expect the occasional soft... zzz. Charming, right?",
     "Sleep sounds enabled. I'll snore a little. Quietly. Mostly. Cute mostly.",
@@ -662,18 +686,6 @@ TTS_OFF_LINES = [
     "Speech off. I'll still show bubbles — just quietly. Mime mode.",
     "TTS disabled. Reading lips optional. Bubbles still work.",
     "Voice muted. Text lives on. Soft silence.",
-]
-
-EMOJI_PICKER_ON_LINES = [
-    "Emoji button on! Pixel faces ready. Soft smiles.",
-    "Emojis enabled. The smile button is back when you need it.",
-    "Emoji picker is on. Yellow pixels. Ready when you are.",
-]
-
-EMOJI_PICKER_OFF_LINES = [
-    "Emoji button hidden. Words only — for now. Softly.",
-    "Emojis off. The smile button took a break.",
-    "Emoji picker disabled. You can turn it back on in Settings.",
 ]
 
 SPECIAL_DAYS_ON_LINES = [
@@ -1181,6 +1193,12 @@ BUTTON_REMINDERS_OFF = "Reminders off"
 BUTTON_APP_AWARENESS = "App Awareness"
 BUTTON_APP_AWARENESS_ON = "App Awareness on"
 BUTTON_APP_AWARENESS_OFF = "App Awareness off"
+BUTTON_SCREEN_COMMENTS = "Screen Comments"
+BUTTON_SCREEN_COMMENTS_ON = "Screen Comments on"
+BUTTON_SCREEN_COMMENTS_OFF = "Screen Comments off"
+BUTTON_PAINT_RECALL = "Painting Popups"
+BUTTON_PAINT_RECALL_ON = "Painting Popups on"
+BUTTON_PAINT_RECALL_OFF = "Painting Popups off"
 BUTTON_SNORING = "Snoring"
 BUTTON_SNORING_ON = "Snoring on"
 BUTTON_SNORING_OFF = "Snoring off"
@@ -1190,9 +1208,6 @@ BUTTON_WINDOW_PLAY_OFF = "Window Play off"
 BUTTON_TTS = "Speech"
 BUTTON_TTS_ON = "Speech on"
 BUTTON_TTS_OFF = "Speech off"
-BUTTON_EMOJI = "Emojis"
-BUTTON_EMOJI_ON = "Emojis on"
-BUTTON_EMOJI_OFF = "Emojis off"
 BUTTON_SPECIAL_DAYS = "Special Days"
 BUTTON_SPECIAL_DAYS_ON = "Special Days on"
 BUTTON_SPECIAL_DAYS_OFF = "Special Days off"
