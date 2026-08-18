@@ -39,6 +39,7 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
             ("main.modes", "Modes", frozenset({dlg.BUTTON_MODES})),
             ("main.settings", "Settings", frozenset({dlg.BUTTON_SETTINGS})),
             ("main.actions", "Actions", frozenset({dlg.BUTTON_ACTIONS})),
+            ("main.mood", "Mood", frozenset({dlg.BUTTON_MOOD})),
             ("main.goodbye", "Goodbye", frozenset({dlg.BUTTON_SAY_GOODBYE})),
         ),
     ),
@@ -116,6 +117,22 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
                 "settings.special_days",
                 "Special Days",
                 frozenset({dlg.BUTTON_SPECIAL_DAYS_ON, dlg.BUTTON_SPECIAL_DAYS_OFF}),
+            ),
+            (
+                "settings.mood_system",
+                "Mood System",
+                frozenset(
+                    {
+                        dlg.BUTTON_MOOD_SYSTEM,
+                        dlg.BUTTON_MOOD_SYSTEM_ON,
+                        dlg.BUTTON_MOOD_SYSTEM_OFF,
+                    }
+                ),
+            ),
+            (
+                "settings.reset_mood",
+                "Reset Mood",
+                frozenset({dlg.BUTTON_RESET_MOOD}),
             ),
             (
                 "settings.menu_buttons",

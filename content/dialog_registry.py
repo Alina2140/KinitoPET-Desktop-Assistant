@@ -105,6 +105,7 @@ def menu_options_for(app) -> list[str]:
             dlg.BUTTON_MODES,
             dlg.BUTTON_SETTINGS,
             dlg.BUTTON_ACTIONS,
+            dlg.BUTTON_MOOD,
             dlg.BUTTON_SAY_GOODBYE,
         ],
     )
@@ -176,6 +177,11 @@ def settings_options_for(app) -> list[str]:
         if getattr(app, "_special_days_enabled", True)
         else dlg.BUTTON_SPECIAL_DAYS_OFF
     )
+    mood_system_label = (
+        dlg.BUTTON_MOOD_SYSTEM_ON
+        if getattr(app, "_mood_system_enabled", True)
+        else dlg.BUTTON_MOOD_SYSTEM_OFF
+    )
     return _visible_menu_buttons(
         app,
         [
@@ -188,6 +194,8 @@ def settings_options_for(app) -> list[str]:
             window_play_label,
             tts_label,
             special_days_label,
+            mood_system_label,
+            dlg.BUTTON_RESET_MOOD,
             dlg.BUTTON_MENU_BUTTONS,
             dlg.BUTTON_REMEMBER,
             dlg.BUTTON_FORGET,
@@ -262,7 +270,15 @@ def _open_actions_menu(app) -> None:
 
 def handle_dialog_response(app, spec: DialogSpec, response: str) -> None:
     """Dispatch the user's *response* to the spec's handler."""
+    if hasattr(app, "note_user_attention"):
+        app.note_user_attention()
     spec.handler(app, response)
+
+
+def _report_game_outcome(app, result: str) -> None:
+    """Notify the mood system about a mini-game result when available."""
+    if hasattr(app, "on_game_outcome"):
+        app.on_game_outcome(result)
 
 
 # --- Handler factories ---
@@ -270,7 +286,9 @@ def handle_dialog_response(app, spec: DialogSpec, response: str) -> None:
 
 def _speak_declined(app, lines) -> None:
     """Acknowledge a declined offer with a short spoken line."""
-    app.speak(dlg.pick_declined_line(lines))
+    mood = app.get_mood() if hasattr(app, "get_mood") else None
+    intensity = app.get_mood_intensity() if hasattr(app, "get_mood_intensity") else 0.0
+    app.speak(dlg.pick_declined_line(lines, mood=mood, intensity=intensity))
 
 
 def _yes_no(yes_fn: Handler, no_lines) -> Handler:
@@ -281,6 +299,20 @@ def _yes_no(yes_fn: Handler, no_lines) -> Handler:
             yes_fn(app)
         elif response == dlg.BUTTON_NO:
             _speak_declined(app, no_lines)
+
+    return handler
+
+
+def _hug_yes_no() -> Handler:
+    """Yes/No handler for hug asks; decline can sour Kinito's mood."""
+
+    def handler(app, response: str) -> None:
+        if response == dlg.BUTTON_YES:
+            app.give_hug()
+        elif response == dlg.BUTTON_NO:
+            if hasattr(app, "on_hug_declined"):
+                app.on_hug_declined()
+            _speak_declined(app, dlg.HUG_DECLINED_LINES)
 
     return handler
 
@@ -500,6 +532,7 @@ def _handle_menu(app, response: str) -> None:
         dlg.BUTTON_MODES: _open_modes_menu,
         dlg.BUTTON_SETTINGS: _open_settings_menu,
         dlg.BUTTON_ACTIONS: _open_actions_menu,
+        dlg.BUTTON_MOOD: lambda a: a.speak_current_mood(),
         dlg.BUTTON_WAKE_UP: lambda a: a.toggle_pause(),
         dlg.BUTTON_UNFOCUS: lambda a: a.toggle_focus(),
         dlg.BUTTON_SET_FOCUS_TIMER: lambda a: a.open_focus_timer_controls(),
@@ -542,6 +575,10 @@ def _menu_action_handlers() -> dict[str, Handler]:
         dlg.BUTTON_SPECIAL_DAYS: lambda a: a.toggle_special_days(),
         dlg.BUTTON_SPECIAL_DAYS_ON: lambda a: a.toggle_special_days(),
         dlg.BUTTON_SPECIAL_DAYS_OFF: lambda a: a.toggle_special_days(),
+        dlg.BUTTON_MOOD_SYSTEM: lambda a: a.toggle_mood_system(),
+        dlg.BUTTON_MOOD_SYSTEM_ON: lambda a: a.toggle_mood_system(),
+        dlg.BUTTON_MOOD_SYSTEM_OFF: lambda a: a.toggle_mood_system(),
+        dlg.BUTTON_RESET_MOOD: lambda a: a.reset_mood(),
         dlg.BUTTON_MENU_BUTTONS: lambda a: a.open_menu_button_settings(),
         dlg.BUTTON_SING_SONG: lambda a: a.say_random_poem(),
         dlg.BUTTON_FUN_FACT: lambda a: a.say_random_fact(),
@@ -727,6 +764,33 @@ def _handle_quick_games(app, response: str) -> None:
         action(app)
 
 
+def _handle_trivia_pack(app, response: str) -> None:
+    """Start a true-or-false round for the chosen pack, or return to quick games."""
+    if response == dlg.BUTTON_BACK:
+        app.offer_quick_games()
+        return
+    from content.trivia_questions import (
+        PACK_ANIMALS,
+        PACK_KINITO,
+        PACK_MIXED,
+        PACK_SEASONAL,
+        PACK_SPOOKY,
+        PACK_TECH,
+    )
+
+    pack_map = {
+        dlg.BUTTON_TRIVIA_MIXED: PACK_MIXED,
+        dlg.BUTTON_TRIVIA_ANIMALS: PACK_ANIMALS,
+        dlg.BUTTON_TRIVIA_TECH: PACK_TECH,
+        dlg.BUTTON_TRIVIA_SPOOKY: PACK_SPOOKY,
+        dlg.BUTTON_TRIVIA_KINITO: PACK_KINITO,
+        dlg.BUTTON_TRIVIA_SEASONAL: PACK_SEASONAL,
+    }
+    pack = pack_map.get(response)
+    if pack is not None:
+        app.start_true_false_pack(pack)
+
+
 def _handle_board_games(app, response: str) -> None:
     """Launch a board mini-game or return to the top-level picker."""
     if response == dlg.BUTTON_BACK:
@@ -772,6 +836,8 @@ def _handle_coin_dice_mode(app, response: str) -> None:
 
 def _handle_coin_flip(app, response: str) -> None:
     """Resolve a coin-flip guess."""
+    from kinito.features.mood import GAME_KINITO_WIN, GAME_PLAYER_WIN
+
     guess_map = {
         dlg.BUTTON_HEADS: HEADS,
         dlg.BUTTON_TAILS: TAILS,
@@ -783,13 +849,17 @@ def _handle_coin_flip(app, response: str) -> None:
     fmt = {"guess": guess, "result": result}
     if coin_outcome(guess, result) == "win":
         line = dlg.pick_line(game_lines.COIN_WIN_LINES).format(**fmt)
+        _report_game_outcome(app, GAME_PLAYER_WIN)
     else:
         line = dlg.pick_line(game_lines.COIN_LOSE_LINES).format(**fmt)
+        _report_game_outcome(app, GAME_KINITO_WIN)
     _offer_play_again(app, line, lambda a: a.start_coin_dice())
 
 
 def _handle_dice_guess(app, response: str) -> None:
     """Resolve a dice-guess attempt."""
+    from kinito.features.mood import GAME_KINITO_WIN, GAME_PLAYER_WIN
+
     if response not in dlg.DICE_CHOICES:
         return
     guess = int(response)
@@ -797,8 +867,10 @@ def _handle_dice_guess(app, response: str) -> None:
     fmt = {"guess": guess, "roll": roll}
     if dice_outcome(guess, roll) == "win":
         line = dlg.pick_line(game_lines.DICE_WIN_LINES).format(**fmt)
+        _report_game_outcome(app, GAME_PLAYER_WIN)
     else:
         line = dlg.pick_line(game_lines.DICE_LOSE_LINES).format(**fmt)
+        _report_game_outcome(app, GAME_KINITO_WIN)
     _offer_play_again(app, line, lambda a: a.start_coin_dice())
 
 
@@ -819,6 +891,8 @@ def _handle_magic_8_ball(app, response: str) -> None:
 
 def _handle_true_false(app, response: str) -> None:
     """Check a true-or-false answer and continue or end the round."""
+    from kinito.features.mood import GAME_KINITO_WIN, GAME_PLAYER_WIN
+
     if response not in (dlg.BUTTON_TRUE, dlg.BUTTON_FALSE):
         return
     question = getattr(app, "_trivia_current", None)
@@ -842,7 +916,10 @@ def _handle_true_false(app, response: str) -> None:
             score=app._trivia_score,
             total=ROUND_SIZE,
         )
-        _offer_play_again(app, line, lambda a: a.start_true_false())
+        outcome = GAME_PLAYER_WIN if app._trivia_score >= 3 else GAME_KINITO_WIN
+        _report_game_outcome(app, outcome)
+        pack = getattr(app, "_trivia_pack", None)
+        _offer_play_again(app, line, lambda a, p=pack: a.start_true_false_pack(p))
         return
 
     app.speak(feedback, 45, False)
@@ -851,6 +928,8 @@ def _handle_true_false(app, response: str) -> None:
 
 def _handle_rps(app, response: str) -> None:
     """Resolve a rock-paper-scissors round."""
+    from kinito.features.mood import GAME_DRAW, GAME_KINITO_WIN, GAME_PLAYER_WIN
+
     if response not in MOVES:
         return
     kinito_move = random.choice(MOVES)
@@ -861,15 +940,20 @@ def _handle_rps(app, response: str) -> None:
     }
     if outcome == "player":
         line = dlg.pick_line(game_lines.RPS_WIN_LINES).format(**fmt)
+        _report_game_outcome(app, GAME_PLAYER_WIN)
     elif outcome == "kinito":
         line = dlg.pick_line(game_lines.RPS_LOSE_LINES).format(**fmt)
+        _report_game_outcome(app, GAME_KINITO_WIN)
     else:
         line = dlg.pick_line(game_lines.RPS_DRAW_LINES).format(**fmt)
+        _report_game_outcome(app, GAME_DRAW)
     app.speak(line)
 
 
 def _handle_number_guess(app, response: str) -> None:
     """Process a number-guess attempt."""
+    from kinito.features.mood import GAME_KINITO_WIN, GAME_PLAYER_WIN
+
     target = getattr(app, "_number_guess_target", None)
     if target is None:
         return
@@ -890,12 +974,14 @@ def _handle_number_guess(app, response: str) -> None:
             answer=target,
             attempts=attempts,
         )
+        _report_game_outcome(app, GAME_PLAYER_WIN)
         app.speak(line)
         return
 
     if app._number_guess_attempts >= MAX_ATTEMPTS:
         app._number_guess_target = None
         line = dlg.pick_line(game_lines.NUMBER_GUESS_GIVE_UP_LINES).format(answer=target)
+        _report_game_outcome(app, GAME_KINITO_WIN)
         app.speak(line)
         return
 
@@ -1009,6 +1095,22 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
         dlg.MAGIC_8_BALL_MARKER,
         DialogUI("textbox", textbox_prompt=dlg.MAGIC_8_BALL_QUESTION),
         _handle_magic_8_ball,
+    ),
+    DialogSpec(
+        dlg.TRIVIA_PACK_MARKER,
+        DialogUI(
+            "buttons",
+            buttons=(
+                dlg.BUTTON_TRIVIA_MIXED,
+                dlg.BUTTON_TRIVIA_ANIMALS,
+                dlg.BUTTON_TRIVIA_TECH,
+                dlg.BUTTON_TRIVIA_SPOOKY,
+                dlg.BUTTON_TRIVIA_KINITO,
+                dlg.BUTTON_TRIVIA_SEASONAL,
+                dlg.BUTTON_BACK,
+            ),
+        ),
+        _handle_trivia_pack,
     ),
     DialogSpec(
         dlg.TRUE_FALSE_MARKER,
@@ -1238,7 +1340,7 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
     DialogSpec(
         dlg.HUG_QUESTION_MARKER,
         DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
-        _yes_no(lambda a: a.give_hug(), dlg.HUG_DECLINED_LINES),
+        _hug_yes_no(),
     ),
     DialogSpec(
         dlg.TRUST_QUESTION,

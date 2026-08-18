@@ -23,6 +23,7 @@ DEFAULT_BOOL_SETTINGS: dict[str, bool] = {
     "special_days_enabled": True,
     "screen_comments_enabled": True,
     "paint_recall_enabled": True,
+    "mood_system_enabled": True,
 }
 
 # Back-compat alias used by older tests/imports.

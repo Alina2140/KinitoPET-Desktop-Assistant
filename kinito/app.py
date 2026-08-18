@@ -54,6 +54,7 @@ from kinito.features.glitch import GlitchMixin
 from kinito.features.hug import HugMixin
 from kinito.features.memory import MemoryMixin
 from kinito.features.menu_settings import MenuSettingsMixin
+from kinito.features.mood import MoodMixin
 from kinito.features.music import MusicMixin
 from kinito.features.nudges import NudgesMixin
 from kinito.features.paint import PaintMixin
@@ -111,6 +112,7 @@ class FloatingAssistant(
     ScreenCommentsMixin,
     MenuSettingsMixin,
     MovementMixin,
+    MoodMixin,
     HugMixin,
     ContentMixin,
     MemoryMixin,
@@ -307,6 +309,7 @@ class FloatingAssistant(
         self._hand_photo_ref = None
         self._tts_enabled = self._settings.get("tts_enabled", True)
         self._special_days_enabled = self._settings.get("special_days_enabled", True)
+        self._mood_system_enabled = self._settings.get("mood_system_enabled", True)
         get_hidden_menu = getattr(self._settings, "get_hidden_menu_buttons", None)
         self._hidden_menu_buttons = (
             get_hidden_menu() if callable(get_hidden_menu) else set()
@@ -340,6 +343,7 @@ class FloatingAssistant(
         self._number_guess_target = None
         self._number_guess_attempts = 0
         self._available_voices = self._load_available_voices()
+        self._init_mood()
         self._mouse_look_active = False
         self._mouse_look_crouch = False
         self._mouse_look_stance_until = 0.0
@@ -410,6 +414,7 @@ class FloatingAssistant(
             window_grab_enabled=bool(getattr(self, "_window_grab_enabled", True)),
             tts_enabled=bool(getattr(self, "_tts_enabled", True)),
             special_days_enabled=bool(getattr(self, "_special_days_enabled", True)),
+            mood_system_enabled=bool(getattr(self, "_mood_system_enabled", True)),
         )
         set_hidden_menu = getattr(store, "set_hidden_menu_buttons", None)
         if callable(set_hidden_menu):
@@ -767,7 +772,16 @@ class FloatingAssistant(
     def pause(self, *, spontaneous=False):
         """Enter sleep mode with a nap line and sleep sprites."""
         self._cancel_auto_wake_timer()
-        self.speak(dlg.pick_line(dlg.PAUSE_LINES))
+        if hasattr(self, "on_sleep_start"):
+            self.on_sleep_start(spontaneous=spontaneous)
+        from content.mood_lines import PAUSE_BY_MOOD, lines_for_mood
+
+        mood = self.get_mood() if hasattr(self, "get_mood") else None
+        intensity = self.get_mood_intensity() if hasattr(self, "get_mood_intensity") else 0.0
+        mood_lines = lines_for_mood(PAUSE_BY_MOOD, mood) if mood else None
+        self.speak(
+            dlg.pick_line_for_mood(dlg.PAUSE_LINES, mood=mood, intensity=intensity, mood_lines=mood_lines)
+        )
         self.paused = True
         if spontaneous:
             delay_ms = random.randint(*self.AUTO_WAKE_NAP_SECONDS) * 1000
@@ -777,14 +791,25 @@ class FloatingAssistant(
         """Wake up after an idle nap if still sleeping."""
         self._auto_wake_timer = None
         if self.paused and self._running:
-            self.unpause()
+            self.unpause(spontaneous=True)
 
-    def unpause(self):
+    def unpause(self, *, spontaneous=False):
         """Leave sleep mode and restore the normal sprite."""
         self._cancel_auto_wake_timer()
         self.paused = False
         self.change_sprite(self.tk_img_normal)
-        self.speak(dlg.pick_line(dlg.UNPAUSE_LINES))
+        if hasattr(self, "on_wake"):
+            self.on_wake(spontaneous=spontaneous)
+        from content.mood_lines import UNPAUSE_BY_MOOD, lines_for_mood
+
+        mood = self.get_mood() if hasattr(self, "get_mood") else None
+        intensity = self.get_mood_intensity() if hasattr(self, "get_mood_intensity") else 0.0
+        mood_lines = lines_for_mood(UNPAUSE_BY_MOOD, mood) if mood else None
+        self.speak(
+            dlg.pick_line_for_mood(
+                dlg.UNPAUSE_LINES, mood=mood, intensity=intensity, mood_lines=mood_lines
+            )
+        )
 
     def show_credits(self):
         """Show attribution for KinitoPET, the template repo, and third-party assets."""

@@ -8,8 +8,29 @@ def pick_line(lines):
     return random.choice(lines)
 
 
-def pick_declined_line(specific_lines):
+def pick_line_for_mood(lines, mood=None, intensity=0.0, mood_lines=None):
+    """Pick from *mood_lines* when mood is strong enough, else from *lines*."""
+    try:
+        strength = float(intensity or 0.0)
+    except (TypeError, ValueError):
+        strength = 0.0
+    if mood and mood_lines and strength >= 0.25 and random.random() < min(0.85, 0.35 + strength):
+        return pick_line(mood_lines)
+    return pick_line(lines)
+
+
+def pick_declined_line(specific_lines, mood=None, intensity=0.0):
     """Return a short generic or context-specific declined-response line."""
+    if mood:
+        from content.mood_lines import DECLINED_BY_MOOD, lines_for_mood
+
+        mood_pool = lines_for_mood(DECLINED_BY_MOOD, mood)
+        try:
+            strength = float(intensity or 0.0)
+        except (TypeError, ValueError):
+            strength = 0.0
+        if mood_pool and random.random() < min(0.75, 0.4 + strength * 0.4):
+            return pick_line(mood_pool)
     if random.random() < 0.45:
         return pick_line(DECLINED_ACK_LINES)
     return pick_line(specific_lines)
@@ -108,6 +129,9 @@ MAGIC_8_BALL_MARKER = "magic 8-ball"
 MAGIC_8_BALL_QUESTION = "Ask the Magic 8-Ball a yes-or-no question!"
 
 TRUE_FALSE_MARKER = "true or false"
+
+TRIVIA_PACK_MARKER = "trivia pack"
+TRIVIA_PACK_QUESTION = "True or False! Pick a trivia pack!"
 
 GAME_PLAY_AGAIN_MARKER = "play again"
 GAME_PLAY_AGAIN_SUFFIX = "Want to play again?"
@@ -674,6 +698,24 @@ SPECIAL_DAYS_OFF_LINES = [
     "Special-day remarks disabled. Every day is still friendship day. Quietly.",
 ]
 
+MOOD_SYSTEM_ON_LINES = [
+    "Mood system on! I can feel again. Softly. Dramatically. Both.",
+    "Feelings enabled. Boredom, joy, mild chaos — the full package.",
+    "Mood tracking is back. I'll react to hugs, games, and neglect. Fair warning.",
+]
+
+MOOD_SYSTEM_OFF_LINES = [
+    "Mood system off. Flatline vibes. Perfectly balanced. Forever neutral.",
+    "Feelings paused. No more sulking about throws. Mostly.",
+    "Mood disabled. I'm still friendly. Just... emotionally buffered.",
+]
+
+MOOD_RESET_LINES = [
+    "Mood reset! Fresh start. Neutral. Like a reboot, but cuter.",
+    "All feelings cleared. Back to baseline friendship mode.",
+    "Emotional slate wiped. Hi. I'm fine. Newly fine.",
+]
+
 MENU_BUTTONS_OPEN_LINES = [
     "Here's the menu button list. Check what you want to see.",
     "Customize the menus. Tick boxes. Make it yours.",
@@ -1158,6 +1200,7 @@ BUTTON_SET_FOCUS_TIMER = "Focus Timer"
 BUTTON_MODES = "Modes"
 BUTTON_SETTINGS = "Settings"
 BUTTON_ACTIONS = "Actions"
+BUTTON_MOOD = "Mood"
 BUTTON_SCREEN_EFFECTS = "Screen Effects"
 BUTTON_SCREEN_EFFECTS_ON = "Screen Effects on"
 BUTTON_SCREEN_EFFECTS_OFF = "Screen Effects off"
@@ -1185,6 +1228,10 @@ BUTTON_TTS_OFF = "Speech off"
 BUTTON_SPECIAL_DAYS = "Special Days"
 BUTTON_SPECIAL_DAYS_ON = "Special Days on"
 BUTTON_SPECIAL_DAYS_OFF = "Special Days off"
+BUTTON_MOOD_SYSTEM = "Mood System"
+BUTTON_MOOD_SYSTEM_ON = "Mood System on"
+BUTTON_MOOD_SYSTEM_OFF = "Mood System off"
+BUTTON_RESET_MOOD = "Reset Mood"
 BUTTON_MENU_BUTTONS = "Menu Buttons"
 BUTTON_CHAT = "Chat"
 BUTTON_SING_SONG = "Sing"
@@ -1209,6 +1256,12 @@ BUTTON_GAME_MEMORY = "Memory"
 BUTTON_GAME_COIN_DICE = "Coin & Dice"
 BUTTON_GAME_MAGIC_8_BALL = "Magic 8-Ball"
 BUTTON_GAME_TRUE_FALSE = "True or False"
+BUTTON_TRIVIA_MIXED = "Mixed"
+BUTTON_TRIVIA_ANIMALS = "Animals"
+BUTTON_TRIVIA_TECH = "Tech"
+BUTTON_TRIVIA_SPOOKY = "Spooky"
+BUTTON_TRIVIA_KINITO = "Kinito"
+BUTTON_TRIVIA_SEASONAL = "Seasonal"
 BUTTON_GAME_BATTLESHIPS = "Battleships"
 BUTTON_GAME_SNAKE = "Snake"
 BUTTON_GAME_CONNECT_FOUR = "Connect Four"

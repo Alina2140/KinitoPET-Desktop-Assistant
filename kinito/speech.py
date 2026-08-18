@@ -1261,6 +1261,8 @@ class SpeechMixin:
 
     def ask_what_todo(self, event):
         """Right-click handler: open or close the action menu speech bubble."""
+        if hasattr(self, "note_user_attention"):
+            self.note_user_attention()
         if (
             hasattr(self, "speech_bubble")
             and self.speech_bubble.winfo_exists()

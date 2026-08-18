@@ -28,7 +28,7 @@ def hug():
 
 def test_give_hug_shows_hug_sprite_and_speaks(hug):
     with (
-        patch("kinito.features.hug.random.choice", return_value=HUG_LINES[0]),
+        patch("content.dialogue.pick_line_for_mood", return_value=HUG_LINES[0]),
         patch.object(hug, "_schedule_hug_end") as schedule,
     ):
         hug.give_hug()

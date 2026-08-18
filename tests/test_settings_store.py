@@ -25,6 +25,7 @@ def test_defaults_when_missing(store):
     assert store.get("screen_comments_enabled") is True
     assert store.get("paint_recall_enabled") is True
     assert store.get("snoring_enabled") is True
+    assert store.get("mood_system_enabled") is True
 
 
 def test_update_and_reload_roundtrip(store, settings_dir):
@@ -35,6 +36,7 @@ def test_update_and_reload_roundtrip(store, settings_dir):
         screen_comments_enabled=False,
         paint_recall_enabled=False,
         snoring_enabled=False,
+        mood_system_enabled=False,
     )
     reloaded = SettingsStore(directory=settings_dir)
     assert reloaded.get("screen_effects_enabled") is False
@@ -43,6 +45,7 @@ def test_update_and_reload_roundtrip(store, settings_dir):
     assert reloaded.get("screen_comments_enabled") is False
     assert reloaded.get("paint_recall_enabled") is False
     assert reloaded.get("snoring_enabled") is False
+    assert reloaded.get("mood_system_enabled") is False
 
 
 def test_invalid_file_falls_back_to_defaults(settings_dir):

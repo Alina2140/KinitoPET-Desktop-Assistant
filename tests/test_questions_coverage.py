@@ -48,6 +48,7 @@ def _menu_app(**kwargs):
     app._window_grab_enabled = kwargs.get("window_grab_enabled", True)
     app._tts_enabled = kwargs.get("tts_enabled", True)
     app._special_days_enabled = kwargs.get("special_days_enabled", True)
+    app._mood_system_enabled = kwargs.get("mood_system_enabled", True)
     app._hidden_menu_buttons = kwargs.get("hidden_menu_buttons", set())
     return app
 
@@ -58,6 +59,7 @@ def test_menu_options_default_toggle_labels():
         dlg.BUTTON_MODES,
         dlg.BUTTON_SETTINGS,
         dlg.BUTTON_ACTIONS,
+        dlg.BUTTON_MOOD,
         dlg.BUTTON_SAY_GOODBYE,
     ]
 
@@ -98,10 +100,11 @@ def test_menu_options_include_all_top_level_actions():
         dlg.BUTTON_MODES,
         dlg.BUTTON_SETTINGS,
         dlg.BUTTON_ACTIONS,
+        dlg.BUTTON_MOOD,
         dlg.BUTTON_SAY_GOODBYE,
     }
     assert set(opts) == expected
-    assert len(opts) == 4
+    assert len(opts) == 5
 
 
 def test_modes_options_default_and_focus_timer():
@@ -141,6 +144,8 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -157,6 +162,8 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -173,6 +180,8 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -189,6 +198,8 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -205,6 +216,8 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -221,6 +234,8 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -237,6 +252,8 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -253,6 +270,8 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_OFF,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -269,6 +288,8 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_OFF,
         dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -286,6 +307,8 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_OFF,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -305,6 +328,26 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_RESET_MOOD,
+        dlg.BUTTON_MENU_BUTTONS,
+        dlg.BUTTON_REMEMBER,
+        dlg.BUTTON_FORGET,
+        dlg.BUTTON_SHOW_CREDITS,
+        dlg.BUTTON_BACK,
+    ]
+    assert settings_options_for(_menu_app(mood_system_enabled=False)) == [
+        dlg.BUTTON_SCREEN_EFFECTS_ON,
+        dlg.BUTTON_REMINDERS_ON,
+        dlg.BUTTON_APP_AWARENESS_ON,
+        dlg.BUTTON_SCREEN_COMMENTS_ON,
+        dlg.BUTTON_PAINT_RECALL_ON,
+        dlg.BUTTON_SNORING_ON,
+        dlg.BUTTON_WINDOW_PLAY_ON,
+        dlg.BUTTON_TTS_ON,
+        dlg.BUTTON_SPECIAL_DAYS_ON,
+        dlg.BUTTON_MOOD_SYSTEM_OFF,
+        dlg.BUTTON_RESET_MOOD,
         dlg.BUTTON_MENU_BUTTONS,
         dlg.BUTTON_REMEMBER,
         dlg.BUTTON_FORGET,
@@ -348,3 +391,11 @@ def test_static_questions_match_expected_markers():
         spec = find_dialog_spec(question)
         assert spec is not None
         assert spec.marker == expected_marker
+
+
+def test_mood_menu_button_id():
+    from content.menu_visibility import menu_button_id_for_label
+
+    assert menu_button_id_for_label(dlg.BUTTON_MOOD) == "main.mood"
+    assert menu_button_id_for_label(dlg.BUTTON_MOOD_SYSTEM_ON) == "settings.mood_system"
+    assert menu_button_id_for_label(dlg.BUTTON_RESET_MOOD) == "settings.reset_mood"

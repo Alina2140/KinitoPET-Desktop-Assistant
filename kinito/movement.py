@@ -205,6 +205,8 @@ class MovementMixin:
 
     def on_mouse_down(self, event):
         """Begin dragging, stop roam sounds, and play the bomp click sound."""
+        if hasattr(self, "note_user_attention"):
+            self.note_user_attention()
         if getattr(self, "_throwing", False):
             self._cancel_throw()
         self.is_dragging = True
@@ -292,6 +294,8 @@ class MovementMixin:
         self._drag_samples = []
         if not self._should_skip_drag_sounds():
             self.play_sfx(woosh_file_path)
+        if hasattr(self, "on_throw"):
+            self.on_throw()
         self._maybe_speak_throw_reaction()
         if hasattr(self, "_keep_assistant_on_top"):
             self.root.after(0, self._keep_assistant_on_top)
@@ -1105,13 +1109,27 @@ class MovementMixin:
             if self.maybe_trigger_window_grab():
                 time.sleep(0.1)
                 continue
+            if hasattr(self, "maybe_drift_mood"):
+                self.maybe_drift_mood()
+            speech_chance = self.SPONTANEOUS_CHANCE
+            menu_chance = self.MENU_ACTION_CHANCE
+            if hasattr(self, "mood_action_weights"):
+                weights = self.mood_action_weights()
+                speech_chance *= weights.get("speech_chance_mult", 1.0)
+                menu_chance *= weights.get("menu_action_mult", 1.0)
             if (
-                random.random() < self.SPONTANEOUS_CHANCE
+                random.random() < speech_chance
                 and self._allow_random_questions
                 and not getattr(self, "_focus_mode", False)
+                and not getattr(self, "_is_game_active", lambda: False)()
             ):
-                if random.random() < self.MENU_ACTION_CHANCE:
+                if random.random() < menu_chance:
                     self.perform_random_menu_action()
+                elif (
+                    hasattr(self, "speak_idle_mood_line")
+                    and random.random() < getattr(self, "IDLE_MOOD_SNIPPET_CHANCE", 0.35)
+                ):
+                    self.speak_idle_mood_line()
                 else:
                     self.speak_random_question()
             else:
