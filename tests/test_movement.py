@@ -522,6 +522,33 @@ def _configure_mouse_attention(movement):
     movement._is_game_active = MagicMock(return_value=False)
 
 
+def test_mouse_attention_allowed_during_focus_mode(movement):
+    _configure_mouse_attention(movement)
+    movement._focus_mode = True
+    assert movement._can_look_at_mouse() is True
+    assert movement._can_follow_mouse() is True
+
+
+def test_finish_mouse_think_starts_chase_in_focus_mode(movement):
+    _configure_mouse_attention(movement)
+    movement._focus_mode = True
+    movement._mouse_follow_state = "thinking"
+    movement.move_towards = MagicMock()
+    movement._finish_surf_movement = MagicMock()
+    movement._on_mouse_chase_finished = MagicMock()
+
+    with (
+        patch("kinito.movement.random.random", return_value=0.0),
+        patch("kinito.movement.threading.Thread") as mock_thread,
+    ):
+        mock_thread.return_value = MagicMock()
+        movement._finish_mouse_think(250, 240)
+
+    assert movement._mouse_follow_state == "chasing"
+    assert movement.moving is True
+    mock_thread.assert_called_once()
+
+
 def test_maybe_play_snoring_respects_volume_and_chance(movement):
     _configure_mouse_attention(movement)
     movement.paused = True

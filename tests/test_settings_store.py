@@ -26,6 +26,9 @@ def test_defaults_when_missing(store):
     assert store.get("paint_recall_enabled") is True
     assert store.get("snoring_enabled") is True
     assert store.get("mood_system_enabled") is True
+    assert store.get_int("tts_volume") == 100
+    assert store.get_int("music_volume") == 75
+    assert store.get_music_folder() == ""
 
 
 def test_update_and_reload_roundtrip(store, settings_dir):
@@ -63,3 +66,15 @@ def test_ignores_unknown_keys(store):
         raw = json.load(handle)
     assert "not_a_real_setting" not in raw
     assert raw["screen_effects_enabled"] is False
+
+
+def test_int_and_music_folder_roundtrip(store, settings_dir):
+    from kinito.settings_store import clamp_tts_volume
+
+    store.update(tts_volume=40, music_volume=20, music_folder=r"C:\Music")
+    reloaded = SettingsStore(directory=settings_dir)
+    assert reloaded.get_int("tts_volume") == 40
+    assert reloaded.get_int("music_volume") == 20
+    assert reloaded.get_music_folder() == r"C:\Music"
+    assert clamp_tts_volume(150) == 100
+    assert clamp_tts_volume(-3) == 0

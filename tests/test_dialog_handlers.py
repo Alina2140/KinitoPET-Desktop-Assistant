@@ -39,13 +39,7 @@ def test_handle_hug_yes(mock_app):
 def test_handle_music_player_yes(mock_app):
     spec = find_dialog_spec(dlg.MUSIC_PLAYER_QUESTIONS[0])
     handle_dialog_response(mock_app, spec, dlg.BUTTON_YES)
-    mock_app.ask_music_player_pick.assert_called_once()
-
-
-def test_handle_music_pick_declined(mock_app):
-    spec = find_dialog_spec(dlg.MUSIC_PLAYER_PICK_QUESTION)
-    handle_dialog_response(mock_app, spec, dlg.BUTTON_NOT_NOW)
-    mock_app.speak.assert_called_once()
+    mock_app.open_music_player.assert_called_once()
 
 
 def test_handle_color_text_response(mock_app):
@@ -255,19 +249,19 @@ def test_handle_menu_tell_time(mock_app):
 
 
 def test_handle_menu_toggle_screen_effects(mock_app):
-    spec = find_dialog_spec(dlg.SETTINGS_MENU_QUESTION)
+    spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_SCREEN_EFFECTS_OFF)
     mock_app.toggle_screen_effects.assert_called_once()
 
 
 def test_handle_menu_toggle_screen_comments(mock_app):
-    spec = find_dialog_spec(dlg.SETTINGS_MENU_QUESTION)
+    spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_SCREEN_COMMENTS_ON)
     mock_app.toggle_screen_comments.assert_called_once()
 
 
 def test_handle_menu_toggle_paint_recall(mock_app):
-    spec = find_dialog_spec(dlg.SETTINGS_MENU_QUESTION)
+    spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_PAINT_RECALL_ON)
     mock_app.toggle_paint_recall.assert_called_once()
 

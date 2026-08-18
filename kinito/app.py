@@ -245,7 +245,7 @@ class FloatingAssistant(
         self.change_sprite(self.tk_img_normal)
         self.setup_reminder_countdown_button()
         self.setup_focus_timer_countdown_button()
-        self.setup_music_control_button()
+        self.setup_music_player()
         self._assistant_controls_extended = False
 
         self.x = 0
@@ -290,6 +290,7 @@ class FloatingAssistant(
         self._startup_complete = False
         self._allow_random_questions = False
         self._settings = SettingsStore()
+        self._init_game_scores()
         self._screen_effects_enabled = self._settings.get("screen_effects_enabled", True)
         self._ambient_reminders_enabled = self._settings.get(
             "ambient_reminders_enabled", True
@@ -308,6 +309,10 @@ class FloatingAssistant(
         self._hand_window = None
         self._hand_photo_ref = None
         self._tts_enabled = self._settings.get("tts_enabled", True)
+        self._tts_volume = self._settings.get_int("tts_volume", 100)
+        self._tts_sd_active = False
+        self._music_volume = self._settings.get_int("music_volume", 75)
+        self._music_folder = self._settings.get_music_folder()
         self._special_days_enabled = self._settings.get("special_days_enabled", True)
         self._mood_system_enabled = self._settings.get("mood_system_enabled", True)
         get_hidden_menu = getattr(self._settings, "get_hidden_menu_buttons", None)
@@ -413,6 +418,9 @@ class FloatingAssistant(
             snoring_enabled=bool(getattr(self, "_snoring_enabled", True)),
             window_grab_enabled=bool(getattr(self, "_window_grab_enabled", True)),
             tts_enabled=bool(getattr(self, "_tts_enabled", True)),
+            tts_volume=int(getattr(self, "_tts_volume", 100)),
+            music_volume=int(getattr(self, "_music_volume", 75)),
+            music_folder=str(getattr(self, "_music_folder", "") or ""),
             special_days_enabled=bool(getattr(self, "_special_days_enabled", True)),
             mood_system_enabled=bool(getattr(self, "_mood_system_enabled", True)),
         )

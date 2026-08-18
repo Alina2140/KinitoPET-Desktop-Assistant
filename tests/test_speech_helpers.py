@@ -433,16 +433,69 @@ def test_run_tts_skips_pyttsx3_when_interrupted(speech):
     fallback.assert_not_called()
 
 
+def test_scale_wav_pcm_softens_int16():
+    import numpy as np
+
+    samples = np.array([10000, -10000, 0], dtype=np.int16)
+    scaled = SpeechMixin._scale_wav_pcm(samples, 0.4)
+    assert scaled.dtype == np.int16
+    assert int(scaled[0]) == 4000
+    assert int(scaled[1]) == -4000
+    assert int(scaled[2]) == 0
+
+
+def test_play_tts_wav_applies_configured_volume(speech):
+    import numpy as np
+
+    speech._tts_volume = 40
+    speech._speech_epoch = 1
+    samples = np.array([1000, -1000], dtype=np.int16)
+    stream = MagicMock()
+    stream.active = False
+
+    with (
+        patch("kinito.speech.os.path.isfile", return_value=True),
+        patch("kinito.speech.os.path.getsize", return_value=128),
+        patch.object(speech, "_load_wav_pcm", return_value=(samples, 22050)),
+        patch("kinito.speech.sd.play") as play,
+        patch("kinito.speech.sd.get_stream", return_value=stream),
+    ):
+        assert speech._play_tts_wav("voice.wav", speech_epoch=1) is True
+
+    play.assert_called_once()
+    played = play.call_args.args[0]
+    assert played.dtype == np.int16
+    assert int(played[0]) == 400
+    assert play.call_args.args[1] == 22050
+
+
+def test_stop_active_tts_stops_sounddevice(speech):
+    speech._tts_sd_active = True
+    speech._tts_process = None
+    with patch("kinito.speech.sd.stop") as stop:
+        speech._stop_active_tts()
+    stop.assert_called_once()
+    assert speech._tts_sd_active is False
+
+
+def test_play_bubble_sfx_uses_tts_volume(speech):
+    speech._tts_volume = 40
+    speech.play_sfx = MagicMock()
+    speech._play_bubble_sfx("StartTalking.mp3")
+    speech.play_sfx.assert_called_once_with("StartTalking.mp3", volume=0.4)
+
+
 def test_show_speech_bubble_ignores_stale_epoch(speech):
     speech._speech_epoch = 2
     speech.root = MagicMock()
     speech.play_sfx = MagicMock()
+    speech._play_bubble_sfx = MagicMock()
     speech.create_wrapped_label = MagicMock(return_value=MagicMock())
     speech._schedule_speech_bubble_position = MagicMock()
 
     speech.show_speech_bubble("Hi", speech_epoch=1)
 
-    speech.play_sfx.assert_not_called()
+    speech._play_bubble_sfx.assert_not_called()
     speech._schedule_speech_bubble_position.assert_not_called()
 
 

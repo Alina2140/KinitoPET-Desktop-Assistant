@@ -574,6 +574,9 @@ MODES_MENU_QUESTION = "Modes! Sleep or focus?"
 SETTINGS_MENU_MARKER = "settings!"
 SETTINGS_MENU_QUESTION = "Settings! What should we change?"
 
+SETTINGS_TOGGLES_MARKER = "turn features on or off"
+SETTINGS_TOGGLES_QUESTION = "Turn features on or off!"
+
 ACTIONS_MENU_MARKER = "actions!"
 ACTIONS_MENU_QUESTION = "Actions! What should I do?"
 
@@ -684,6 +687,20 @@ TTS_OFF_LINES = [
     "Speech off. I'll still show bubbles — just quietly. Mime mode.",
     "TTS disabled. Reading lips optional. Bubbles still work.",
     "Voice muted. Text lives on. Soft silence.",
+]
+
+TTS_VOLUME_MARKER = "soft, normal, or loud"
+TTS_VOLUME_QUESTION = (
+    "TTS volume is {volume}% right now. Soft, normal, or loud?"
+)
+TTS_VOLUME_SOFT = 40
+TTS_VOLUME_NORMAL = 70
+TTS_VOLUME_LOUD = 100
+
+TTS_VOLUME_SET_LINES = [
+    "Volume set to {volume}%. Hear me? Softly checking.",
+    "Okay! Speaking at {volume}% now. Bubble and voice.",
+    "TTS volume: {volume}%. Adjust anytime in Settings.",
 ]
 
 SPECIAL_DAYS_ON_LINES = [
@@ -1199,6 +1216,7 @@ BUTTON_UNFOCUS = "Unfocus"
 BUTTON_SET_FOCUS_TIMER = "Focus Timer"
 BUTTON_MODES = "Modes"
 BUTTON_SETTINGS = "Settings"
+BUTTON_TURN_ON_OFF = "Turn on/off"
 BUTTON_ACTIONS = "Actions"
 BUTTON_MOOD = "Mood"
 BUTTON_SCREEN_EFFECTS = "Screen Effects"
@@ -1225,6 +1243,11 @@ BUTTON_WINDOW_PLAY_OFF = "Window Play off"
 BUTTON_TTS = "Speech"
 BUTTON_TTS_ON = "Speech on"
 BUTTON_TTS_OFF = "Speech off"
+BUTTON_TTS_VOLUME = "TTS Volume"
+BUTTON_TTS_VOLUME_SOFT = "Soft"
+BUTTON_TTS_VOLUME_NORMAL = "Normal"
+BUTTON_TTS_VOLUME_LOUD = "Loud"
+BUTTON_MUSIC_FOLDER = "Music Folder"
 BUTTON_SPECIAL_DAYS = "Special Days"
 BUTTON_SPECIAL_DAYS_ON = "Special Days on"
 BUTTON_SPECIAL_DAYS_OFF = "Special Days off"
