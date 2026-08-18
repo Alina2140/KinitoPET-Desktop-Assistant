@@ -1099,13 +1099,13 @@ class MovementMixin:
             self.maybe_trigger_random_ad()
             self.maybe_trigger_ambient_reminder()
             if self.maybe_trigger_screen_comment():
-                time.sleep(0.1)
+                time.sleep(self._idle_wait_before_next_action())
                 continue
             if self.maybe_trigger_paint_recall():
-                time.sleep(0.1)
+                time.sleep(self._idle_wait_before_next_action())
                 continue
             if self.maybe_trigger_window_grab():
-                time.sleep(0.1)
+                time.sleep(self._idle_wait_before_next_action())
                 continue
             if hasattr(self, "maybe_drift_mood"):
                 self.maybe_drift_mood()
@@ -1119,6 +1119,10 @@ class MovementMixin:
                 random.random() < speech_chance
                 and self._allow_random_questions
                 and not getattr(self, "_focus_mode", False)
+                and not (
+                    callable(getattr(self, "_player_focus_active", None))
+                    and self._player_focus_active()
+                )
                 and not getattr(self, "_is_game_active", lambda: False)()
             ):
                 if random.random() < menu_chance:

@@ -586,6 +586,13 @@ MEMORY_FORGOTTEN_LINE = (
 MEMORY_EMPTY_LINE = (
     "I don't have anything saved about you yet. Tell me about yourself! I'll listen carefully."
 )
+MEMORY_SAVED_LINE = (
+    "Saved! Your memories are tucked away again. Carefully. Permanently. Mostly."
+)
+MEMORY_FORGET_CONFIRM_TITLE = "Forget everything?"
+MEMORY_FORGET_CONFIRM_MESSAGE = (
+    "Delete all saved facts and notes about you?\nThis cannot be undone."
+)
 MEMORY_ANSWER_ACK_LINES = [
     "Got it! I'll keep that in mind.",
     "Noted! I'll remember that.",
@@ -687,6 +694,18 @@ TTS_OFF_LINES = [
     "Speech off. I'll still show bubbles — just quietly. Mime mode.",
     "TTS disabled. Reading lips optional. Bubbles still work.",
     "Voice muted. Text lives on. Soft silence.",
+]
+
+PLAYER_FOCUS_ON_LINES = [
+    "Player focus on. If the music player is open, I'll stay quiet. Still moving. Still here.",
+    "Quiet-player mode enabled. Open the player and I go mute. No voice. No sound effects. Just vibes.",
+    "Player focus is on. Music time means silent Kinito. I can still wander. Softly.",
+]
+
+PLAYER_FOCUS_OFF_LINES = [
+    "Player focus off. I'll keep chatting even with the player open. Missed my voice already?",
+    "Quiet-player mode disabled. Music and talking can coexist. Chaotic. Fun. Me.",
+    "Player focus off. Open the player and I'll still talk. And boop. And woosh.",
 ]
 
 TTS_VOLUME_MARKER = "soft, normal, or loud"
@@ -1243,6 +1262,9 @@ BUTTON_WINDOW_PLAY_OFF = "Window Play off"
 BUTTON_TTS = "Speech"
 BUTTON_TTS_ON = "Speech on"
 BUTTON_TTS_OFF = "Speech off"
+BUTTON_PLAYER_FOCUS = "Player Focus"
+BUTTON_PLAYER_FOCUS_ON = "Player Focus on"
+BUTTON_PLAYER_FOCUS_OFF = "Player Focus off"
 BUTTON_TTS_VOLUME = "TTS Volume"
 BUTTON_TTS_VOLUME_SOFT = "Soft"
 BUTTON_TTS_VOLUME_NORMAL = "Normal"

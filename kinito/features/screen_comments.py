@@ -14,7 +14,7 @@ class ScreenCommentsMixin:
     """Speak occasional scripted desktop commentary."""
 
     SCREEN_COMMENT_CHANCE = 1 / 300
-    SCREEN_COMMENT_COOLDOWN_SECONDS = 5
+    SCREEN_COMMENT_COOLDOWN_SECONDS = 300
 
     def maybe_trigger_screen_comment(self) -> bool:
         """Roll for a silent screen glance; schedule work if it hits."""

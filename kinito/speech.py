@@ -509,6 +509,9 @@ class SpeechMixin:
         """Start poem-style background music after any prior speech was interrupted."""
         if not file_path or not hasattr(self, "play_mp3"):
             return
+        check = getattr(self, "_player_focus_active", None)
+        if callable(check) and check():
+            return
         play_volume = 0.6 if volume is None else volume
         self.play_mp3(file_path, volume=play_volume, speech_accompaniment=True)
 
@@ -832,6 +835,9 @@ class SpeechMixin:
         """Run TTS via balcon (preferred) or pyttsx3 fallback."""
         if not getattr(self, "_tts_enabled", True):
             return False
+        check = getattr(self, "_player_focus_active", None)
+        if callable(check) and check():
+            return False
         text = normalize_text_for_tts(text)
         if voice_candidates is None:
             voice_candidates = self.VOICE_NORMAL_CANDIDATES
@@ -889,8 +895,12 @@ class SpeechMixin:
     ):
         """Speak *text* in a background thread; optionally show and auto-close a bubble."""
         del ai_hint, skip_ai  # handled by LLMMixin when present in the MRO
-        if getattr(self, "_focus_mode", False) and not allow_in_focus:
-            return
+        if not allow_in_focus:
+            if getattr(self, "_focus_mode", False):
+                return
+            check = getattr(self, "_player_focus_active", None)
+            if callable(check) and check():
+                return
         self.interrupt_speech()
         if hasattr(self, "_stop_roaming"):
             self._stop_roaming()
@@ -953,8 +963,12 @@ class SpeechMixin:
 
         Do not use for normal dialog lines ? use ``speak()`` so Kinito actually says them.
         """
-        if getattr(self, "_focus_mode", False) and not allow_in_focus:
-            return
+        if not allow_in_focus:
+            if getattr(self, "_focus_mode", False):
+                return
+            check = getattr(self, "_player_focus_active", None)
+            if callable(check) and check():
+                return
         if display_ms is None:
             display_ms = self.BRIEF_ACK_DISPLAY_MS
 
@@ -1254,15 +1268,23 @@ class SpeechMixin:
 
     def _new_speech_bubble_toplevel(self, title):
         """Create a hidden speech-bubble window parked off-screen."""
+        # Avoid transient() on an overrideredirect root — Windows relocates the parent.
+        pin = getattr(self, "_pin_assistant_screen_position", None)
+        pinned = pin() if callable(pin) else None
         bubble = Toplevel(self.root)
-        bubble.transient(self.root)
-        bubble.withdraw()
+        try:
+            bubble.withdraw()
+        except tk.TclError:
+            pass
         bubble.geometry(self.BUBBLE_OFF_SCREEN_GEOMETRY)
         # Opaque cream first — chroma-key only after cream shell polygons exist.
         bubble.configure(bg=self.BUBBLE_BG)
         bubble.overrideredirect(True)
         bubble.wm_attributes("-topmost", True)
         bubble.wm_title(title)
+        restore = getattr(self, "_restore_assistant_screen_position", None)
+        if pinned is not None and callable(restore):
+            restore(*pinned)
         self._speech_bubble_chroma_enabled = False
         return bubble
 

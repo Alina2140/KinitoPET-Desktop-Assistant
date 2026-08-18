@@ -1074,10 +1074,14 @@ class PaintMixin:
             return
 
         self.root.update_idletasks()
-        vroot_x = self.root.winfo_vrootx()
-        vroot_y = self.root.winfo_vrooty()
-        vroot_w = self.root.winfo_vrootwidth()
-        vroot_h = self.root.winfo_vrootheight()
+        query = getattr(self, "_query_primary_screen_rect", None)
+        if callable(query):
+            vroot_x, vroot_y, vroot_w, vroot_h = query()
+        else:
+            vroot_x = self.root.winfo_vrootx()
+            vroot_y = self.root.winfo_vrooty()
+            vroot_w = self.root.winfo_vrootwidth()
+            vroot_h = self.root.winfo_vrootheight()
 
         img_w, img_h = img.size
         max_w = max(int(vroot_w * 0.55), 1)
@@ -1100,8 +1104,12 @@ class PaintMixin:
         label.image = tk_img
         label.pack(fill="both", expand=True)
 
-        x = vroot_x + (vroot_w - width) // 2
-        y = vroot_y + (vroot_h - height) // 2
+        center = getattr(self, "_centered_origin_on_primary", None)
+        if callable(center):
+            x, y = center(width, height)
+        else:
+            x = vroot_x + (vroot_w - width) // 2
+            y = vroot_y + (vroot_h - height) // 2
         popup.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
 
         def _handle_close():

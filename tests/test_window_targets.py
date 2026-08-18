@@ -1,15 +1,21 @@
 """Tests for window geometry helpers used by window grab."""
 
+import random
+from unittest.mock import patch
+
 from kinito.window_targets import (
     SIDE_LEFT,
     SIDE_RIGHT,
     WindowRect,
+    centered_origin_on_rect,
     choose_grab_side,
     clamp_window_origin,
     hand_sprite_for_side,
     hand_tuck_geometry,
     pick_window_target,
     position_diverged,
+    primary_monitor_rect,
+    random_fully_visible_origin,
 )
 
 
@@ -28,6 +34,42 @@ def test_clamp_window_origin_keeps_title_strip_on_dual_monitor():
 def test_clamp_window_origin_inside_stays():
     virtual = (0, 0, 1920, 1080)
     assert clamp_window_origin(100, 200, 400, 300, virtual) == (100, 200)
+
+
+def test_random_fully_visible_origin_stays_on_chosen_monitor():
+    monitors = [(-1920, 0, 1920, 1080), (0, 0, 1920, 1080)]
+    rng = random.Random(7)
+    for _ in range(40):
+        x, y = random_fully_visible_origin(320, 140, monitors=monitors, margin=16, rng=rng)
+        on_left = -1920 + 16 <= x <= -1920 + 1920 - 320 - 16 and 16 <= y <= 1080 - 140 - 16
+        on_right = 16 <= x <= 1920 - 320 - 16 and 16 <= y <= 1080 - 140 - 16
+        assert on_left or on_right
+
+
+def test_random_fully_visible_origin_handles_oversized_window():
+    x, y = random_fully_visible_origin(
+        5000,
+        5000,
+        monitors=[(0, 0, 800, 600)],
+        margin=10,
+        rng=random.Random(1),
+    )
+    assert (x, y) == (10, 10)
+
+
+def test_primary_monitor_rect_prefers_origin_monitor():
+    with patch("kinito.window_targets.list_monitor_rects") as listed:
+        listed.return_value = [
+            (-1920, 105, 1536, 960),
+            (0, 0, 2560, 1440),
+            (2560, 0, 2560, 1440),
+        ]
+        assert primary_monitor_rect() == (0, 0, 2560, 1440)
+
+
+def test_centered_origin_on_rect():
+    assert centered_origin_on_rect(200, 100, (0, 0, 2560, 1440)) == (1180, 670)
+    assert centered_origin_on_rect(400, 300, (-1920, 0, 1920, 1080)) == (-1920 + 760, 390)
 
 
 def test_choose_grab_side_prefers_nearer_edge():

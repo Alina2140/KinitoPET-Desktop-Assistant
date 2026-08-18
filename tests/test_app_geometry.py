@@ -62,11 +62,36 @@ def test_random_position_on_screen_within_bounds(geometry_app):
         assert min_y <= y <= max_y
 
 
-def test_center_position_on_screen_is_middle_of_bounds(geometry_app):
-    x, y = geometry_app.center_position_on_screen()
-    min_x, min_y, max_x, max_y = geometry_app.get_screen_bounds()
-    assert x == (min_x + max_x) // 2
-    assert y == (min_y + max_y) // 2
+def test_center_position_on_screen_uses_primary_monitor(geometry_app):
+    geometry_app.root.winfo_width.return_value = 200
+    geometry_app.root.winfo_height.return_value = 200
+    geometry_app.root.winfo_reqwidth.return_value = 200
+    geometry_app.root.winfo_reqheight.return_value = 200
+    geometry_app.panel.winfo_reqwidth.return_value = 200
+    geometry_app.panel.winfo_reqheight.return_value = 200
+    with patch.object(
+        geometry_app,
+        "_query_primary_screen_rect",
+        return_value=(0, 0, 2560, 1440),
+    ):
+        # Virtual desktop is wider; primary-centered origin must ignore it.
+        with patch.object(
+            geometry_app,
+            "_query_virtual_screen_rect",
+            return_value=(-1920, 0, 7040, 1440),
+        ):
+            x, y = geometry_app.center_position_on_screen()
+    assert x == (2560 - 200) // 2
+    assert y == (1440 - 200) // 2
+
+
+def test_centered_origin_on_primary_helper(geometry_app):
+    with patch.object(
+        geometry_app,
+        "_query_primary_screen_rect",
+        return_value=(0, 0, 2560, 1440),
+    ):
+        assert geometry_app._centered_origin_on_primary(400, 300) == (1080, 570)
 
 
 def test_ensure_on_screen_repositions_when_outside_bounds(geometry_app):
@@ -98,6 +123,28 @@ def test_ensure_on_screen_skips_when_already_visible(geometry_app):
     geometry_app.y = 100
     geometry_app.ensure_on_screen()
     geometry_app.root.geometry.assert_not_called()
+
+
+def test_ensure_on_screen_skips_while_throwing(geometry_app):
+    geometry_app._throwing = True
+    geometry_app.root.winfo_rootx.return_value = -500
+    geometry_app.root.winfo_rooty.return_value = 5000
+    geometry_app.ensure_on_screen()
+    geometry_app.root.geometry.assert_not_called()
+
+
+def test_keep_assistant_on_top_reasserts_topmost(geometry_app):
+    geometry_app.root.winfo_exists.return_value = True
+    geometry_app._has_active_speech_bubble = MagicMock(return_value=False)
+    geometry_app._force_window_topmost = MagicMock()
+    geometry_app._raise_screen_effect_overlays = MagicMock()
+
+    geometry_app._keep_assistant_on_top()
+
+    geometry_app.root.wm_attributes.assert_called_with("-topmost", True)
+    geometry_app.root.lift.assert_called_once()
+    geometry_app._force_window_topmost.assert_called_once_with(geometry_app.root)
+    geometry_app._raise_screen_effect_overlays.assert_called_once()
 
 
 def test_query_virtual_screen_rect_prefers_windows_metrics(geometry_app):

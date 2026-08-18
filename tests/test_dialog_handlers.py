@@ -266,6 +266,12 @@ def test_handle_menu_toggle_screen_comments(mock_app):
     mock_app.toggle_screen_comments.assert_called_once()
 
 
+def test_handle_menu_toggle_player_focus(mock_app):
+    spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_PLAYER_FOCUS_ON)
+    mock_app.toggle_player_focus.assert_called_once()
+
+
 def test_handle_menu_toggle_paint_recall(mock_app):
     spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_PAINT_RECALL_ON)

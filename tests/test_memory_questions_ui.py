@@ -40,7 +40,7 @@ def test_ask_memory_question_sets_pending_and_speaks(app):
     spec = MemoryQuestion("Do you like tea?", "textbox", "likes_tea")
     app.ask_memory_question(spec)
     assert app._pending_memory_question == spec
-    app.speak.assert_called_once_with("Do you like tea?", 45, True)
+    app.speak.assert_called_once_with("Do you like tea?", 45, True, skip_ai=True)
 
 
 def test_handle_memory_question_response_saves_note(app):
