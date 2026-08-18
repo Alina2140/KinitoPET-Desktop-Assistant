@@ -128,3 +128,16 @@ def test_mark_topic_asked_and_fifo(memory_dir, store):
     assert store.is_topic_asked("topic_a")
     reloaded = MemoryStore(directory=memory_dir)
     assert reloaded.is_topic_asked("topic_a")
+
+
+def test_remove_fact_value_keeps_remaining_items(store):
+    store.set_fact("hobbies", "Drawing, Reading, Crochet")
+    assert store.remove_fact_value("hobbies", "Drawing") is True
+    assert store.get_fact_values("hobbies") == ["Reading", "Crochet"]
+    assert store.remove_fact_value("hobbies", "missing") is False
+
+
+def test_set_fact_rejects_placeholder_for_favorite_drink(store):
+    store.set_fact("favorite_drink", "Tea")
+    store.set_fact("favorite_drink", "no")
+    assert store.get_fact("favorite_drink") == "Tea"

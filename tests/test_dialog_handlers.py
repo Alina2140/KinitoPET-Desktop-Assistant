@@ -91,6 +91,12 @@ def test_handle_board_games_snake(mock_app):
     mock_app.start_snake.assert_called_once()
 
 
+def test_handle_board_games_tetris(mock_app):
+    spec = find_dialog_spec(dlg.BOARD_GAMES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_GAME_TETRIS)
+    mock_app.start_tetris.assert_called_once()
+
+
 def test_handle_board_games_hangman(mock_app):
     spec = find_dialog_spec(dlg.BOARD_GAMES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_GAME_HANGMAN)
