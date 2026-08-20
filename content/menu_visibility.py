@@ -163,6 +163,17 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
                 ),
             ),
             (
+                "settings.color_guess_voice",
+                "Color Guess Voice",
+                frozenset(
+                    {
+                        dlg.BUTTON_COLOR_GUESS_VOICE,
+                        dlg.BUTTON_COLOR_GUESS_VOICE_ON,
+                        dlg.BUTTON_COLOR_GUESS_VOICE_OFF,
+                    }
+                ),
+            ),
+            (
                 "settings.reset_mood",
                 "Reset Mood",
                 frozenset({dlg.BUTTON_RESET_MOOD}),
@@ -187,6 +198,7 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
                 frozenset({dlg.BUTTON_SET_REMINDER}),
             ),
             ("actions.time", "Tell Time", frozenset({dlg.BUTTON_TELL_TIME})),
+            ("actions.known_since", "Known Since", frozenset({dlg.BUTTON_KNOWN_SINCE})),
             ("actions.sing", "Sing", frozenset({dlg.BUTTON_SING_SONG})),
             ("actions.fact", "Fun Fact", frozenset({dlg.BUTTON_FUN_FACT})),
             (

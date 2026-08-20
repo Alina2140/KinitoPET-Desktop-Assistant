@@ -50,6 +50,7 @@ def _menu_app(**kwargs):
     app._player_focus_enabled = kwargs.get("player_focus_enabled", True)
     app._special_days_enabled = kwargs.get("special_days_enabled", True)
     app._mood_system_enabled = kwargs.get("mood_system_enabled", True)
+    app._color_guess_voice_enabled = kwargs.get("color_guess_voice_enabled", True)
     app._hidden_menu_buttons = kwargs.get("hidden_menu_buttons", set())
     return app
 
@@ -175,6 +176,7 @@ def test_settings_and_actions_options():
         dlg.BUTTON_PLAYER_FOCUS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
         dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_COLOR_GUESS_VOICE_ON,
         dlg.BUTTON_BACK,
     ]
     assert settings_toggles_options_for(_menu_app(screen_effects_enabled=False))[0] == (
@@ -208,6 +210,9 @@ def test_settings_and_actions_options():
     assert settings_toggles_options_for(_menu_app(mood_system_enabled=False))[10] == (
         dlg.BUTTON_MOOD_SYSTEM_OFF
     )
+    assert settings_toggles_options_for(_menu_app(color_guess_voice_enabled=False))[11] == (
+        dlg.BUTTON_COLOR_GUESS_VOICE_OFF
+    )
     assert settings_toggles_options_for(
         _menu_app(hidden_menu_buttons={"settings.snoring"})
     ) == [
@@ -221,12 +226,14 @@ def test_settings_and_actions_options():
         dlg.BUTTON_PLAYER_FOCUS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
         dlg.BUTTON_MOOD_SYSTEM_ON,
+        dlg.BUTTON_COLOR_GUESS_VOICE_ON,
         dlg.BUTTON_BACK,
     ]
 
     assert actions_options_for(_menu_app(hidden_menu_buttons={"actions.hug"})) == [
         dlg.BUTTON_SET_REMINDER,
         dlg.BUTTON_TELL_TIME,
+        dlg.BUTTON_KNOWN_SINCE,
         dlg.BUTTON_SING_SONG,
         dlg.BUTTON_FUN_FACT,
         dlg.BUTTON_VISIT_WEBSITE,
@@ -238,6 +245,7 @@ def test_settings_and_actions_options():
     assert actions_options_for(_menu_app()) == [
         dlg.BUTTON_SET_REMINDER,
         dlg.BUTTON_TELL_TIME,
+        dlg.BUTTON_KNOWN_SINCE,
         dlg.BUTTON_SING_SONG,
         dlg.BUTTON_FUN_FACT,
         dlg.BUTTON_VISIT_WEBSITE,
@@ -270,3 +278,8 @@ def test_mood_menu_button_id():
     assert menu_button_id_for_label(dlg.BUTTON_MOOD_SYSTEM_ON) == "settings.mood_system"
     assert menu_button_id_for_label(dlg.BUTTON_RESET_MOOD) == "settings.reset_mood"
     assert menu_button_id_for_label(dlg.BUTTON_PLAYER_FOCUS_OFF) == "settings.player_focus"
+    assert (
+        menu_button_id_for_label(dlg.BUTTON_COLOR_GUESS_VOICE_OFF)
+        == "settings.color_guess_voice"
+    )
+    assert menu_button_id_for_label(dlg.BUTTON_KNOWN_SINCE) == "actions.known_since"

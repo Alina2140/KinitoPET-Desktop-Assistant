@@ -316,6 +316,9 @@ class FloatingAssistant(
         self._music_folder = self._settings.get_music_folder()
         self._special_days_enabled = self._settings.get("special_days_enabled", True)
         self._mood_system_enabled = self._settings.get("mood_system_enabled", True)
+        self._color_guess_voice_enabled = self._settings.get(
+            "color_guess_voice_enabled", True
+        )
         get_hidden_menu = getattr(self._settings, "get_hidden_menu_buttons", None)
         self._hidden_menu_buttons = (
             get_hidden_menu() if callable(get_hidden_menu) else set()
@@ -425,6 +428,9 @@ class FloatingAssistant(
             music_folder=str(getattr(self, "_music_folder", "") or ""),
             special_days_enabled=bool(getattr(self, "_special_days_enabled", True)),
             mood_system_enabled=bool(getattr(self, "_mood_system_enabled", True)),
+            color_guess_voice_enabled=bool(
+                getattr(self, "_color_guess_voice_enabled", True)
+            ),
         )
         set_hidden_menu = getattr(store, "set_hidden_menu_buttons", None)
         if callable(set_hidden_menu):

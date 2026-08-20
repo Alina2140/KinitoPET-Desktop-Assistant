@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "screen_effects_enabled": true,
+  "ambient_reminders_enabled": true,
+  "app_awareness_enabled": true,
+  "snoring_enabled": true,
+  "window_grab_enabled": true,
+  "tts_enabled": true,
+  "player_focus_enabled": true,
+  "special_days_enabled": true,
+  "screen_comments_enabled": true,
+  "paint_recall_enabled": true,
+  "mood_system_enabled": true,
+  "color_guess_voice_enabled": false,
+  "tts_volume": 40,
+  "music_volume": 75,
+  "hidden_menu_buttons": [],
+  "music_folder": ""
+}

@@ -29,6 +29,7 @@ def test_defaults_when_missing(store):
     assert store.get("tts_enabled") is True
     assert store.get("player_focus_enabled") is True
     assert store.get("mood_system_enabled") is True
+    assert store.get("color_guess_voice_enabled") is True
     assert store.get_int("tts_volume") == 100
     assert store.get_int("music_volume") == 75
     assert store.get_music_folder() == ""
@@ -49,6 +50,7 @@ def test_update_and_reload_roundtrip(store, settings_dir):
         music_volume=55,
         music_folder=r"C:\Music",
         mood_system_enabled=False,
+        color_guess_voice_enabled=False,
     )
     reloaded = SettingsStore(directory=settings_dir)
     assert reloaded.get("screen_effects_enabled") is False
@@ -64,6 +66,7 @@ def test_update_and_reload_roundtrip(store, settings_dir):
     assert reloaded.get_int("music_volume") == 55
     assert reloaded.get_music_folder() == r"C:\Music"
     assert reloaded.get("mood_system_enabled") is False
+    assert reloaded.get("color_guess_voice_enabled") is False
 
 
 def test_invalid_file_falls_back_to_defaults(settings_dir):

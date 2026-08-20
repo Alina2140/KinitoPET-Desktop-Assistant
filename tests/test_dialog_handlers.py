@@ -109,6 +109,11 @@ def test_handle_board_games_minesweeper(mock_app):
     mock_app.start_minesweeper.assert_called_once()
 
 
+def test_handle_board_games_color_guess(mock_app):
+    spec = find_dialog_spec(dlg.BOARD_GAMES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_GAME_COLOR_GUESS)
+    mock_app.start_color_guess.assert_called_once()
+
 
 def test_handle_board_games_back(mock_app):
     spec = find_dialog_spec(dlg.BOARD_GAMES_QUESTION)
@@ -254,6 +259,12 @@ def test_handle_menu_tell_time(mock_app):
     mock_app.print_current_datetime.assert_called_once()
 
 
+def test_handle_menu_known_since(mock_app):
+    spec = find_dialog_spec(dlg.ACTIONS_MENU_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_KNOWN_SINCE)
+    mock_app.say_known_since.assert_called_once()
+
+
 def test_handle_menu_toggle_screen_effects(mock_app):
     spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_SCREEN_EFFECTS_OFF)
@@ -276,6 +287,12 @@ def test_handle_menu_toggle_paint_recall(mock_app):
     spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_PAINT_RECALL_ON)
     mock_app.toggle_paint_recall.assert_called_once()
+
+
+def test_handle_menu_toggle_color_guess_voice(mock_app):
+    spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_COLOR_GUESS_VOICE_ON)
+    mock_app.toggle_color_guess_voice.assert_called_once()
 
 
 def test_handle_menu_toggle_focus(mock_app):

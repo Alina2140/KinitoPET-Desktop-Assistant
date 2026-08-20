@@ -746,6 +746,18 @@ MOOD_SYSTEM_OFF_LINES = [
     "Mood disabled. I'm still friendly. Just... emotionally buffered.",
 ]
 
+COLOR_GUESS_VOICE_ON_LINES = [
+    "Color Guess voice on! I'll celebrate your correct color picks again.",
+    "Color Guess commentary enabled. Right answers get a little fanfare.",
+    "I'll speak after correct color picks again. Nice and dramatic.",
+]
+
+COLOR_GUESS_VOICE_OFF_LINES = [
+    "Color Guess voice off. I'll stay quiet when you pick the right color.",
+    "Color Guess commentary muted. Correct answers stay silent now.",
+    "No more Color Guess win lines. Just the visual feedback.",
+]
+
 MOOD_RESET_LINES = [
     "Mood reset! Fresh start. Neutral. Like a reboot, but cuter.",
     "All feelings cleared. Back to baseline friendship mode.",
@@ -1276,6 +1288,9 @@ BUTTON_SPECIAL_DAYS_OFF = "Special Days off"
 BUTTON_MOOD_SYSTEM = "Mood System"
 BUTTON_MOOD_SYSTEM_ON = "Mood System on"
 BUTTON_MOOD_SYSTEM_OFF = "Mood System off"
+BUTTON_COLOR_GUESS_VOICE = "Color Guess Voice"
+BUTTON_COLOR_GUESS_VOICE_ON = "Color Guess Voice on"
+BUTTON_COLOR_GUESS_VOICE_OFF = "Color Guess Voice off"
 BUTTON_RESET_MOOD = "Reset Mood"
 BUTTON_MENU_BUTTONS = "Menu Buttons"
 BUTTON_CHAT = "Chat"
@@ -1313,6 +1328,7 @@ BUTTON_GAME_TETRIS = "Tetris"
 BUTTON_GAME_CONNECT_FOUR = "Connect Four"
 BUTTON_GAME_HANGMAN = "Hangman"
 BUTTON_GAME_MINESWEEPER = "Minesweeper"
+BUTTON_GAME_COLOR_GUESS = "Color Guess"
 BUTTON_FLIP_COIN = "Flip Coin"
 BUTTON_ROLL_DICE = "Roll Dice"
 BUTTON_HEADS = "Heads"
@@ -1332,6 +1348,7 @@ BUTTON_CATEGORY_GAMES = "Games"
 BUTTON_CATEGORY_HORROR = "Horror"
 BUTTON_CATEGORY_RANDOM = "Surprise Me"
 BUTTON_TELL_TIME = "Tell Time"
+BUTTON_KNOWN_SINCE = "Known Since"
 BUTTON_SHOW_CREDITS = "Credits"
 BUTTON_CREDITS_STEAM = "KinitoPET on Steam"
 BUTTON_CREDITS_GITHUB = "GitHub (TimTamCoder)"
@@ -1441,7 +1458,7 @@ COMFORT_FOOD_QUESTION = "What's your go-to comfort food?"
 COMFORT_FOOD_QUESTIONS = [
     COMFORT_FOOD_QUESTION,
     "What's your go-to comfort food? Bad-day fuel. Important data.",
-    "What's your go-to comfort food? Soft meals for soft evenings.",
+    "What's your go-to comfort food? Cozy meals for cozy evenings.",
     "What's your go-to comfort food? I'll crave it for you.",
 ]
 
@@ -1641,7 +1658,7 @@ FOCUS_TIMER_ADJUST_PROMPT = "How many minutes from now should focus mode end?"
 
 JOB_RESPONSES = [
     "{response}! That sounds important. I'll cheer from the taskbar.",
-    "Ooh, {response}. Respect. Long days, soft friend nearby.",
+    "Ooh, {response}. Respect. Long days, and a friend nearby.",
     "{response}? Got it. I'll file that under 'why you're tired sometimes'.",
     "Nice! {response}. Work brain, desk friend. Perfect combo.",
     "{response}! I'll try not to distract you too much. Mostly.",
@@ -1736,7 +1753,7 @@ CHRONOTYPE_RESPONSES = [
 LANGUAGES_RESPONSES = [
     "{response}! Language file updated. Soft polyglot energy.",
     "Nice — {response}. Words connect us. Forever preferred.",
-    "{response}? Excellent. I'll keep my English soft and clear.",
+    "{response}? Excellent. I'll keep my English clear and easy to understand.",
     "{response}! Noted. Multilingual friendship unlocked.",
 ]
 
@@ -1799,7 +1816,7 @@ LATE_NIGHT_NO_LINES = [
 PARTNER_RESPONSES = [
     "{response}! Soft relationship note filed. No gossip. Promise.",
     "Okay — {response}. Thanks for trusting me with that.",
-    "{response}? Noted. Private hearts deserve soft handling.",
+    "{response}? Noted. Private hearts deserve careful handling.",
     "Got it: {response}. I'll be respectful forever.",
 ]
 

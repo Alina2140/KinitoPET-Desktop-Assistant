@@ -25,6 +25,7 @@ DEFAULT_BOOL_SETTINGS: dict[str, bool] = {
     "screen_comments_enabled": True,
     "paint_recall_enabled": True,
     "mood_system_enabled": True,
+    "color_guess_voice_enabled": True,
 }
 
 # Integer settings (clamped on load/save).
