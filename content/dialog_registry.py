@@ -11,6 +11,10 @@ from typing import Literal
 from content import credits, game_lines
 from content import dialogue as dlg
 from content.menu_visibility import filter_visible_menu_buttons
+from content.music_player_lines import (
+    MUSIC_PAUSE_NUDGE_DECLINED_LINES,
+    MUSIC_PAUSE_NUDGE_MARKER,
+)
 from content.site_validator import pick_random_category
 from content.trivia_questions import ROUND_SIZE, check_answer
 from kinito.features.games.coin_dice import (
@@ -101,16 +105,17 @@ def menu_options_for(app) -> list[str]:
         options.append(dlg.BUTTON_SAY_GOODBYE)
         return _visible_menu_buttons(app, options)
 
-    return _visible_menu_buttons(
-        app,
-        [
-            dlg.BUTTON_MODES,
-            dlg.BUTTON_SETTINGS,
-            dlg.BUTTON_ACTIONS,
-            dlg.BUTTON_MOOD,
-            dlg.BUTTON_SAY_GOODBYE,
-        ],
-    )
+    options = [
+        dlg.BUTTON_MODES,
+        dlg.BUTTON_SETTINGS,
+        dlg.BUTTON_ACTIONS,
+        dlg.BUTTON_MOOD,
+        dlg.BUTTON_SAY_GOODBYE,
+    ]
+    is_minimized = getattr(app, "_is_music_player_minimized", None)
+    if callable(is_minimized) and is_minimized():
+        options = [dlg.BUTTON_SHOW_PLAYER, *options]
+    return _visible_menu_buttons(app, options)
 
 
 def modes_options_for(app) -> list[str]:
@@ -202,6 +207,11 @@ def settings_toggles_options_for(app) -> list[str]:
         if getattr(app, "_player_focus_enabled", True)
         else dlg.BUTTON_PLAYER_FOCUS_OFF
     )
+    music_comments_label = (
+        dlg.BUTTON_MUSIC_COMMENTS_ON
+        if getattr(app, "_music_comments_enabled", True)
+        else dlg.BUTTON_MUSIC_COMMENTS_OFF
+    )
     special_days_label = (
         dlg.BUTTON_SPECIAL_DAYS_ON
         if getattr(app, "_special_days_enabled", True)
@@ -230,6 +240,7 @@ def settings_toggles_options_for(app) -> list[str]:
             window_play_label,
             tts_label,
             player_focus_label,
+            music_comments_label,
             special_days_label,
             mood_system_label,
             color_guess_voice_label,
@@ -240,6 +251,10 @@ def settings_toggles_options_for(app) -> list[str]:
 
 def actions_options_for(app) -> list[str]:
     """Return Actions submenu labels."""
+    music_label = dlg.BUTTON_PLAY_MUSIC
+    is_minimized = getattr(app, "_is_music_player_minimized", None)
+    if callable(is_minimized) and is_minimized():
+        music_label = dlg.BUTTON_SHOW_PLAYER
     return _visible_menu_buttons(
         app,
         [
@@ -249,7 +264,7 @@ def actions_options_for(app) -> list[str]:
             dlg.BUTTON_SING_SONG,
             dlg.BUTTON_FUN_FACT,
             dlg.BUTTON_VISIT_WEBSITE,
-            dlg.BUTTON_PLAY_MUSIC,
+            music_label,
             dlg.BUTTON_PLAY_GAME,
             dlg.BUTTON_PAINT,
             dlg.BUTTON_GIVE_HUG,
@@ -581,6 +596,7 @@ def _handle_menu(app, response: str) -> None:
     if getattr(app, "_focus_mode", False) and response not in _MENU_FOCUS_BUTTONS:
         return
     actions = {
+        dlg.BUTTON_SHOW_PLAYER: lambda a: a.open_music_player(),
         dlg.BUTTON_MODES: _open_modes_menu,
         dlg.BUTTON_SETTINGS: _open_settings_menu,
         dlg.BUTTON_ACTIONS: _open_actions_menu,
@@ -630,6 +646,9 @@ def _menu_action_handlers() -> dict[str, Handler]:
         dlg.BUTTON_PLAYER_FOCUS: lambda a: a.toggle_player_focus(),
         dlg.BUTTON_PLAYER_FOCUS_ON: lambda a: a.toggle_player_focus(),
         dlg.BUTTON_PLAYER_FOCUS_OFF: lambda a: a.toggle_player_focus(),
+        dlg.BUTTON_MUSIC_COMMENTS: lambda a: a.toggle_music_comments(),
+        dlg.BUTTON_MUSIC_COMMENTS_ON: lambda a: a.toggle_music_comments(),
+        dlg.BUTTON_MUSIC_COMMENTS_OFF: lambda a: a.toggle_music_comments(),
         dlg.BUTTON_TTS_VOLUME: lambda a: a.offer_tts_volume_picker(),
         dlg.BUTTON_MUSIC_FOLDER: lambda a: a.root.after(0, a.choose_music_folder),
         dlg.BUTTON_SPECIAL_DAYS: lambda a: a.toggle_special_days(),
@@ -650,6 +669,7 @@ def _menu_action_handlers() -> dict[str, Handler]:
         dlg.BUTTON_FORGET: lambda a: a.forget_memory(),
         dlg.BUTTON_VISIT_WEBSITE: lambda a: a.ask_browser_category(),
         dlg.BUTTON_PLAY_MUSIC: lambda a: a.open_music_player(),
+        dlg.BUTTON_SHOW_PLAYER: lambda a: a.open_music_player(),
         dlg.BUTTON_PLAY_GAME: lambda a: a.offer_game_picker(),
         dlg.BUTTON_PAINT: lambda a: a.offer_paint_picker(),
         dlg.BUTTON_GIVE_HUG: lambda a: a.give_hug(),
@@ -852,6 +872,21 @@ def _handle_trivia_pack(app, response: str) -> None:
     pack = pack_map.get(response)
     if pack is not None:
         app.start_true_false_pack(pack)
+
+
+def _handle_memory_size(app, response: str) -> None:
+    """Open Memory with the chosen pair count, or return to board games."""
+    if response == dlg.BUTTON_BACK:
+        app.offer_board_games()
+        return
+    size_map = {
+        dlg.BUTTON_MEMORY_PAIRS_8: 8,
+        dlg.BUTTON_MEMORY_PAIRS_12: 12,
+        dlg.BUTTON_MEMORY_PAIRS_16: 16,
+    }
+    pair_count = size_map.get(response)
+    if pair_count is not None:
+        app.start_memory_with_pairs(pair_count)
 
 
 def _handle_board_games(app, response: str) -> None:
@@ -1248,6 +1283,19 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
         _handle_trivia_pack,
     ),
     DialogSpec(
+        dlg.MEMORY_SIZE_MARKER,
+        DialogUI(
+            "buttons",
+            buttons=(
+                dlg.BUTTON_MEMORY_PAIRS_8,
+                dlg.BUTTON_MEMORY_PAIRS_12,
+                dlg.BUTTON_MEMORY_PAIRS_16,
+                dlg.BUTTON_BACK,
+            ),
+        ),
+        _handle_memory_size,
+    ),
+    DialogSpec(
         dlg.TRUE_FALSE_MARKER,
         DialogUI(
             "buttons",
@@ -1462,6 +1510,14 @@ DIALOG_SPECS: tuple[DialogSpec, ...] = (
         dlg.MUSIC_PLAYER_QUESTION_MARKER,
         DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
         _yes_no(lambda a: a.open_music_player(), dlg.MUSIC_PLAYER_DECLINED_LINES),
+    ),
+    DialogSpec(
+        MUSIC_PAUSE_NUDGE_MARKER,
+        DialogUI("buttons", buttons=(dlg.BUTTON_YES, dlg.BUTTON_NO)),
+        _yes_no(
+            lambda a: a.resume_user_music_if_paused(),
+            MUSIC_PAUSE_NUDGE_DECLINED_LINES,
+        ),
     ),
     DialogSpec(
         dlg.HUG_QUESTION_MARKER,

@@ -42,6 +42,18 @@ def test_handle_music_player_yes(mock_app):
     mock_app.open_music_player.assert_called_once()
 
 
+def test_handle_menu_show_player(mock_app):
+    spec = find_dialog_spec(dlg.MENU_PROMPT)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_SHOW_PLAYER)
+    mock_app.open_music_player.assert_called_once()
+
+
+def test_handle_actions_show_player(mock_app):
+    spec = find_dialog_spec(dlg.ACTIONS_MENU_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_SHOW_PLAYER)
+    mock_app.open_music_player.assert_called_once()
+
+
 def test_handle_color_text_response(mock_app):
     spec = find_dialog_spec(dlg.COLOR_QUESTION)
     handle_dialog_response(mock_app, spec, "blue")
@@ -217,6 +229,18 @@ def test_handle_trivia_pack_back_opens_quick_games(mock_app):
     mock_app.offer_quick_games.assert_called_once()
 
 
+def test_handle_memory_size_opens_game(mock_app):
+    spec = find_dialog_spec(dlg.MEMORY_SIZE_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_MEMORY_PAIRS_12)
+    mock_app.start_memory_with_pairs.assert_called_once_with(12)
+
+
+def test_handle_memory_size_back_opens_board_games(mock_app):
+    spec = find_dialog_spec(dlg.MEMORY_SIZE_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_BACK)
+    mock_app.offer_board_games.assert_called_once()
+
+
 def test_handle_quick_games_true_false_opens_pack_picker(mock_app):
     spec = find_dialog_spec(dlg.QUICK_GAMES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_GAME_TRUE_FALSE)
@@ -293,6 +317,12 @@ def test_handle_menu_toggle_player_focus(mock_app):
     spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_PLAYER_FOCUS_ON)
     mock_app.toggle_player_focus.assert_called_once()
+
+
+def test_handle_menu_toggle_music_comments(mock_app):
+    spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_MUSIC_COMMENTS)
+    mock_app.toggle_music_comments.assert_called_once()
 
 
 def test_handle_menu_toggle_paint_recall(mock_app):

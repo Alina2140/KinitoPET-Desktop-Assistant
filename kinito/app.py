@@ -321,10 +321,14 @@ class FloatingAssistant(
         self._hand_photo_ref = None
         self._tts_enabled = self._settings.get("tts_enabled", True)
         self._player_focus_enabled = self._settings.get("player_focus_enabled", True)
+        self._music_comments_enabled = self._settings.get(
+            "music_comments_enabled", True
+        )
         self._tts_volume = self._settings.get_int("tts_volume", 100)
         self._tts_sd_active = False
         self._music_volume = self._settings.get_int("music_volume", 75)
         self._music_folder = self._settings.get_music_folder()
+        self._music_shuffle = bool(self._settings.get("music_shuffle", False))
         self._special_days_enabled = self._settings.get("special_days_enabled", True)
         self._mood_system_enabled = self._settings.get("mood_system_enabled", True)
         self._color_guess_voice_enabled = self._settings.get(
@@ -443,9 +447,13 @@ class FloatingAssistant(
             window_grab_enabled=bool(getattr(self, "_window_grab_enabled", True)),
             tts_enabled=bool(getattr(self, "_tts_enabled", True)),
             player_focus_enabled=bool(getattr(self, "_player_focus_enabled", True)),
+            music_comments_enabled=bool(
+                getattr(self, "_music_comments_enabled", True)
+            ),
             tts_volume=int(getattr(self, "_tts_volume", 100)),
             music_volume=int(getattr(self, "_music_volume", 75)),
             music_folder=str(getattr(self, "_music_folder", "") or ""),
+            music_shuffle=bool(getattr(self, "_music_shuffle", False)),
             special_days_enabled=bool(getattr(self, "_special_days_enabled", True)),
             mood_system_enabled=bool(getattr(self, "_mood_system_enabled", True)),
             color_guess_voice_enabled=bool(
@@ -1028,6 +1036,8 @@ class FloatingAssistant(
         """Play a short sound effect without interrupting background music."""
         if not getattr(self, "_sound_effects_enabled", True):
             return
+        if getattr(self, "_player_kinito_muted", False):
+            return
         if self._player_sounds_muted():
             return
         if not os.path.isfile(file_path):
@@ -1046,7 +1056,9 @@ class FloatingAssistant(
 
     def play_mp3(self, file_path, volume=1.0, *, speech_accompaniment=False):
         """Play an MP3 file via pygame mixer; silently skip missing or broken files."""
-        if speech_accompaniment and self._player_sounds_muted():
+        if speech_accompaniment and (
+            self._player_sounds_muted() or getattr(self, "_player_kinito_muted", False)
+        ):
             return
         if not os.path.isfile(file_path):
             return

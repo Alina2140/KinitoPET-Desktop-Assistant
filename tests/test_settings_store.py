@@ -29,6 +29,8 @@ def test_defaults_when_missing(store):
     assert store.get("window_grab_enabled") is True
     assert store.get("tts_enabled") is True
     assert store.get("player_focus_enabled") is True
+    assert store.get("music_comments_enabled") is True
+    assert store.get("music_shuffle") is False
     assert store.get("mood_system_enabled") is True
     assert store.get("color_guess_voice_enabled") is True
     assert store.get_int("tts_volume") == 100
@@ -48,9 +50,11 @@ def test_update_and_reload_roundtrip(store, settings_dir):
         window_grab_enabled=False,
         tts_enabled=False,
         player_focus_enabled=False,
+        music_comments_enabled=False,
         tts_volume=40,
         music_volume=55,
         music_folder=r"C:\Music",
+        music_shuffle=True,
         mood_system_enabled=False,
         color_guess_voice_enabled=False,
     )
@@ -65,6 +69,8 @@ def test_update_and_reload_roundtrip(store, settings_dir):
     assert reloaded.get("window_grab_enabled") is False
     assert reloaded.get("tts_enabled") is False
     assert reloaded.get("player_focus_enabled") is False
+    assert reloaded.get("music_comments_enabled") is False
+    assert reloaded.get("music_shuffle") is True
     assert reloaded.get_int("tts_volume") == 40
     assert reloaded.get_int("music_volume") == 55
     assert reloaded.get_music_folder() == r"C:\Music"

@@ -135,6 +135,9 @@ TRUE_FALSE_MARKER = "true or false"
 TRIVIA_PACK_MARKER = "trivia pack"
 TRIVIA_PACK_QUESTION = "True or False! Pick a trivia pack!"
 
+MEMORY_SIZE_MARKER = "memory pairs"
+MEMORY_SIZE_QUESTION = "Memory pairs! How many do you want to play?"
+
 GAME_PLAY_AGAIN_MARKER = "play again"
 GAME_PLAY_AGAIN_SUFFIX = "Want to play again?"
 
@@ -722,6 +725,18 @@ PLAYER_FOCUS_OFF_LINES = [
     "Player focus off. Open the player and I'll still talk. And boop. And woosh.",
 ]
 
+MUSIC_COMMENTS_ON_LINES = [
+    "Song comments on. While the player is open I may chat about the track. Softly. Occasionally.",
+    "Music chatter enabled. Expect the odd review mid-song. Unsolicited. Friendly.",
+    "I'll comment on songs now and then when the player is up. DJ Kinito. Reporting.",
+]
+
+MUSIC_COMMENTS_OFF_LINES = [
+    "Song comments off. I'll let the music speak. Mostly. Still here though.",
+    "No more mid-track reviews. Quiet listening. Nodding continues silently.",
+    "Music chatter disabled. Tracks play. I float. Commentary retired. For now.",
+]
+
 TTS_VOLUME_MARKER = "soft, normal, or loud"
 TTS_VOLUME_QUESTION = (
     "TTS volume is {volume}% right now. Soft, normal, or loud?"
@@ -1301,6 +1316,9 @@ BUTTON_TTS_OFF = "Speech off"
 BUTTON_PLAYER_FOCUS = "Player Focus"
 BUTTON_PLAYER_FOCUS_ON = "Player Focus on"
 BUTTON_PLAYER_FOCUS_OFF = "Player Focus off"
+BUTTON_MUSIC_COMMENTS = "Song Comments"
+BUTTON_MUSIC_COMMENTS_ON = "Song Comments on"
+BUTTON_MUSIC_COMMENTS_OFF = "Song Comments off"
 BUTTON_TTS_VOLUME = "TTS Volume"
 BUTTON_TTS_VOLUME_SOFT = "Soft"
 BUTTON_TTS_VOLUME_NORMAL = "Normal"
@@ -1324,6 +1342,7 @@ BUTTON_REMEMBER = "Memories"
 BUTTON_FORGET = "Forget"
 BUTTON_VISIT_WEBSITE = "Visit Website"
 BUTTON_PLAY_MUSIC = "Play Music"
+BUTTON_SHOW_PLAYER = "Show Player"
 BUTTON_STOP_MUSIC = "Stop music"
 BUTTON_CHANGE_SONG = "Pick another song"
 BUTTON_PLAY_GAME = "Play Game"
@@ -1337,6 +1356,9 @@ BUTTON_GAME_TIC_TAC_TOE = "Tic-Tac-Toe"
 BUTTON_GAME_RPS = "Rock Paper Scissors"
 BUTTON_GAME_NUMBER_GUESS = "Number Guess"
 BUTTON_GAME_MEMORY = "Memory"
+BUTTON_MEMORY_PAIRS_8 = "8 pairs"
+BUTTON_MEMORY_PAIRS_12 = "12 pairs"
+BUTTON_MEMORY_PAIRS_16 = "16 pairs"
 BUTTON_GAME_COIN_DICE = "Coin & Dice"
 BUTTON_GAME_MAGIC_8_BALL = "Magic 8-Ball"
 BUTTON_GAME_TRUE_FALSE = "True or False"

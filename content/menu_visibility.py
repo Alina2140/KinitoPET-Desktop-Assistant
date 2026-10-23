@@ -141,6 +141,17 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
                 ),
             ),
             (
+                "settings.music_comments",
+                "Song Comments",
+                frozenset(
+                    {
+                        dlg.BUTTON_MUSIC_COMMENTS,
+                        dlg.BUTTON_MUSIC_COMMENTS_ON,
+                        dlg.BUTTON_MUSIC_COMMENTS_OFF,
+                    }
+                ),
+            ),
+            (
                 "settings.tts_volume",
                 "TTS Volume",
                 frozenset(
@@ -217,7 +228,11 @@ MENU_VISIBILITY_SECTIONS: tuple[tuple[str, tuple[MenuEntry, ...]], ...] = (
                 "Visit Website",
                 frozenset({dlg.BUTTON_VISIT_WEBSITE}),
             ),
-            ("actions.music", "Play Music", frozenset({dlg.BUTTON_PLAY_MUSIC})),
+            (
+                "actions.music",
+                "Play Music",
+                frozenset({dlg.BUTTON_PLAY_MUSIC, dlg.BUTTON_SHOW_PLAYER}),
+            ),
             ("actions.game", "Play Game", frozenset({dlg.BUTTON_PLAY_GAME})),
             ("actions.paint", "Paint", frozenset({dlg.BUTTON_PAINT})),
             ("actions.hug", "Hug", frozenset({dlg.BUTTON_GIVE_HUG})),

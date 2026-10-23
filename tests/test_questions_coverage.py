@@ -49,6 +49,10 @@ def _menu_app(**kwargs):
     app._window_grab_enabled = kwargs.get("window_grab_enabled", True)
     app._tts_enabled = kwargs.get("tts_enabled", True)
     app._player_focus_enabled = kwargs.get("player_focus_enabled", True)
+    app._music_comments_enabled = kwargs.get("music_comments_enabled", True)
+    app._is_music_player_minimized = lambda: bool(
+        kwargs.get("music_player_minimized", False)
+    )
     app._special_days_enabled = kwargs.get("special_days_enabled", True)
     app._mood_system_enabled = kwargs.get("mood_system_enabled", True)
     app._color_guess_voice_enabled = kwargs.get("color_guess_voice_enabled", True)
@@ -59,6 +63,19 @@ def _menu_app(**kwargs):
 def test_menu_options_default_toggle_labels():
     opts = menu_options_for(_menu_app())
     assert opts == [
+        dlg.BUTTON_MODES,
+        dlg.BUTTON_SETTINGS,
+        dlg.BUTTON_ACTIONS,
+        dlg.BUTTON_MOOD,
+        dlg.BUTTON_SAY_GOODBYE,
+    ]
+
+
+def test_menu_options_show_player_first_when_minimized():
+    opts = menu_options_for(_menu_app(music_player_minimized=True))
+    assert opts[0] == dlg.BUTTON_SHOW_PLAYER
+    assert opts == [
+        dlg.BUTTON_SHOW_PLAYER,
         dlg.BUTTON_MODES,
         dlg.BUTTON_SETTINGS,
         dlg.BUTTON_ACTIONS,
@@ -176,6 +193,7 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_PLAYER_FOCUS_ON,
+        dlg.BUTTON_MUSIC_COMMENTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
         dlg.BUTTON_MOOD_SYSTEM_ON,
         dlg.BUTTON_COLOR_GUESS_VOICE_ON,
@@ -209,13 +227,16 @@ def test_settings_and_actions_options():
     assert settings_toggles_options_for(_menu_app(player_focus_enabled=False))[9] == (
         dlg.BUTTON_PLAYER_FOCUS_OFF
     )
-    assert settings_toggles_options_for(_menu_app(special_days_enabled=False))[10] == (
+    assert settings_toggles_options_for(_menu_app(music_comments_enabled=False))[10] == (
+        dlg.BUTTON_MUSIC_COMMENTS_OFF
+    )
+    assert settings_toggles_options_for(_menu_app(special_days_enabled=False))[11] == (
         dlg.BUTTON_SPECIAL_DAYS_OFF
     )
-    assert settings_toggles_options_for(_menu_app(mood_system_enabled=False))[11] == (
+    assert settings_toggles_options_for(_menu_app(mood_system_enabled=False))[12] == (
         dlg.BUTTON_MOOD_SYSTEM_OFF
     )
-    assert settings_toggles_options_for(_menu_app(color_guess_voice_enabled=False))[12] == (
+    assert settings_toggles_options_for(_menu_app(color_guess_voice_enabled=False))[13] == (
         dlg.BUTTON_COLOR_GUESS_VOICE_OFF
     )
     assert settings_toggles_options_for(
@@ -230,6 +251,7 @@ def test_settings_and_actions_options():
         dlg.BUTTON_WINDOW_PLAY_ON,
         dlg.BUTTON_TTS_ON,
         dlg.BUTTON_PLAYER_FOCUS_ON,
+        dlg.BUTTON_MUSIC_COMMENTS_ON,
         dlg.BUTTON_SPECIAL_DAYS_ON,
         dlg.BUTTON_MOOD_SYSTEM_ON,
         dlg.BUTTON_COLOR_GUESS_VOICE_ON,
@@ -261,6 +283,19 @@ def test_settings_and_actions_options():
         dlg.BUTTON_GIVE_HUG,
         dlg.BUTTON_BACK,
     ]
+    assert actions_options_for(_menu_app(music_player_minimized=True)) == [
+        dlg.BUTTON_SET_REMINDER,
+        dlg.BUTTON_TELL_TIME,
+        dlg.BUTTON_KNOWN_SINCE,
+        dlg.BUTTON_SING_SONG,
+        dlg.BUTTON_FUN_FACT,
+        dlg.BUTTON_VISIT_WEBSITE,
+        dlg.BUTTON_SHOW_PLAYER,
+        dlg.BUTTON_PLAY_GAME,
+        dlg.BUTTON_PAINT,
+        dlg.BUTTON_GIVE_HUG,
+        dlg.BUTTON_BACK,
+    ]
 
 
 def test_static_questions_match_expected_markers():
@@ -284,6 +319,7 @@ def test_mood_menu_button_id():
     assert menu_button_id_for_label(dlg.BUTTON_MOOD_SYSTEM_ON) == "settings.mood_system"
     assert menu_button_id_for_label(dlg.BUTTON_RESET_MOOD) == "settings.reset_mood"
     assert menu_button_id_for_label(dlg.BUTTON_PLAYER_FOCUS_OFF) == "settings.player_focus"
+    assert menu_button_id_for_label(dlg.BUTTON_MUSIC_COMMENTS_OFF) == "settings.music_comments"
     assert (
         menu_button_id_for_label(dlg.BUTTON_COLOR_GUESS_VOICE_OFF)
         == "settings.color_guess_voice"

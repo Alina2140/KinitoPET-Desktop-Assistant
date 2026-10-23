@@ -54,9 +54,43 @@ class GamesMixin:
             self.note_user_attention()
         self.speak(dlg.BOARD_GAMES_QUESTION, 45, True)
 
-    def speak_game_line(self, line, *, show_bubble=True):
+    _GAME_LINE_DEFER_POLL_MS = 100
+    _GAME_LINE_DEFER_MAX_POLLS = 600
+
+    def speak_game_line(self, line, *, show_bubble=True, defer_if_speaking=False):
         """Speak a game comment with TTS and show Kinito's speech bubble."""
+        if defer_if_speaking and self._is_busy_with_speech():
+            self.root.after(
+                self._GAME_LINE_DEFER_POLL_MS,
+                lambda: self._schedule_speak_game_line_when_idle(
+                    line,
+                    show_bubble=show_bubble,
+                ),
+            )
+            return
         self.speak(line, show_bubble=show_bubble, skip_ai=True)
+
+    def _schedule_speak_game_line_when_idle(
+        self,
+        line,
+        *,
+        show_bubble=True,
+        poll_count=0,
+    ) -> None:
+        """Speak *line* once current speech finishes (used when closing a game)."""
+        if not self._is_busy_with_speech():
+            self.speak(line, show_bubble=show_bubble, skip_ai=True)
+            return
+        if poll_count >= self._GAME_LINE_DEFER_MAX_POLLS:
+            return
+        self.root.after(
+            self._GAME_LINE_DEFER_POLL_MS,
+            lambda: self._schedule_speak_game_line_when_idle(
+                line,
+                show_bubble=show_bubble,
+                poll_count=poll_count + 1,
+            ),
+        )
 
     def is_color_guess_voice_enabled(self) -> bool:
         """Return whether Color Guess should speak a line on correct picks."""
@@ -127,10 +161,19 @@ class GamesMixin:
         self.speak(dlg.NUMBER_GUESS_QUESTION, 45, True)
 
     def start_memory(self):
-        """Open a memory card game window."""
+        """Offer Memory board-size choices before opening the game."""
+        if self._is_busy_with_speech():
+            return
         if hasattr(self, "note_user_attention"):
             self.note_user_attention()
-        self.root.after(0, lambda: MemoryGame(self).open())
+        self.speak(dlg.MEMORY_SIZE_QUESTION, 45, True)
+
+    def start_memory_with_pairs(self, pair_count: int | None = None):
+        """Open a memory card game window with *pair_count* pairs."""
+        if hasattr(self, "note_user_attention"):
+            self.note_user_attention()
+        count = pair_count
+        self.root.after(0, lambda: MemoryGame(self, pair_count=count).open())
 
     def start_coin_dice(self):
         """Start the coin-and-dice quick game."""

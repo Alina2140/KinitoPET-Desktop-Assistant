@@ -41,7 +41,15 @@ from kinito.features.games.coin_dice import (
 )
 from kinito.features.games.hangman import MAX_MISSES, apply_guess, display_word
 from kinito.features.games.magic_8_ball import pick_answer
-from kinito.features.games.memory import DEFAULT_PAIRS, build_deck, is_match
+from kinito.features.games.memory import (
+    DEFAULT_PAIRS,
+    PAIR_OPTIONS,
+    build_deck,
+    grid_shape,
+    is_match,
+    normalize_pair_count,
+    select_pairs,
+)
 from kinito.features.games.number_guess import (
     compare_guess,
     is_valid_guess,
@@ -163,9 +171,27 @@ def test_ttt_ai_blocks_player_win():
 def test_memory_deck_has_pairs():
     random.seed(0)
     deck = build_deck()
-    assert len(deck) == 16
+    assert len(deck) == len(DEFAULT_PAIRS) * 2
     for symbol in DEFAULT_PAIRS:
         assert deck.count(symbol) == 2
+
+
+def test_memory_deck_for_pair_options():
+    for count in PAIR_OPTIONS:
+        pairs = select_pairs(count)
+        assert len(pairs) == count
+        deck = build_deck(pairs)
+        assert len(deck) == count * 2
+        rows, cols = grid_shape(count)
+        assert rows * cols == count * 2
+        for symbol in pairs:
+            assert deck.count(symbol) == 2
+
+
+def test_memory_normalize_pair_count():
+    assert normalize_pair_count(12) == 12
+    assert normalize_pair_count(99) == 16
+    assert normalize_pair_count(None) == 16
 
 
 def test_memory_is_match():
@@ -474,6 +500,26 @@ def test_hangman_pick_word_avoids_used():
     word = pick_word(rng=random.Random(1), used=used)
     assert word == WORDS[-1]
 
+
+def test_hangman_letter_button_disabled_style():
+    from unittest.mock import MagicMock
+
+    from kinito.features.games.hangman import (
+        _LETTER_BTN_DISABLED_BG,
+        _LETTER_BTN_DISABLED_FG,
+        _style_letter_button,
+    )
+
+    button = MagicMock()
+    _style_letter_button(button, enabled=False)
+    import tkinter as tk
+
+    kwargs = button.config.call_args.kwargs
+    assert kwargs["state"] == tk.DISABLED
+    assert kwargs["bg"] == _LETTER_BTN_DISABLED_BG
+    assert kwargs["fg"] == _LETTER_BTN_DISABLED_FG
+
+
 def test_hangman_hit_reveals_letters():
     state = hangman_game.new_game("CAT")
     assert apply_guess(state, "a") == "hit"
@@ -502,6 +548,16 @@ def test_hangman_win_when_all_revealed():
     assert apply_guess(state, "i") == "hit"
     assert state["status"] == "won"
     assert display_word(state) == "H I"
+
+
+def test_hangman_misses_never_exceed_max_on_rapid_wrong_guesses():
+    state = hangman_game.new_game("AB")
+    wrong = "CDEFGHIJKLMNOPQRSTUVWXYZ"
+    for ch in wrong:
+        apply_guess(state, ch)
+    assert state["misses"] <= MAX_MISSES
+    assert state["status"] == "lost"
+
 
 def test_hangman_lose_at_max_misses():
     state = hangman_game.new_game("AB")
@@ -571,6 +627,64 @@ def test_minesweeper_flagged_cell_not_revealed():
     ms.toggle_flag(state, 5)
     assert ms.reveal_cell(state, 5) == "ignored"
     assert 5 not in state["revealed"]
+
+
+def test_game_window_close_shows_speech_bubble():
+    from unittest.mock import MagicMock, patch
+
+    from kinito.features.games.base import open_game_window
+
+    app = MagicMock()
+    app._game_window = None
+    app._ensure_single_game_window = MagicMock()
+    app.speak_game_line = MagicMock()
+    app.root = MagicMock()
+    app.root.update_idletasks = MagicMock()
+    app.root.winfo_vrootx.return_value = 0
+    app.root.winfo_vrooty.return_value = 0
+    app.root.winfo_vrootwidth.return_value = 1920
+    app.root.winfo_vrootheight.return_value = 1080
+    app.root.winfo_screenwidth.return_value = 1920
+    app.root.winfo_screenheight.return_value = 1080
+    app._centered_origin_on_primary = MagicMock(return_value=(760, 290))
+
+    window = MagicMock()
+    with (
+        patch("kinito.features.games.base.Toplevel", return_value=window),
+        patch("kinito.features.games.base.apply_window_icon"),
+    ):
+        open_game_window(app, "Test Game", 400, 500)
+
+    close_handler = window.protocol.call_args.args[1]
+    close_handler()
+    app.root.after.assert_called_once()
+    after_callback = app.root.after.call_args.args[1]
+    after_callback()
+    app.speak_game_line.assert_called_once()
+    assert app.speak_game_line.call_args.kwargs.get("defer_if_speaking") is True
+
+
+def test_speak_game_line_defers_while_speech_is_active():
+    from unittest.mock import MagicMock
+
+    from kinito.features.games import GamesMixin
+
+    class GameSpeechStub(GamesMixin):
+        pass
+
+    stub = GameSpeechStub()
+    stub._is_busy_with_speech = MagicMock(side_effect=[True, False])
+    stub.speak = MagicMock()
+    stub.root = MagicMock()
+
+    stub.speak_game_line("Game closed.", defer_if_speaking=True)
+
+    stub.speak.assert_not_called()
+    stub.root.after.assert_called_once()
+    stub.root.after.call_args.args[1]()
+    stub.speak.assert_called_once_with(
+        "Game closed.", show_bubble=True, skip_ai=True
+    )
 
 
 def test_tetris_move_blocked_by_wall():
