@@ -4,11 +4,15 @@ import os
 import random
 import sys
 import tkinter as tk
-from tkinter import Toplevel
 
 from PIL import Image, ImageTk
 
 from kinito.assets import crash_image_path
+from kinito.tk_toplevels import (
+    create_staged_toplevel,
+    reveal_staged_toplevel,
+    schedule_assistant_position_restore,
+)
 
 
 class GlitchMixin:
@@ -53,11 +57,17 @@ class GlitchMixin:
 
     def _make_overlay_window(self, *, x, y, width, height, bg="black"):
         """Create a borderless topmost overlay covering the given rectangle."""
-        window = Toplevel(self.root)
+        pin = getattr(self, "_pin_assistant_screen_position", None)
+        pinned = pin() if callable(pin) else None
+        window = create_staged_toplevel(self.root)
         window.overrideredirect(True)
-        window.geometry(f"{width}x{height}+{x}+{y}")
         window.configure(bg=bg)
-        window.wm_attributes("-topmost", True)
+        reveal_staged_toplevel(
+            window,
+            geometry=f"{width}x{height}+{x}+{y}",
+        )
+        if pinned is not None:
+            schedule_assistant_position_restore(self, *pinned)
         return window
 
     def maybe_trigger_screen_glitch(self) -> bool:

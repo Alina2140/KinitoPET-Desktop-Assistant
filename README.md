@@ -30,7 +30,7 @@ A free, open-source desktop companion inspired by **KinitoPET**. Kinito lives on
 | **Random questions** | 30+ conversation topics while idle |
 | **Right-click menu** | Reminders, time, sleep mode, poems, facts, browser, music, hug, goodbye |
 | **Safe browser** | Opens whitelisted HTTPS sites in a small window (or your default browser) |
-| **Pictures & videos** | Shows images from `GameAssets/UserMedia/` and videos from folder or whitelist |
+| **Pictures** | Shows images from `GameAssets/UserMedia/` |
 | **Camera** | Optional webcam view (requires OpenCV) |
 | **Music player** | Play MP3s from your PC |
 | **Hug** | Hug sprites + sweet lines |
@@ -101,6 +101,7 @@ For a **full beginner walkthrough** (screenshots-level detail), see **[docs/INST
 - **Screen Comments on** / **Screen Comments off** — occasional scripted desktop commentary (no screenshot or AI vision)
 - **Painting Popups on** / **Painting Popups off** — random popups of saved paintings with scripted lines
 - **Snoring on** / **Snoring off** — occasional snore sounds while idle
+- **Sound Effects on** / **Sound Effects off** — UI and game sounds (speech stays separate)
 - **Window Play on** / **Window Play off** — rare hand-sprite window grabs (Windows)
 - **Speech on** / **Speech off** — toggle spoken TTS (bubbles still appear)
 - **Special Days on** / **Special Days off** — holiday and joke-day comments at startup and idle
@@ -212,8 +213,7 @@ GameAssets/
 ├── Timer.mp3, Woosh.mp3, StartTalking.mp3, ...       # Sounds
 ├── Programs/balcon.exe                               # Windows TTS (optional fallback: pyttsx3)
 ├── SecretImages/                                     # Optional images for easter egg
-└── UserMedia/                                        # Your pictures & local videos
-    └── videos/                                       # Local video files (MP4, etc.)
+└── UserMedia/                                        # Paintings, memory, and settings
 ```
 
 If a sprite is missing, Kinito falls back to `KinitoNormal.png`.

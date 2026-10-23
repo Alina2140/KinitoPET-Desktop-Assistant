@@ -36,3 +36,7 @@ credentials.json
 # User-specific media and memory (personal data — never commit)
 GameAssets/UserMedia/memory.json
 GameAssets/UserMedia/notes.txt
+
+# Local AI reference clone (not part of the product)
+ai-info/
+

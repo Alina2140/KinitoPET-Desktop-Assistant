@@ -289,6 +289,12 @@ def test_handle_menu_toggle_paint_recall(mock_app):
     mock_app.toggle_paint_recall.assert_called_once()
 
 
+def test_handle_menu_toggle_sound_effects(mock_app):
+    spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
+    handle_dialog_response(mock_app, spec, dlg.BUTTON_SOUND_EFFECTS_ON)
+    mock_app.toggle_sound_effects.assert_called_once()
+
+
 def test_handle_menu_toggle_color_guess_voice(mock_app):
     spec = find_dialog_spec(dlg.SETTINGS_TOGGLES_QUESTION)
     handle_dialog_response(mock_app, spec, dlg.BUTTON_COLOR_GUESS_VOICE_ON)

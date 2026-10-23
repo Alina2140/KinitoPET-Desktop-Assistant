@@ -18,6 +18,11 @@ from content import dialogue as dlg
 from content import paint_lines
 from kinito.assets import ensure_user_media_directories, list_image_files, paintings_directory
 from kinito.features.games.base import center_toplevel
+from kinito.tk_toplevels import (
+    create_staged_toplevel,
+    reveal_staged_toplevel,
+    schedule_assistant_position_restore,
+)
 from kinito.window_icon import apply_window_icon
 
 # Win95-ish palette (two rows).
@@ -1174,11 +1179,12 @@ class PaintMixin:
         if scale < 1.0:
             img = img.resize((width, height), Image.Resampling.LANCZOS)
 
-        popup = Toplevel(self.root)
+        pin = getattr(self, "_pin_assistant_screen_position", None)
+        pinned = pin() if callable(pin) else None
+        popup = create_staged_toplevel(self.root)
         self._paint_recall_popup = popup
         popup.title(title)
         apply_window_icon(popup)
-        popup.wm_attributes("-topmost", True)
         popup.configure(bg="black")
 
         tk_img = ImageTk.PhotoImage(img)
@@ -1192,7 +1198,6 @@ class PaintMixin:
         else:
             x = vroot_x + (vroot_w - width) // 2
             y = vroot_y + (vroot_h - height) // 2
-        popup.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
 
         def _handle_close():
             on_close()
@@ -1202,3 +1207,9 @@ class PaintMixin:
                 pass
 
         popup.protocol("WM_DELETE_WINDOW", _handle_close)
+        reveal_staged_toplevel(
+            popup,
+            geometry=f"{width}x{height}+{int(x)}+{int(y)}",
+        )
+        if pinned is not None:
+            schedule_assistant_position_restore(self, *pinned)

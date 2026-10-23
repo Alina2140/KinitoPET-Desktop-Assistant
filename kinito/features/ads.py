@@ -11,6 +11,8 @@ class AdsMixin:
     """Occasionally show a small ad window with feigned surprise."""
 
     AD_POPUP_CHANCE = 1 / 1400
+    AD_MIN_LONG_EDGE_PX = 340
+    AD_COMMENT_CHANCE = 0.35
 
     def maybe_trigger_random_ad(self) -> bool:
         """Roll for a rare ad popup; schedule on the Tk main thread if it hits."""
@@ -30,7 +32,7 @@ class AdsMixin:
         return True
 
     def _show_random_ad_popup(self):
-        """Open a small ad image window and comment with mock surprise."""
+        """Open a small ad image window and optionally comment with mock surprise."""
         if not self._running:
             return
         images = list_image_files(ads_directory)
@@ -44,8 +46,17 @@ class AdsMixin:
         ).start()
 
     def _present_ad_popup(self, image_path):
-        """Speak a surprise line, then show the ad in a compact window."""
-        self.speak(random.choice(AD_SURPRISE_LINES))
-        if not self._running:
-            return
-        self.root.after(0, lambda: self.show_popup_image(image_path, title="KinitoPET Ad"))
+        """Show the ad; sometimes speak a surprise line first."""
+        if random.random() < self.AD_COMMENT_CHANCE:
+            self.speak(random.choice(AD_SURPRISE_LINES))
+            if not self._running:
+                return
+        self.root.after(
+            0,
+            lambda: self.show_popup_image(
+                image_path,
+                title="KinitoPET Ad",
+                min_long_edge=self.AD_MIN_LONG_EDGE_PX,
+                random_position=True,
+            ),
+        )

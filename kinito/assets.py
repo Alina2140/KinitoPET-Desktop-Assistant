@@ -31,7 +31,6 @@ programs_directory = os.path.join(assets_directory, "Programs")
 ads_directory = os.path.join(assets_directory, "ads")
 websites_directory = os.path.join(assets_directory, "websites")
 user_media_directory = os.path.join(assets_directory, "UserMedia")
-user_videos_directory = os.path.join(user_media_directory, "videos")
 paintings_directory = os.path.join(user_media_directory, "paintings")
 emojis_directory = os.path.join(assets_directory, "emojis")
 emoji_sheet_path = os.path.join(emojis_directory, "emojis.png")
@@ -119,13 +118,11 @@ crash_image_path = os.path.join(crash_directory, "blueScreen.png")
 kinito_pet_url = "https://www.kinitopet.com/"
 
 _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
-_VIDEO_EXTENSIONS = (".mp4", ".webm", ".mov", ".mkv", ".avi")
 
 
 def ensure_user_media_directories():
-    """Create GameAssets/UserMedia folders if they do not exist yet."""
+    """Create GameAssets/UserMedia (and paintings/) if they do not exist yet."""
     os.makedirs(user_media_directory, exist_ok=True)
-    os.makedirs(user_videos_directory, exist_ok=True)
     os.makedirs(paintings_directory, exist_ok=True)
 
 
@@ -145,17 +142,6 @@ def list_image_files(directory):
     files = []
     for name in os.listdir(directory):
         if name.lower().endswith(_IMAGE_EXTENSIONS):
-            files.append(os.path.join(directory, name))
-    return sorted(files)
-
-
-def list_video_files(directory):
-    """Return absolute paths to video files inside *directory*."""
-    if not os.path.isdir(directory):
-        return []
-    files = []
-    for name in os.listdir(directory):
-        if name.lower().endswith(_VIDEO_EXTENSIONS):
             files.append(os.path.join(directory, name))
     return sorted(files)
 

@@ -29,7 +29,6 @@ def test_assets_directory_is_under_project_root():
         ("sounds_directory", os.path.join("GameAssets", "sounds")),
         ("secret_images_directory", os.path.join("GameAssets", "SecretImages")),
         ("programs_directory", os.path.join("GameAssets", "Programs")),
-        ("user_videos_directory", os.path.join("GameAssets", "UserMedia", "videos")),
     ],
 )
 def test_asset_subdirectories(directory_attr, relative_path):
@@ -195,15 +194,6 @@ def test_list_image_files_returns_sorted_paths(tmp_path):
     assert len(files) == 2
     assert files[0].endswith("a.webp")
     assert files[1].endswith("b.png")
-
-
-def test_list_video_files_returns_sorted_paths(tmp_path):
-    for name in ("b.mp4", "a.webm", "notes.txt"):
-        (tmp_path / name).write_bytes(b"x")
-    files = assets.list_video_files(str(tmp_path))
-    assert len(files) == 2
-    assert files[0].endswith("a.webm")
-    assert files[1].endswith("b.mp4")
 
 
 @pytest.mark.skipif(
