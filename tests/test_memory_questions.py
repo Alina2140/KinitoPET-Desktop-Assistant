@@ -73,3 +73,24 @@ def test_answered_name_question_not_in_full_pool(content):
     name_questions = [q for q in QUESTIONS if dlg.NAME_QUESTION in q]
     assert name_questions
     assert not any(q in pool for q in name_questions)
+
+
+def test_daily_checkins_accept_neutral_button(content):
+    app = MagicMock()
+    app._memory = content._memory
+    app.speak = MagicMock()
+
+    mood_spec = find_dialog_spec(dlg.DAY_QUESTION)
+    assert dlg.BUTTON_NEUTRAL in mood_spec.ui.buttons
+    handle_dialog_response(app, mood_spec, dlg.BUTTON_NEUTRAL)
+    assert content._memory.get_fact("mood_today") == "neutral"
+
+    energy_spec = find_dialog_spec(dlg.ENERGY_QUESTION)
+    assert dlg.BUTTON_NEUTRAL in energy_spec.ui.buttons
+    handle_dialog_response(app, energy_spec, dlg.BUTTON_NEUTRAL)
+    assert content._memory.get_fact("energy_today") == "neutral"
+
+    focus_spec = find_dialog_spec(dlg.FOCUS_QUESTION)
+    assert dlg.BUTTON_NEUTRAL in focus_spec.ui.buttons
+    handle_dialog_response(app, focus_spec, dlg.BUTTON_NEUTRAL)
+    assert content._memory.get_fact("focus_today") == "neutral"

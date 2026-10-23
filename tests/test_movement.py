@@ -475,8 +475,11 @@ def test_snap_soft_edges_preserves_opaque_pixels():
 def test_render_surf_sprite_caches_rotated_frames(movement):
     import tkinter as tk
 
-    root = tk.Tk()
-    root.withdraw()
+    try:
+        root = tk.Tk()
+        root.withdraw()
+    except tk.TclError as exc:
+        pytest.skip(f"No usable Tcl/Tk display: {exc}")
     movement.root = root
     movement._render_surf_sprite(40, math.pi / 4)
     movement._render_surf_sprite(40, math.pi / 4)

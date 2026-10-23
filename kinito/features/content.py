@@ -8,9 +8,13 @@ from content import dialogue as dlg
 from content.facts import get_random_fact
 from content.fancy_lines import FANCY_LINES
 from content.memory_followups import pick_template_followup
-from content.poems import POEMS
+from content.poems import pick_poem
 from content.questions import QUESTIONS
-from content.special_days import pick_special_day_line, special_day_for
+from content.special_days import (
+    pick_special_day_line,
+    seasonal_modifiers,
+    special_day_for,
+)
 from content.stories import STORIES
 from content.wisdom import get_random_wisdom
 from kinito.assets import newbeginnings_file_path, tune_file_path
@@ -22,6 +26,14 @@ class ContentMixin:
 
     POEM_BACKGROUND_MUSIC_VOLUME = 0.6
     MEMORY_FOLLOWUP_CHANCE = 0.25
+    FANCY_SPEECH_START_TIMEOUT = 3.0
+    FANCY_SPRITE_SWAP_SECONDS = 0.45
+
+    def _seasonal_modifiers_if_enabled(self) -> dict:
+        """Seasonal chance weights when special days are enabled; else empty."""
+        if not getattr(self, "_special_days_enabled", True):
+            return {}
+        return seasonal_modifiers()
 
     def speak_random_question(self):
         """Ask a random question from the question pool."""
@@ -70,6 +82,7 @@ class ContentMixin:
             ("music", self.offer_random_music),
             ("games", self.offer_game_picker),
             ("hug_ask", self.ask_for_hug),
+            ("compliment", self.ask_for_compliment),
             ("nap", self.spontaneous_nap),
             ("special_day", self.maybe_announce_special_day),
             ("birthday", self.maybe_announce_birthday),
@@ -77,9 +90,13 @@ class ContentMixin:
             ("friendship", self.maybe_mention_friendship_duration),
         ]
         if hasattr(self, "mood_action_weights"):
-            weights_map = self.mood_action_weights()
+            weights_map = dict(self.mood_action_weights())
         else:
             weights_map = {}
+        action_keys = {name for name, _ in actions}
+        for key, value in self._seasonal_modifiers_if_enabled().items():
+            if key in action_keys and isinstance(value, (int, float)):
+                weights_map[key] = weights_map.get(key, 1.0) * float(value)
         probs = [max(0.05, weights_map.get(key, 1.0)) for key, _ in actions]
         _key, action = random.choices(actions, weights=probs, k=1)[0]
         action()
@@ -234,7 +251,13 @@ class ContentMixin:
 
     def say_random_poem(self):
         """Recite a random poem in Kinito's normal voice, optionally with background music."""
-        poem = random.choice(POEMS)
+        seasonal = self._seasonal_modifiers_if_enabled()
+        themes = seasonal.get("poem_themes") or ()
+        bias = seasonal.get("poem_theme_bias") or 0.0
+        poem = pick_poem(
+            themes if isinstance(themes, tuple) else (),
+            theme_bias=float(bias) if isinstance(bias, (int, float)) else 0.0,
+        )
         play_music = poem.get("play_music") and not poem.get("whisper")
         accompaniment_path = newbeginnings_file_path if play_music else None
         accompaniment_volume = self.POEM_BACKGROUND_MUSIC_VOLUME if play_music else None
@@ -261,7 +284,9 @@ class ContentMixin:
 
     def say_random_fact(self):
         """Speak a random fun fact."""
-        self.speak(get_random_fact())
+        weight = self._seasonal_modifiers_if_enabled().get("kinito_fact_weight")
+        kinito_weight = float(weight) if isinstance(weight, (int, float)) else None
+        self.speak(get_random_fact(kinito_weight=kinito_weight))
 
     def say_random_wisdom(self):
         """Share a random wisdom line during idle reading."""
@@ -283,43 +308,90 @@ class ContentMixin:
         self.speak(story)
 
     def perform_fancy_show(self):
-        """Play TinyTune and deliver a fancy-mode line."""
+        """Deliver a fancy-mode line with TinyTune tied to the speech lifecycle."""
         if not self._can_initiate_spontaneous_speech():
             return
         self.speak(
             random.choice(FANCY_LINES),
+            skip_ai=True,
             speech_accompaniment_path=tune_file_path,
             speech_accompaniment_volume=self.POEM_BACKGROUND_MUSIC_VOLUME,
         )
 
+    def _stop_fancy_idle(self, *, restore_sprite: bool = True) -> None:
+        """Abort magician idle so focus/other modes are not stuck in the hat."""
+        if not getattr(self, "_fancy_mode", False):
+            return
+        self._fancy_mode = False
+        if restore_sprite:
+            self._restore_sprite_after_fancy()
+
+    def _restore_sprite_after_fancy(self) -> None:
+        """Return to a normal standing sprite unless another pose owns the display."""
+        if getattr(self, "talking", False) or getattr(self, "_hug_mode", False):
+            return
+        if getattr(self, "_preserve_sprite", False) or getattr(self, "paused", False):
+            return
+        if getattr(self, "dragging", False):
+            return
+        normal = getattr(self, "tk_img_normal", None)
+        if normal is not None:
+            self.change_sprite(normal)
+
+    def _fancy_idle_blocked_before_speech(self) -> bool:
+        """Return True when fancy should abort because speech can no longer start."""
+        if getattr(self, "_awaiting_response", False):
+            return True
+        if getattr(self, "_focus_mode", False):
+            return True
+        return hasattr(self, "_is_game_active") and self._is_game_active()
+
     def _run_fancy_idle(self):
-        """Cycle magician sprites for the full fancy performance, including while talking."""
-        self._fancy_mode = True
+        """Cycle magician sprites for the fancy performance, including while talking."""
+        if not self._can_initiate_spontaneous_speech():
+            return
+
         magician_sprites = getattr(self, "_magician_sprites", (self.tk_img_fancy,))
         if len(magician_sprites) < 2:
             magician_sprites = (
                 self.tk_img_fancy,
                 getattr(self, "tk_img_fancy_2", self.tk_img_fancy),
             )
+
+        self._fancy_mode = True
         frame = 0
+        waited = 0.0
+        speech_started = False
         self.change_sprite(magician_sprites[0])
         threading.Thread(target=self.perform_fancy_show, daemon=True).start()
 
-        speech_started = False
-        while self._running and not self.paused:
-            time.sleep(0.45)
-            frame += 1
-            self.change_sprite(magician_sprites[frame % len(magician_sprites)])
-            if self.talking:
-                speech_started = True
-            elif speech_started:
-                break
-
-        self._fancy_mode = False
+        try:
+            while self._running and not self.paused and getattr(self, "_fancy_mode", False):
+                time.sleep(self.FANCY_SPRITE_SWAP_SECONDS)
+                waited += self.FANCY_SPRITE_SWAP_SECONDS
+                if not getattr(self, "_fancy_mode", False):
+                    break
+                frame += 1
+                self.change_sprite(magician_sprites[frame % len(magician_sprites)])
+                if self.talking:
+                    speech_started = True
+                elif (
+                    speech_started
+                    or waited >= self.FANCY_SPEECH_START_TIMEOUT
+                    or self._fancy_idle_blocked_before_speech()
+                ):
+                    break
+        finally:
+            self._fancy_mode = False
+            self._restore_sprite_after_fancy()
 
     def say_random_joke(self):
         """Tell a random corny joke."""
         self.speak(dlg.pick_line(dlg.JOKES))
+
+    def ask_for_compliment(self):
+        """Ask whether the user wants a compliment (yes/no dialog)."""
+        self.speak(dlg.pick_line(dlg.COMPLIMENT_QUESTIONS), 45, True)
 
     def say_random_compliment(self):
         """Give the user a random compliment."""

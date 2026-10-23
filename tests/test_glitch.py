@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+﻿from unittest.mock import MagicMock, patch
 
 import pytest
 from PIL import Image
@@ -65,6 +65,15 @@ def test_maybe_trigger_screen_glitch_skips_on_miss(glitch):
     glitch.root.after.assert_not_called()
 
 
+def test_maybe_trigger_screen_glitch_respects_cooldown(glitch):
+    import time
+
+    glitch._last_glitch_at = time.monotonic()
+    with patch("kinito.features.glitch.random.random", return_value=0.0):
+        assert glitch.maybe_trigger_screen_glitch() is False
+    glitch.root.after.assert_not_called()
+
+
 def test_maybe_trigger_blue_screen_schedules_on_hit(glitch):
     with (
         patch("kinito.features.glitch.os.path.isfile", return_value=True),
@@ -72,6 +81,17 @@ def test_maybe_trigger_blue_screen_schedules_on_hit(glitch):
     ):
         assert glitch.maybe_trigger_blue_screen() is True
     glitch.root.after.assert_called_once_with(0, glitch._flash_blue_screen)
+
+
+def test_maybe_trigger_blue_screen_allows_zero_sentinel_on_fresh_boot(glitch):
+    """0.0 means never triggered — must not collide with low uptime clocks."""
+    glitch._last_blue_screen_at = 0.0
+    with (
+        patch("kinito.features.glitch.os.path.isfile", return_value=True),
+        patch("kinito.features.glitch.random.random", return_value=0.0),
+        patch("kinito.features.glitch.time.monotonic", return_value=60.0),
+    ):
+        assert glitch.maybe_trigger_blue_screen() is True
 
 
 def test_maybe_trigger_blue_screen_skips_when_image_missing(glitch):
@@ -112,6 +132,7 @@ def test_raise_screen_effect_overlays_lifts_active_windows(glitch):
     overlay.lift.assert_called_once()
     blackout.lift.assert_called_once()
     crash.lift.assert_called_once()
+    # Blackout is raised before the BSOD so the crash image stays on top.
     assert glitch._force_window_topmost.call_args_list == [
         ((overlay,),),
         ((blackout,),),
@@ -170,6 +191,41 @@ def test_flash_blue_screen_primary_only_with_virtual_blackout(glitch):
         glitch.BLUE_SCREEN_DURATION_MS,
         glitch.hide_blue_screen,
     )
+
+
+def test_flash_screen_glitch_sets_cooldown_on_success(glitch):
+    overlay = MagicMock()
+    glitch._make_overlay_window = MagicMock(return_value=overlay)
+    glitch._raise_screen_effect_overlays = MagicMock()
+    with (
+        patch("kinito.features.glitch.Image.effect_noise", return_value=Image.new("L", (2, 2))),
+        patch("kinito.features.glitch.ImageTk.PhotoImage", return_value=MagicMock()),
+        patch("kinito.features.glitch.tk.Label", return_value=MagicMock()),
+        patch("kinito.features.glitch.time.monotonic", return_value=1234.0),
+    ):
+        glitch._flash_screen_glitch()
+    assert glitch._last_glitch_at == 1234.0
+
+
+def test_flash_blue_screen_cleans_up_partial_failure(glitch):
+    blackout = MagicMock()
+    glitch._overlay_virtual_screen_rect = MagicMock(return_value=(-1920, 0, 3840, 1080))
+    glitch._overlay_primary_screen_rect = MagicMock(return_value=(0, 0, 1920, 1080))
+    glitch.hide_blue_screen = MagicMock()
+    crash_img = Image.new("RGB", (100, 50), color=(0, 0, 255))
+
+    with (
+        patch("kinito.features.glitch.Image.open", return_value=crash_img),
+        patch.object(
+            glitch,
+            "_make_overlay_window",
+            side_effect=[blackout, RuntimeError("boom")],
+        ),
+    ):
+        glitch._flash_blue_screen()
+
+    glitch.hide_blue_screen.assert_called()
+    assert getattr(glitch, "_last_blue_screen_at", 0.0) == 0.0
 
 
 def test_hide_blue_screen_destroys_blackout_and_crash(glitch):

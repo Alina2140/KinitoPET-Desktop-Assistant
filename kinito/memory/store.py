@@ -6,12 +6,19 @@ import json
 import os
 import random
 import sys
+import threading
+import time
 from copy import deepcopy
 from datetime import date
 from typing import Any
 
-from content.memory_keys import LEGACY_FACT_KEY_ALIASES, MULTI_VALUE_FACT_KEYS
+from content.memory_keys import (
+    DAILY_FACT_KEYS,
+    LEGACY_FACT_KEY_ALIASES,
+    MULTI_VALUE_FACT_KEYS,
+)
 from kinito.assets import user_media_directory
+from kinito.memory.daily_facts import format_daily_fact, parse_daily_fact
 from kinito.memory.fact_values import (
     compact_fact_storage,
     format_fact_values,
@@ -59,6 +66,33 @@ def _atomic_replace(temp_path: str, final_path: str) -> None:
         os.replace(temp_path, final_path)
 
 
+def _write_text_atomic(path: str, payload: str, *, attempts: int = 5) -> None:
+    """Write *payload* to *path* via a unique temp file (Windows-safe)."""
+    directory = os.path.dirname(path) or "."
+    last_error: OSError | None = None
+    for attempt in range(attempts):
+        temp_path = os.path.join(
+            directory,
+            f".{os.path.basename(path)}.{os.getpid()}.{threading.get_ident()}.{attempt}.tmp",
+        )
+        try:
+            with open(temp_path, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            _atomic_replace(temp_path, path)
+            return
+        except OSError as exc:
+            last_error = exc
+            try:
+                if os.path.isfile(temp_path):
+                    os.remove(temp_path)
+            except OSError:
+                pass
+    if last_error is not None:
+        raise last_error
+
+
 def _canonical_fact_key(key: str) -> str:
     trimmed = key.strip()
     return LEGACY_FACT_KEY_ALIASES.get(trimmed, trimmed)
@@ -72,6 +106,7 @@ class MemoryStore:
         self._path = memory_file_path(self._directory)
         self._notes_path = notes_file_path(self._directory)
         self._data: dict[str, Any] = self._empty_data()
+        self._lock = threading.RLock()
         self.load()
 
     @staticmethod
@@ -93,25 +128,40 @@ class MemoryStore:
         try:
             with open(self._path, encoding="utf-8") as handle:
                 raw = json.load(handle)
-        except (OSError, json.JSONDecodeError, TypeError):
+        except (OSError, json.JSONDecodeError, TypeError) as exc:
+            print(f"Warning: memory.json unreadable ({exc!r}); starting empty.", flush=True)
+            self._backup_corrupt_file()
             self._data = self._empty_data()
             return
         if not isinstance(raw, dict):
+            print("Warning: memory.json has invalid root type; starting empty.", flush=True)
+            self._backup_corrupt_file()
             self._data = self._empty_data()
             return
         self._data = self._normalize_loaded(raw)
 
+    def _backup_corrupt_file(self) -> None:
+        """Move a bad memory.json aside so the original bytes are not lost."""
+        if not os.path.isfile(self._path):
+            return
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        backup = f"{self._path}.corrupt-{stamp}"
+        try:
+            os.replace(self._path, backup)
+            print(f"Warning: corrupt memory backed up to {backup}", flush=True)
+        except OSError as exc:
+            print(f"Warning: could not backup corrupt memory: {exc!r}", flush=True)
+
     def save(self) -> None:
         """Persist memory atomically and refresh the notes mirror file."""
-        os.makedirs(self._directory, exist_ok=True)
-        temp_path = f"{self._path}.tmp"
-        payload = json.dumps(self._data, ensure_ascii=False, indent=2)
-        with open(temp_path, "w", encoding="utf-8") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        _atomic_replace(temp_path, self._path)
-        self._write_notes_mirror()
+        with self._lock:
+            os.makedirs(self._directory, exist_ok=True)
+            payload = json.dumps(self._data, ensure_ascii=False, indent=2)
+            _write_text_atomic(self._path, payload)
+            try:
+                self._write_notes_mirror()
+            except OSError as exc:
+                print(f"Warning: notes.txt mirror failed: {exc!r}", flush=True)
 
     def reset(self) -> None:
         """Clear all memory and remove persisted files."""
@@ -153,6 +203,7 @@ class MemoryStore:
                     migrated[target_key] = normalized
             for key, value in list(migrated.items())[:MAX_FACTS]:
                 data["facts"][key] = value
+            self._drop_stale_daily_facts(data["facts"])
 
         markers = raw.get("answered_markers")
         if isinstance(markers, list):
@@ -215,6 +266,43 @@ class MemoryStore:
         return None
 
     @staticmethod
+    def _drop_stale_daily_facts(facts: dict[str, Any], *, today: date | None = None) -> bool:
+        """Remove undated or non-today daily facts from *facts*. Returns True if changed."""
+        moment = today or date.today()
+        changed = False
+        for key in list(facts):
+            if key not in DAILY_FACT_KEYS:
+                continue
+            raw = facts.get(key)
+            if not isinstance(raw, str):
+                facts.pop(key, None)
+                changed = True
+                continue
+            parsed = parse_daily_fact(raw)
+            if parsed is None or parsed[1] != moment:
+                facts.pop(key, None)
+                changed = True
+        return changed
+
+    def _fresh_daily_value(self, key: str, *, today: date | None = None) -> str | None:
+        """Return today's value for a daily fact, clearing stale/undated storage."""
+        facts: dict[str, Any] = self._data["facts"]
+        raw = facts.get(key)
+        if raw is None:
+            return None
+        if not isinstance(raw, str):
+            facts.pop(key, None)
+            self.save()
+            return None
+        parsed = parse_daily_fact(raw)
+        moment = today or date.today()
+        if parsed is None or parsed[1] != moment:
+            facts.pop(key, None)
+            self.save()
+            return None
+        return parsed[0]
+
+    @staticmethod
     def _normalize_note(entry: Any) -> dict[str, str] | None:
         if isinstance(entry, str):
             text = entry.strip()[:MAX_NOTE_LEN]
@@ -233,6 +321,9 @@ class MemoryStore:
     def get_fact_values(self, key: str) -> list[str]:
         """Return fact values as a list (empty if missing)."""
         canonical = _canonical_fact_key(key)
+        if canonical in DAILY_FACT_KEYS:
+            fresh = self._fresh_daily_value(canonical)
+            return [fresh] if fresh else []
         value = self._data["facts"].get(canonical)
         if value is None:
             return []
@@ -293,8 +384,19 @@ class MemoryStore:
             trimmed_value = parsed.isoformat()
         elif trimmed_key == "mood_today":
             lowered = trimmed_value.casefold()
-            if lowered in {"good", "great", "fine", "ok", "okay"}:
+            if lowered in {"good", "great"}:
                 trimmed_value = "good"
+            elif lowered in {
+                "neutral",
+                "fine",
+                "ok",
+                "okay",
+                "meh",
+                "alright",
+                "so-so",
+                "average",
+            }:
+                trimmed_value = "neutral"
             elif lowered in {"bad", "rough", "sad", "awful", "terrible"}:
                 trimmed_value = "bad"
             else:
@@ -303,6 +405,17 @@ class MemoryStore:
             lowered = trimmed_value.casefold()
             if lowered in {"high", "energetic", "full", "good"}:
                 trimmed_value = "high"
+            elif lowered in {
+                "neutral",
+                "medium",
+                "okay",
+                "ok",
+                "fine",
+                "meh",
+                "so-so",
+                "average",
+            }:
+                trimmed_value = "neutral"
             elif lowered in {"low", "tired", "exhausted", "drained"}:
                 trimmed_value = "low"
             else:
@@ -311,6 +424,16 @@ class MemoryStore:
             lowered = trimmed_value.casefold()
             if lowered in {"busy", "packed", "hectic"}:
                 trimmed_value = "busy"
+            elif lowered in {
+                "neutral",
+                "normal",
+                "okay",
+                "ok",
+                "mixed",
+                "so-so",
+                "average",
+            }:
+                trimmed_value = "neutral"
             elif lowered in {"chill", "free", "relaxed", "calm"}:
                 trimmed_value = "chill"
             else:
@@ -319,6 +442,10 @@ class MemoryStore:
             lowered = trimmed_value.casefold()
             if lowered in {"private", "prefer not", "prefer not to say", "none of your business"}:
                 trimmed_value = "private"
+        if trimmed_key in DAILY_FACT_KEYS:
+            prefix_budget = 11
+            trimmed_value = trimmed_value[: max(1, MAX_FACT_VALUE_LEN - prefix_budget)]
+            trimmed_value = format_daily_fact(trimmed_value)
         facts: dict[str, Any] = self._data["facts"]
         if trimmed_key not in facts and len(facts) >= MAX_FACTS:
             return
@@ -628,12 +755,7 @@ class MemoryStore:
         content = "\n".join(lines)
         if content:
             content += "\n"
-        temp_path = f"{self._notes_path}.tmp"
-        with open(temp_path, "w", encoding="utf-8") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        _atomic_replace(temp_path, self._notes_path)
+        _write_text_atomic(self._notes_path, content)
 
     def snapshot(self) -> dict[str, Any]:
         """Return a deep copy of the in-memory data (for tests)."""

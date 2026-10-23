@@ -1,4 +1,4 @@
-"""Chamfered speech-bubble chrome and action buttons."""
+﻿"""Chamfered speech-bubble chrome and action buttons."""
 
 from __future__ import annotations
 
@@ -44,18 +44,22 @@ def measure_chamfered_button(
     chamfer: int,
     border_width: int,
     width: int | None = None,
+    image_size: tuple[int, int] | None = None,
 ) -> tuple[int, int]:
-    """Return the pixel size a chamfered button needs for *text*."""
+    """Return the pixel size a chamfered button needs for *text* or *image_size*."""
     font_obj = tkfont.Font(font=font, root=parent)
-    text_width = font_obj.measure(text)
-    if width is not None:
-        text_width = max(text_width, width * font_obj.measure("0"))
-    text_height = font_obj.metrics("linespace")
+    if image_size is not None:
+        content_width, content_height = image_size
+    else:
+        content_width = font_obj.measure(text)
+        if width is not None:
+            content_width = max(content_width, width * font_obj.measure("0"))
+        content_height = font_obj.metrics("linespace")
     inset = chamfer + border_width
     pad = outline_canvas_pad(border_width)
     return (
-        text_width + (2 * padx) + (2 * inset) + (2 * pad),
-        text_height + (2 * pady) + (2 * inset) + (2 * pad),
+        content_width + (2 * padx) + (2 * inset) + (2 * pad),
+        content_height + (2 * pady) + (2 * inset) + (2 * pad),
     )
 
 
@@ -66,7 +70,7 @@ class ChamferedButton(tk.Canvas):
         self,
         parent,
         *,
-        text: str,
+        text: str = "",
         command,
         font,
         bg: str,
@@ -78,9 +82,11 @@ class ChamferedButton(tk.Canvas):
         padx: int,
         pady: int,
         width: int | None = None,
+        image=None,
         cursor: str = "hand2",
     ) -> None:
         self._text = text
+        self._image = image
         self._command = command
         self._font = font
         self._bg = bg
@@ -94,6 +100,9 @@ class ChamferedButton(tk.Canvas):
         self._char_width = width
         self._hover = False
         self._outline_pad = outline_canvas_pad(border_width)
+        image_size = None
+        if image is not None:
+            image_size = (int(image.width()), int(image.height()))
         button_w, button_h = measure_chamfered_button(
             parent,
             text=text,
@@ -103,6 +112,7 @@ class ChamferedButton(tk.Canvas):
             chamfer=chamfer,
             border_width=border_width,
             width=width,
+            image_size=image_size,
         )
         super().__init__(
             parent,
@@ -115,6 +125,7 @@ class ChamferedButton(tk.Canvas):
         )
         self._shape_id = None
         self._label_id = None
+        self._image_id = None
         self._draw(self._bg)
         self.bind("<Button-1>", self._on_click)
         self.bind("<Enter>", self._on_enter)
@@ -128,6 +139,8 @@ class ChamferedButton(tk.Canvas):
             self.delete(self._shape_id)
         if self._label_id is not None:
             self.delete(self._label_id)
+        if self._image_id is not None:
+            self.delete(self._image_id)
         points = chamfered_rect_points(
             pad + self._border_width / 2,
             pad + self._border_width / 2,
@@ -142,13 +155,20 @@ class ChamferedButton(tk.Canvas):
             width=self._border_width,
             smooth=False,
         )
-        self._label_id = self.create_text(
-            width // 2,
-            height // 2,
-            text=self._text,
-            fill=self._fg,
-            font=self._font,
-        )
+        if self._image is not None:
+            self._image_id = self.create_image(
+                width // 2,
+                height // 2,
+                image=self._image,
+            )
+        else:
+            self._label_id = self.create_text(
+                width // 2,
+                height // 2,
+                text=self._text,
+                fill=self._fg,
+                font=self._font,
+            )
 
     def _on_click(self, _event=None):
         if callable(self._command):
@@ -177,46 +197,60 @@ def draw_bubble_shell(
     tail_half_width: int,
     offset_x: int = 0,
     offset_y: int = 0,
+    tail_side: str = "bottom",
 ) -> None:
     """Paint the chamfered bubble body and pointer tail.
 
-    New chrome is drawn first, then the old polygons are removed, so a
-    transparentcolor canvas never flashes fully clear between frames.
+    *tail_side* is ``\"bottom\"`` (default, tip points down) or ``\"top\"``
+    (body shifted down, tip points up toward the pet).
     """
+    canvas.delete("bubble")
     inset = chamfer + border_width
     body_h = body_height + (2 * inset)
     body_w = panel_width
+    body_origin_y = offset_y + (tail_height if tail_side == "top" else 0)
     points = chamfered_rect_points(
         offset_x + border_width / 2,
-        offset_y + border_width / 2,
+        body_origin_y + border_width / 2,
         body_w - border_width,
         body_h - border_width,
         chamfer,
     )
-    pending = "bubble_pending"
-    canvas.delete(pending)
     canvas.create_polygon(
         *points,
         fill=bg,
         outline=border,
         width=border_width,
         smooth=False,
-        tags=pending,
+        tags="bubble",
     )
-    tail_top = offset_y + body_h - border_width
     tail_x = offset_x + tail_center_x
-    canvas.create_polygon(
-        tail_x - tail_half_width,
-        tail_top,
-        tail_x + tail_half_width,
-        tail_top,
-        tail_x,
-        tail_top + tail_height,
-        fill=bg,
-        outline=border,
-        width=border_width,
-        tags=pending,
-    )
-    canvas.delete("bubble")
-    canvas.addtag_withtag("bubble", pending)
-    canvas.dtag(pending)
+    if tail_side == "top":
+        tail_base = body_origin_y + border_width
+        tip_y = tail_base - tail_height
+        canvas.create_polygon(
+            tail_x - tail_half_width,
+            tail_base,
+            tail_x + tail_half_width,
+            tail_base,
+            tail_x,
+            tip_y,
+            fill=bg,
+            outline=border,
+            width=border_width,
+            tags="bubble",
+        )
+    else:
+        tail_top = body_origin_y + body_h - border_width
+        canvas.create_polygon(
+            tail_x - tail_half_width,
+            tail_top,
+            tail_x + tail_half_width,
+            tail_top,
+            tail_x,
+            tail_top + tail_height,
+            fill=bg,
+            outline=border,
+            width=border_width,
+            tags="bubble",
+        )

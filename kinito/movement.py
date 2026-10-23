@@ -121,10 +121,9 @@ class MovementMixin:
             return
         if kinito_x is None or kinito_y is None:
             kinito_x, kinito_y = getattr(self, "x", 0), getattr(self, "y", 0)
-        coupled = self._is_position_locked_by_user() and hasattr(
+        if self._is_position_locked_by_user() and hasattr(
             self, "_move_speech_bubble_with_kinito"
-        )
-        if coupled and getattr(self, "_bubble_kinito_offset_x", None) is not None:
+        ):
             self._move_speech_bubble_with_kinito(kinito_x, kinito_y)
         elif hasattr(self, "position_speech_bubble"):
             self.position_speech_bubble()
@@ -1269,6 +1268,11 @@ class MovementMixin:
                 weights = self.mood_action_weights()
                 speech_chance *= weights.get("speech_chance_mult", 1.0)
                 menu_chance *= weights.get("menu_action_mult", 1.0)
+            if getattr(self, "_special_days_enabled", True):
+                from content.special_days import seasonal_multiplier
+
+                speech_chance *= seasonal_multiplier("speech_chance_mult")
+                menu_chance *= seasonal_multiplier("menu_action_mult")
             if (
                 random.random() < speech_chance
                 and self._allow_random_questions
@@ -1365,6 +1369,7 @@ class MovementMixin:
                     not focus_mode
                     and idle_roll < self.IDLE_READING_CHANCE + self.IDLE_FANCY_CHANCE
                     and self._allow_random_questions
+                    and self._can_initiate_spontaneous_speech()
                 ):
                     self._run_fancy_idle()
                     continue

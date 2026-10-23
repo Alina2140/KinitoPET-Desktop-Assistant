@@ -1,20 +1,120 @@
-from unittest.mock import MagicMock, patch
+﻿from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 from content import dialogue as dlg
-from kinito.speech import SpeechMixin
+from kinito.speech import SpeechMixin, choose_speech_bubble_side
+from kinito.tts_text import normalize_text_for_tts
 
 
 class SpeechStub(SpeechMixin):
     def __init__(self):
         self._speech_epoch = 0
+        self._awaiting_response = False
 
 
 @pytest.fixture
 def speech():
     return SpeechStub()
 
+
+@pytest.mark.parametrize(
+    "kwargs,expected",
+    [
+        # Fits above → above
+        (
+            {
+                "kinito_y": 300,
+                "kinito_h": 100,
+                "bubble_h": 80,
+                "min_y": 0,
+                "max_y": 2000,
+            },
+            "above",
+        ),
+        # Does not fit above, fits below → below
+        (
+            {
+                "kinito_y": 40,
+                "kinito_h": 100,
+                "bubble_h": 80,
+                "min_y": 0,
+                "max_y": 2000,
+            },
+            "below",
+        ),
+        # Neither fits; more space below → below
+        (
+            {
+                "kinito_y": 100,
+                "kinito_h": 50,
+                "bubble_h": 200,
+                "min_y": 0,
+                "max_y": 150,
+            },
+            "below",
+        ),
+        # Neither fits; equal space → above (tie)
+        (
+            {
+                "kinito_y": 125,
+                "kinito_h": 50,
+                "bubble_h": 200,
+                "min_y": 0,
+                "max_y": 100,
+            },
+            "above",
+        ),
+    ],
+)
+def test_choose_speech_bubble_side_basic(kwargs, expected):
+    assert choose_speech_bubble_side(**kwargs) == expected
+
+
+def test_choose_speech_bubble_side_hysteresis_stays_below_near_threshold():
+    # above_y = 100 - 80 - 12 = 8; fits_above True but not comfortably (min_y+12=12)
+    side = choose_speech_bubble_side(
+        kinito_y=100,
+        kinito_h=100,
+        bubble_h=80,
+        min_y=0,
+        max_y=2000,
+        current_side="below",
+        gap=12,
+        hysteresis_px=12,
+    )
+    assert side == "below"
+
+
+def test_choose_speech_bubble_side_hysteresis_flips_above_when_clear():
+    # above_y = 120 - 80 - 12 = 28 >= 0 + 12 → comfortable
+    side = choose_speech_bubble_side(
+        kinito_y=120,
+        kinito_h=100,
+        bubble_h=80,
+        min_y=0,
+        max_y=2000,
+        current_side="below",
+        gap=12,
+        hysteresis_px=12,
+    )
+    assert side == "above"
+
+
+def test_choose_speech_bubble_side_stays_above_while_it_still_fits():
+    side = choose_speech_bubble_side(
+        kinito_y=92,
+        kinito_h=100,
+        bubble_h=80,
+        min_y=0,
+        max_y=2000,
+        current_side="above",
+        gap=12,
+        hysteresis_px=12,
+    )
+    # above_y = 92 - 80 - 12 = 0 → still fits
+    assert side == "above"
 
 @pytest.mark.parametrize(
     "text,expected",
@@ -31,6 +131,32 @@ def test_bubble_close_delay_short(speech, text, expected):
 def test_bubble_style_uses_game_colors(speech):
     assert speech.BUBBLE_BG == "#FFF8E7"
     assert speech.BUBBLE_BORDER == "#000000"
+
+
+def test_redraw_bubble_shell_pads_bottom_when_tail_is_on_top(speech):
+    speech._speech_bubble_side = "below"
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech.speech_bubble.winfo_rootx.return_value = 100
+    speech.root = MagicMock()
+    speech.root.winfo_rootx.return_value = 180
+    speech.root.winfo_rooty.return_value = 40
+    speech.root.winfo_width.return_value = 120
+    speech._speech_bubble_body = MagicMock()
+    speech._speech_bubble_body.winfo_reqwidth.return_value = 120
+    speech._speech_bubble_body.winfo_reqheight.return_value = 40
+    speech._speech_bubble_canvas = MagicMock()
+    speech._speech_bubble_body_window = 1
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+
+    with patch("kinito.speech.draw_bubble_shell") as draw:
+        speech._redraw_bubble_shell()
+
+    speech._speech_bubble_canvas.configure.assert_called()
+    kwargs = speech._speech_bubble_canvas.configure.call_args.kwargs
+    # content 40 + 2*(8+1)=58 body + tail 12 = 70 panel; pad 1*2 + 1 = 3 → 73
+    assert kwargs["height"] == 73
+    assert draw.call_args.kwargs["tail_side"] == "top"
 
 
 def test_update_bubble_tail_redraws_shell(speech):
@@ -97,149 +223,38 @@ def test_bubble_tail_aims_at_kinito_when_bubble_is_offset(speech):
 
 def test_position_speech_bubble_uses_tracked_kinito_coords_while_dragging(speech):
     speech.is_dragging = True
+    speech._speech_bubble_ready = True
     speech.root = MagicMock()
     speech.root.winfo_rootx.return_value = 50
     speech.root.winfo_rooty.return_value = 60
+    speech.root.winfo_height.return_value = 100
     speech.x = 500
     speech.y = 300
     speech.speech_bubble = MagicMock()
     speech.speech_bubble.winfo_exists.return_value = True
-    speech.speech_bubble.state.return_value = "normal"
     speech.speech_bubble.winfo_width.return_value = 120
     speech.speech_bubble.winfo_height.return_value = 80
     speech.speech_bubble.winfo_reqwidth.return_value = 120
     speech.speech_bubble.winfo_reqheight.return_value = 80
     speech.root.winfo_width.return_value = 100
-    speech.img_normal = MagicMock(width=100)
+    speech.img_normal = MagicMock(width=100, height=100)
     speech.get_screen_bounds = MagicMock(return_value=(0, 0, 2000, 2000))
     speech._update_bubble_tail = MagicMock()
 
     speech.position_speech_bubble()
 
-    speech.speech_bubble.geometry.assert_called_once_with("120x80+490+190")
-
-
-def test_position_speech_bubble_skips_withdrawn_unless_allowed(speech):
-    speech.speech_bubble = MagicMock()
-    speech.speech_bubble.winfo_exists.return_value = True
-    speech.speech_bubble.state.return_value = "withdrawn"
-    speech.root = MagicMock()
-    speech.get_screen_bounds = MagicMock(return_value=(0, 0, 2000, 2000))
-    speech._update_bubble_tail = MagicMock()
-
-    speech.position_speech_bubble()
-    speech.speech_bubble.geometry.assert_not_called()
-
-    speech.speech_bubble.winfo_reqwidth.return_value = 100
-    speech.speech_bubble.winfo_reqheight.return_value = 50
-    speech.root.winfo_width.return_value = 80
-    speech.img_normal = MagicMock(width=80)
-    speech.x = 200
-    speech.y = 400
-    speech.is_dragging = False
-    speech._throwing = False
-    speech.moving = False
-    speech._kinito_screen_position = MagicMock(return_value=(200, 400))
-
-    speech.position_speech_bubble(allow_unmapped=True)
-    speech.speech_bubble.geometry.assert_called()
-    # Must use req height so Y sits just above Kinito (400 - 50 - 30 = 320).
-    args = speech.speech_bubble.geometry.call_args[0][0]
-    assert args.endswith("+190+320") or "+320" in args
-
-
-def test_new_speech_bubble_toplevel_skips_transparentcolor_until_reveal(speech):
-    speech.root = MagicMock()
-    bubble = MagicMock()
-    with patch("kinito.speech.Toplevel", return_value=bubble) as toplevel:
-        created = speech._new_speech_bubble_toplevel("Hi")
-    assert created is bubble
-    toplevel.assert_called_once_with(speech.root)
-    bubble.configure.assert_called()
-    assert any(
-        call.kwargs.get("bg") == speech.BUBBLE_BG
-        or (len(call.args) >= 2 and call.args[0] == "bg" and call.args[1] == speech.BUBBLE_BG)
-        for call in bubble.configure.call_args_list
-    )
-    # Must not chroma-key before the cream shell is painted.
-    for call in bubble.attributes.call_args_list:
-        assert "-transparentcolor" not in call.args
-    assert speech._speech_bubble_chroma_enabled is False
-
-
-def test_enable_bubble_transparency_sets_white_key_once(speech):
-    speech.speech_bubble = MagicMock()
-    speech.speech_bubble.winfo_exists.return_value = True
-    speech._has_active_speech_bubble = MagicMock(return_value=True)
-    speech._speech_bubble_outer = MagicMock()
-    speech._speech_bubble_outer.winfo_exists.return_value = True
-    speech._speech_bubble_canvas = MagicMock()
-    speech._speech_bubble_canvas.winfo_exists.return_value = True
-    speech._speech_bubble_chroma_enabled = False
-
-    speech._enable_bubble_transparency()
-    speech.speech_bubble.attributes.assert_called_once_with(
-        "-transparentcolor", speech.BUBBLE_TRANSPARENT_BG
-    )
-    speech._speech_bubble_canvas.configure.assert_called_with(bg=speech.BUBBLE_TRANSPARENT_BG)
-    assert speech._speech_bubble_chroma_enabled is True
-
-    speech.speech_bubble.attributes.reset_mock()
-    speech._enable_bubble_transparency()
-    speech.speech_bubble.attributes.assert_not_called()
-
-
-def test_reveal_speech_bubble_maps_opaque_before_chroma(speech):
-    """Menu/dialog widgets must paint before transparentcolor is applied."""
-    speech._sync_kinito_screen_position = MagicMock()
-    speech._fit_speech_bubble_to_content = MagicMock()
-    speech._redraw_bubble_shell = MagicMock()
-    speech._enable_bubble_transparency = MagicMock()
-    speech._apply_bubble_chroma_after_content = MagicMock()
-    speech.position_speech_bubble = MagicMock()
-    speech._speech_bubble_is_mapped = MagicMock(return_value=False)
-    speech._has_active_speech_bubble = MagicMock(return_value=True)
-    speech.root = MagicMock()
-    speech.speech_bubble = MagicMock()
-    speech.speech_bubble.winfo_exists.return_value = True
-
-    speech._reveal_speech_bubble()
-
-    speech.speech_bubble.deiconify.assert_called_once()
-    speech._enable_bubble_transparency.assert_not_called()
-    speech.root.after_idle.assert_called()
-    speech.root.after.assert_any_call(16, speech._apply_bubble_chroma_after_content)
-    assert speech._apply_bubble_chroma_after_content.call_count == 0
-
-
-def test_apply_bubble_chroma_after_content_keys_once_when_mapped(speech):
-    speech._has_active_speech_bubble = MagicMock(return_value=True)
-    speech._speech_bubble_is_mapped = MagicMock(return_value=True)
-    speech._speech_bubble_chroma_enabled = False
-    speech._enable_bubble_transparency = MagicMock(
-        side_effect=lambda: setattr(speech, "_speech_bubble_chroma_enabled", True)
-    )
-    speech._redraw_bubble_shell = MagicMock()
-    speech.root = MagicMock()
-    speech.speech_bubble = MagicMock()
-
-    speech._apply_bubble_chroma_after_content()
-    speech._enable_bubble_transparency.assert_called_once()
-    speech._redraw_bubble_shell.assert_called_once()
-
-    speech._enable_bubble_transparency.reset_mock()
-    speech._redraw_bubble_shell.reset_mock()
-    speech._apply_bubble_chroma_after_content()
-    speech._enable_bubble_transparency.assert_not_called()
-    speech._redraw_bubble_shell.assert_not_called()
+    speech.speech_bubble.geometry.assert_called_once_with("120x80+490+208")
+    assert speech._speech_bubble_side == "above"
 
 
 def test_position_speech_bubble_prefers_live_window_coords(speech):
     speech.is_dragging = False
     speech.moving = False
+    speech._speech_bubble_ready = True
     speech.root = MagicMock()
     speech.root.winfo_rootx.return_value = 800
     speech.root.winfo_rooty.return_value = 400
+    speech.root.winfo_height.return_value = 100
     speech.x = 100
     speech.y = 100
     speech.speech_bubble = MagicMock()
@@ -249,17 +264,66 @@ def test_position_speech_bubble_prefers_live_window_coords(speech):
     speech.speech_bubble.winfo_reqwidth.return_value = 120
     speech.speech_bubble.winfo_reqheight.return_value = 80
     speech.root.winfo_width.return_value = 100
-    speech.img_normal = MagicMock(width=100)
+    speech.img_normal = MagicMock(width=100, height=100)
     speech.get_screen_bounds = MagicMock(return_value=(0, 0, 2000, 2000))
     speech._update_bubble_tail = MagicMock()
 
     speech.position_speech_bubble()
 
-    speech.speech_bubble.geometry.assert_called_once_with("120x80+790+290")
+    speech.speech_bubble.geometry.assert_called_once_with("120x80+790+308")
 
 
-def test_fit_speech_bubble_to_content_resizes_without_locking_y(speech):
-    """Fit only sets size so a later position pass can correct a too-high Y."""
+def test_position_speech_bubble_flips_below_when_above_does_not_fit(speech):
+    speech._speech_bubble_ready = True
+    speech.root = MagicMock()
+    speech.root.winfo_rootx.return_value = 400
+    speech.root.winfo_rooty.return_value = 40
+    speech.root.winfo_width.return_value = 100
+    speech.root.winfo_height.return_value = 100
+    speech.img_normal = MagicMock(width=100, height=100)
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech.speech_bubble.winfo_width.return_value = 120
+    speech.speech_bubble.winfo_height.return_value = 80
+    speech.speech_bubble.winfo_reqwidth.return_value = 120
+    speech.speech_bubble.winfo_reqheight.return_value = 80
+    # above_y = 40 - 80 - 12 = -52 < min_y=0 → flip below
+    speech.get_screen_bounds = MagicMock(return_value=(0, 0, 2000, 2000))
+    speech._update_bubble_tail = MagicMock()
+
+    speech.position_speech_bubble()
+
+    # below_y = 40 + 100 + 12 = 152
+    speech.speech_bubble.geometry.assert_called_once_with("120x80+390+152")
+    assert speech._speech_bubble_side == "below"
+
+
+def test_position_speech_bubble_flips_back_above_with_hysteresis(speech):
+    speech._speech_bubble_ready = True
+    speech._speech_bubble_side = "below"
+    speech.root = MagicMock()
+    speech.root.winfo_rootx.return_value = 400
+    speech.root.winfo_rooty.return_value = 200
+    speech.root.winfo_width.return_value = 100
+    speech.root.winfo_height.return_value = 100
+    speech.img_normal = MagicMock(width=100, height=100)
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech.speech_bubble.winfo_width.return_value = 120
+    speech.speech_bubble.winfo_height.return_value = 80
+    speech.speech_bubble.winfo_reqwidth.return_value = 120
+    speech.speech_bubble.winfo_reqheight.return_value = 80
+    speech.get_screen_bounds = MagicMock(return_value=(0, 0, 2000, 2000))
+    speech._update_bubble_tail = MagicMock()
+
+    speech.position_speech_bubble()
+
+    # above_y = 200 - 80 - 12 = 108 >= min_y + hysteresis → flip back above
+    speech.speech_bubble.geometry.assert_called_once_with("120x80+390+108")
+    assert speech._speech_bubble_side == "above"
+
+
+def test_fit_speech_bubble_to_content_preserves_screen_position(speech):
     speech.speech_bubble = MagicMock()
     speech.speech_bubble.winfo_exists.return_value = True
     speech.speech_bubble.winfo_reqwidth.return_value = 360
@@ -272,17 +336,17 @@ def test_fit_speech_bubble_to_content_resizes_without_locking_y(speech):
 
     speech._fit_speech_bubble_to_content()
 
-    speech.speech_bubble.geometry.assert_called_once_with("360x180")
-    assert speech._speech_bubble_last_pos is None
-    speech._redraw_bubble_shell.assert_called_once()
+    speech.speech_bubble.geometry.assert_called_once_with("360x180+420+210")
 
 
-def test_move_speech_bubble_with_kinito_uses_drag_offset(speech):
-    speech._bubble_kinito_offset_x = 10
-    speech._bubble_kinito_offset_y = -200
+def test_move_speech_bubble_with_kinito_uses_dynamic_placement(speech):
+    speech._speech_bubble_ready = True
+    speech.root = MagicMock()
+    speech.root.winfo_width.return_value = 100
+    speech.root.winfo_height.return_value = 100
+    speech.img_normal = MagicMock(width=100, height=100)
     speech.speech_bubble = MagicMock()
     speech.speech_bubble.winfo_exists.return_value = True
-    speech.speech_bubble.state.return_value = "normal"
     speech.speech_bubble.winfo_width.return_value = 120
     speech.speech_bubble.winfo_height.return_value = 80
     speech.speech_bubble.winfo_reqwidth.return_value = 120
@@ -292,8 +356,31 @@ def test_move_speech_bubble_with_kinito_uses_drag_offset(speech):
 
     speech._move_speech_bubble_with_kinito(500, 300)
 
-    speech.speech_bubble.geometry.assert_called_once_with("120x80+510+100")
+    # above: 300 - 80 - 12 = 208, centered x = 500 + 50 - 60 = 490
+    speech.speech_bubble.geometry.assert_called_once_with("120x80+490+208")
+    assert speech._speech_bubble_side == "above"
 
+
+def test_move_speech_bubble_with_kinito_flips_below_near_top(speech):
+    speech._speech_bubble_ready = True
+    speech.root = MagicMock()
+    speech.root.winfo_width.return_value = 100
+    speech.root.winfo_height.return_value = 100
+    speech.img_normal = MagicMock(width=100, height=100)
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech.speech_bubble.winfo_width.return_value = 120
+    speech.speech_bubble.winfo_height.return_value = 80
+    speech.speech_bubble.winfo_reqwidth.return_value = 120
+    speech.speech_bubble.winfo_reqheight.return_value = 80
+    speech.get_screen_bounds = MagicMock(return_value=(0, 0, 2000, 2000))
+    speech._update_bubble_tail = MagicMock()
+
+    speech._move_speech_bubble_with_kinito(500, 30)
+
+    # above does not fit; below_y = 30 + 100 + 12 = 142
+    speech.speech_bubble.geometry.assert_called_once_with("120x80+490+142")
+    assert speech._speech_bubble_side == "below"
 
 @pytest.mark.parametrize(
     "text,expected",
@@ -310,6 +397,7 @@ def test_bubble_close_delay_poem(speech, text, expected):
 
 def test_run_tts_uses_balcon_when_available(speech):
     speech._available_voices = {"Eddie"}
+    speech._tts_volume = 100
     process = MagicMock(returncode=0)
     process.communicate.return_value = ("", "")
     with (
@@ -318,18 +406,38 @@ def test_run_tts_uses_balcon_when_available(speech):
             "kinito.speech.subprocess.Popen",
             return_value=process,
         ) as popen,
+        patch.object(speech, "_play_tts_wav", return_value=True) as play_wav,
     ):
         assert speech._run_tts("Hello") is True
         popen.assert_called_once()
         command = popen.call_args.args[0]
         assert "-i" in command
+        assert "-w" not in command
         assert "-t" not in command
-        assert process.communicate.call_args.kwargs["input"] == "hello"
+        assert process.communicate.call_args.kwargs["input"] == normalize_text_for_tts("Hello")
+        play_wav.assert_not_called()
+
+
+def test_run_tts_soft_volume_renders_wav(speech):
+    speech._available_voices = {"Eddie"}
+    speech._tts_volume = 40
+    process = MagicMock(returncode=0)
+    process.communicate.return_value = ("", "")
+    with (
+        patch("kinito.speech.os.path.isfile", return_value=True),
+        patch("kinito.speech.subprocess.Popen", return_value=process) as popen,
+        patch.object(speech, "_play_tts_wav", return_value=True) as play_wav,
+    ):
+        assert speech._run_tts("Hello") is True
+    command = popen.call_args.args[0]
+    assert "-w" in command
+    play_wav.assert_called_once()
 
 
 def test_run_tts_accepts_nonzero_returncode_after_playback(speech):
     """Don't cascade to another voice just because balcon returned non-zero."""
     speech._available_voices = {"Eddie", "Microsoft Zira Desktop"}
+    speech._tts_volume = 100
     process = MagicMock(returncode=1)
     process.communicate.return_value = ("", "")
     with (
@@ -343,6 +451,7 @@ def test_run_tts_accepts_nonzero_returncode_after_playback(speech):
 
 def test_run_tts_tries_next_voice_when_voice_missing(speech):
     speech._available_voices = {"Eddie", "Peter"}
+    speech._tts_volume = 100
     missing = MagicMock(returncode=1)
     missing.communicate.return_value = ("", "Error: voice not selected")
     ok = MagicMock(returncode=0)
@@ -357,8 +466,9 @@ def test_run_tts_tries_next_voice_when_voice_missing(speech):
     assert popen.call_args_list[1].args[0][2] == "Peter"
 
 
-def test_run_tts_uses_system_fallback_only_without_truvoice(speech):
+def test_run_tts_system_fallback_only_without_truvoice(speech):
     speech._available_voices = {"Microsoft Zira Desktop"}
+    speech._tts_volume = 100
     process = MagicMock(returncode=0)
     process.communicate.return_value = ("", "")
     with (
@@ -366,18 +476,12 @@ def test_run_tts_uses_system_fallback_only_without_truvoice(speech):
         patch("kinito.speech.subprocess.Popen", return_value=process) as popen,
     ):
         assert speech._run_tts("Hello") is True
-    popen.assert_called_once()
     assert popen.call_args.args[0][2] == "Microsoft Zira Desktop"
-
-
-def test_voice_normal_candidates_prefer_truvoice():
-    assert SpeechMixin.VOICE_NORMAL_CANDIDATES[0] == "Eddie"
-    assert "Microsoft Zira Desktop" not in SpeechMixin.VOICE_NORMAL_CANDIDATES
-    assert "Microsoft Zira Desktop" in SpeechMixin.VOICE_SYSTEM_FALLBACK_CANDIDATES
 
 
 def test_run_tts_passes_quoted_text_via_stdin(speech):
     speech._available_voices = {"Eddie"}
+    speech._tts_volume = 100
     process = MagicMock(returncode=0)
     process.communicate.return_value = ("", "")
     quoted = 'Play "Duck, Duck, Goose" now'
@@ -386,7 +490,7 @@ def test_run_tts_passes_quoted_text_via_stdin(speech):
         patch("kinito.speech.subprocess.Popen", return_value=process),
     ):
         assert speech._run_tts(quoted) is True
-    assert process.communicate.call_args.kwargs["input"] == quoted.lower()
+    assert process.communicate.call_args.kwargs["input"] == normalize_text_for_tts(quoted)
 
 
 def test_run_tts_falls_back_to_pyttsx3(speech):
@@ -396,12 +500,13 @@ def test_run_tts_falls_back_to_pyttsx3(speech):
         patch.object(speech, "_run_pyttsx3_fallback", return_value=True) as fallback,
     ):
         assert speech._run_tts("Hello") is True
-        fallback.assert_called_once_with("hello")
+        fallback.assert_called_once_with(normalize_text_for_tts("Hello"))
 
 
 def test_run_tts_aborts_after_interrupt_without_next_voice(speech):
     """Killed balcon must not retry the same line with another voice."""
     speech._available_voices = {"Eddie", "Peter"}
+    speech._tts_volume = 100
     speech._speech_epoch = 1
     process = MagicMock(returncode=1)
 
@@ -417,25 +522,15 @@ def test_run_tts_aborts_after_interrupt_without_next_voice(speech):
             "kinito.speech.subprocess.Popen",
             return_value=process,
         ) as popen,
+        patch.object(speech, "_play_tts_wav", return_value=True) as play_wav,
     ):
         assert speech._run_tts("Hello", speech_epoch=1) is False
 
     popen.assert_called_once()
-
-
-def test_run_tts_skips_pyttsx3_when_interrupted(speech):
-    speech._speech_epoch = 2
-    with (
-        patch("kinito.speech.os.path.isfile", return_value=False),
-        patch.object(speech, "_run_pyttsx3_fallback", return_value=True) as fallback,
-    ):
-        assert speech._run_tts("Hello", speech_epoch=1) is False
-    fallback.assert_not_called()
+    play_wav.assert_not_called()
 
 
 def test_scale_wav_pcm_softens_int16():
-    import numpy as np
-
     samples = np.array([10000, -10000, 0], dtype=np.int16)
     scaled = SpeechMixin._scale_wav_pcm(samples, 0.4)
     assert scaled.dtype == np.int16
@@ -445,8 +540,6 @@ def test_scale_wav_pcm_softens_int16():
 
 
 def test_play_tts_wav_applies_configured_volume(speech):
-    import numpy as np
-
     speech._tts_volume = 40
     speech._speech_epoch = 1
     samples = np.array([1000, -1000], dtype=np.int16)
@@ -476,6 +569,16 @@ def test_stop_active_tts_stops_sounddevice(speech):
         speech._stop_active_tts()
     stop.assert_called_once()
     assert speech._tts_sd_active is False
+
+
+def test_run_tts_skips_pyttsx3_when_interrupted(speech):
+    speech._speech_epoch = 2
+    with (
+        patch("kinito.speech.os.path.isfile", return_value=False),
+        patch.object(speech, "_run_pyttsx3_fallback", return_value=True) as fallback,
+    ):
+        assert speech._run_tts("Hello", speech_epoch=1) is False
+    fallback.assert_not_called()
 
 
 def test_play_bubble_sfx_uses_tts_volume(speech):
@@ -561,6 +664,7 @@ def test_interrupt_speech_closes_orphan_bubble(speech):
     speech._stop_active_tts = MagicMock()
     speech._has_active_speech_bubble = MagicMock(return_value=True)
     speech._close_speech_bubble_impl = MagicMock()
+    speech._chat_mode = False
     speech._awaiting_response = False
 
     speech.interrupt_speech()
@@ -573,7 +677,20 @@ def test_interrupt_speech_keeps_interactive_bubble(speech):
     speech._stop_active_tts = MagicMock()
     speech._has_active_speech_bubble = MagicMock(return_value=True)
     speech._close_speech_bubble_impl = MagicMock()
+    speech._chat_mode = False
     speech._awaiting_response = True
+
+    speech.interrupt_speech()
+
+    speech._close_speech_bubble_impl.assert_not_called()
+
+
+def test_interrupt_speech_keeps_chat_bubble(speech):
+    speech._cancel_bubble_close_timer = MagicMock()
+    speech._stop_active_tts = MagicMock()
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+    speech._close_speech_bubble_impl = MagicMock()
+    speech._chat_mode = True
 
     speech.interrupt_speech()
 
@@ -652,28 +769,6 @@ def test_close_speech_bubble_cancels_response_timeout(speech):
     assert speech._response_timeout_generation == 2
 
 
-def test_close_speech_bubble_invalidates_stale_show_callback(speech):
-    speech._speech_epoch = 1
-    speech._awaiting_response = True
-    speech.speech_bubble = MagicMock()
-    speech.speech_bubble.winfo_exists.return_value = True
-    speech._stop_active_tts = MagicMock()
-    speech.play_sfx = MagicMock()
-    speech._cancel_bubble_close_timer = MagicMock()
-    speech._cancel_response_timeout_timer = MagicMock()
-
-    speech.close_speech_bubble()
-
-    assert speech._speech_epoch == 2
-    speech.play_sfx.reset_mock()
-    speech.show_speech_bubble(dlg.MENU_PROMPT, speech_epoch=1)
-    speech.play_sfx.assert_not_called()
-
-
-def test_bubble_close_label_is_multiply_sign(speech):
-    assert speech.BUBBLE_CLOSE_LABEL == "\u00d7"
-
-
 @pytest.mark.parametrize(
     "text,question,expected",
     [
@@ -686,3 +781,90 @@ def test_bubble_close_label_is_multiply_sign(speech):
 )
 def test_infer_talk_sprite_mode(speech, text, question, expected):
     assert speech._infer_talk_sprite_mode(text, question=question) == expected
+
+
+def test_bubble_screen_size_ignores_inflated_winfo(speech):
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_reqwidth.return_value = 200
+    speech.speech_bubble.winfo_reqheight.return_value = 100
+    speech.speech_bubble.winfo_width.return_value = 900
+    speech.speech_bubble.winfo_height.return_value = 700
+
+    assert speech._bubble_screen_size() == (200, 100)
+
+
+def test_focus_bubble_entry_raises_after_focus(speech):
+    entry = MagicMock()
+    entry.winfo_exists.return_value = True
+    entry.cget.return_value = "normal"
+    entry.focus_get.return_value = None
+    speech._speech_bubble_entry = entry
+    speech._raise_active_speech_bubble = MagicMock()
+
+    speech._focus_bubble_entry(force=True)
+
+    entry.focus_set.assert_called_once()
+    speech._raise_active_speech_bubble.assert_called_once()
+
+
+def test_raise_active_speech_bubble_uses_keep_on_top(speech):
+    speech._keep_assistant_on_top = MagicMock()
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+    speech._speech_bubble_ready = True
+
+    speech._raise_active_speech_bubble()
+
+    speech._keep_assistant_on_top.assert_called_once()
+
+
+def test_reveal_speech_bubble_prepaints_off_screen(speech):
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+    speech._speech_bubble_ready = False
+    speech._sync_kinito_screen_position = MagicMock()
+    speech._fit_speech_bubble_to_content = MagicMock()
+    speech._bubble_screen_size = MagicMock(return_value=(220, 140))
+    speech.position_speech_bubble = MagicMock()
+    speech._focus_bubble_entry = MagicMock()
+    speech._raise_active_speech_bubble = MagicMock()
+    speech._raise_screen_effect_overlays = MagicMock()
+    speech.root = MagicMock()
+    bubble = MagicMock()
+    speech.speech_bubble = bubble
+
+    speech._reveal_speech_bubble()
+
+    assert bubble.geometry.call_count >= 1
+    bubble.geometry.assert_any_call(f"220x140{speech.BUBBLE_OFF_SCREEN_GEOMETRY}")
+    bubble.deiconify.assert_called_once()
+    assert bubble.update.call_count >= 1
+    assert speech._speech_bubble_ready is True
+    assert speech._fit_speech_bubble_to_content.call_count >= 2
+    speech.position_speech_bubble.assert_called_once_with(force=True)
+    bubble.attributes.assert_any_call("-alpha", 0.0)
+    bubble.attributes.assert_any_call("-alpha", 1.0)
+    speech._raise_screen_effect_overlays.assert_called_once()
+    speech._focus_bubble_entry.assert_called_once_with(force=True)
+    speech._raise_active_speech_bubble.assert_called_once()
+
+
+def test_reveal_speech_bubble_skips_offscreen_when_already_ready(speech):
+    speech._has_active_speech_bubble = MagicMock(return_value=True)
+    speech._speech_bubble_ready = True
+    speech.position_speech_bubble = MagicMock()
+    speech.speech_bubble = MagicMock()
+
+    speech._reveal_speech_bubble()
+
+    speech.speech_bubble.deiconify.assert_not_called()
+    speech.position_speech_bubble.assert_called_once_with(force=True)
+
+
+def test_position_speech_bubble_waits_until_ready(speech):
+    speech.speech_bubble = MagicMock()
+    speech.speech_bubble.winfo_exists.return_value = True
+    speech._speech_bubble_ready = False
+    speech.root = MagicMock()
+
+    speech.position_speech_bubble()
+
+    speech.speech_bubble.geometry.assert_not_called()

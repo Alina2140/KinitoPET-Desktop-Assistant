@@ -1,4 +1,4 @@
-"""Curated Kinito facts plus library-backed trivia via randfacts."""
+﻿"""Curated Kinito facts plus library-backed trivia via randfacts."""
 
 import random
 
@@ -109,11 +109,79 @@ KINITO_FACTS = [
 # Backward-compatible alias for tests and imports.
 FACTS = KINITO_FACTS
 
+_RECENT_FUN_FACTS: list[str] = []
+_MAX_RECENT_FUN_FACTS = 12
+_RANDFACT_ATTEMPTS = 8
 
-def get_random_fact() -> str:
-    """Return a fun fact, ~33% from Kinito pool and ~67% from randfacts."""
-    if KINITO_FACTS and (randfacts is None or random.random() < KINITO_FACT_WEIGHT):
-        return random.choice(KINITO_FACTS)
-    if randfacts is not None:
-        return randfacts.get_fact()
-    return random.choice(KINITO_FACTS)
+# Phrases randfacts (and similar pools) repeat too often — skip when alternatives exist.
+_FUN_FACT_OVERUSED_PHRASES = (
+    "immortal jellyfish",
+    "turritopsis",
+    "revert to its juvenile",
+    "live forever by reverting",
+)
+
+
+def _is_overused_fun_fact(text: str) -> bool:
+    """Return True for cliché facts that appear too often in external fact pools."""
+    lowered = text.casefold()
+    return any(phrase in lowered for phrase in _FUN_FACT_OVERUSED_PHRASES)
+
+
+def _remember_fun_fact(fact: str) -> str:
+    """Track recent facts so the pool and randfacts rotate more."""
+    global _RECENT_FUN_FACTS
+    _RECENT_FUN_FACTS.append(fact)
+    if len(_RECENT_FUN_FACTS) > _MAX_RECENT_FUN_FACTS:
+        _RECENT_FUN_FACTS = _RECENT_FUN_FACTS[-_MAX_RECENT_FUN_FACTS:]
+    return fact
+
+
+def _choose_kinito_fact() -> str:
+    """Pick from KINITO_FACTS while avoiding very recent repeats when possible."""
+    pool = [fact for fact in KINITO_FACTS if fact not in _RECENT_FUN_FACTS]
+    if not pool:
+        pool = list(KINITO_FACTS)
+    return _remember_fun_fact(random.choice(pool))
+
+
+def _fetch_randfact() -> str | None:
+    """Return a randfacts line, skipping recent/overused picks when possible."""
+    if randfacts is None:
+        return None
+    fallback: str | None = None
+    for _ in range(_RANDFACT_ATTEMPTS):
+        try:
+            fact = randfacts.get_fact()
+        except Exception:
+            return None
+        if fact in _RECENT_FUN_FACTS:
+            fallback = fallback or fact
+            continue
+        if _is_overused_fun_fact(fact):
+            fallback = fallback or fact
+            continue
+        return _remember_fun_fact(fact)
+    return _remember_fun_fact(fallback) if fallback else None
+
+
+def get_random_fact(*, kinito_weight: float | None = None) -> str:
+    """Return a fun fact, mostly from randfacts with a Kinito-pool share.
+
+    *kinito_weight* overrides ``KINITO_FACT_WEIGHT`` when provided (e.g. seasonal).
+    """
+    weight = KINITO_FACT_WEIGHT if kinito_weight is None else max(0.0, min(1.0, float(kinito_weight)))
+    if KINITO_FACTS and (randfacts is None or random.random() < weight):
+        return _choose_kinito_fact()
+    rand_line = _fetch_randfact()
+    if rand_line:
+        return rand_line
+    if KINITO_FACTS:
+        return _choose_kinito_fact()
+    return "I wanted to share a fun fact, but my encyclopedia is empty."
+
+
+def reset_recent_fun_facts_for_tests() -> None:
+    """Clear recent-fact memory (unit tests only)."""
+    global _RECENT_FUN_FACTS
+    _RECENT_FUN_FACTS = []

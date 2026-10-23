@@ -1,8 +1,9 @@
-"""Rare fullscreen static glitch overlay and blue-screen flashes."""
+﻿"""Rare fullscreen static glitch overlay and blue-screen flashes."""
 
 import os
 import random
 import sys
+import time
 import tkinter as tk
 
 from PIL import Image, ImageTk
@@ -18,11 +19,13 @@ from kinito.tk_toplevels import (
 class GlitchMixin:
     """Brief screen static/distortion flashes during autonomous movement."""
 
-    GLITCH_CHANCE = 1 / 5000
-    GLITCH_DURATION_MS = 250
+    GLITCH_CHANCE = 1 / 1000
+    GLITCH_DURATION_MS = 2000
     GLITCH_NOISE_SCALE = 6
-    BLUE_SCREEN_CHANCE = 1 / 5000
-    BLUE_SCREEN_DURATION_MS = 250
+    GLITCH_COOLDOWN_SECONDS = 180
+    BLUE_SCREEN_CHANCE = 1 / 1000
+    BLUE_SCREEN_DURATION_MS = 2000
+    BLUE_SCREEN_COOLDOWN_SECONDS = 300
 
     def _overlay_virtual_screen_rect(self):
         """Return (x, y, width, height) covering the full virtual desktop."""
@@ -78,13 +81,17 @@ class GlitchMixin:
             return False
         if getattr(self, "_is_game_active", lambda: False)():
             return False
-        if self.paused or getattr(
-            self, "_is_position_locked_by_user", lambda: self.is_dragging
-        )():
+        if self.paused or getattr(self, "_is_position_locked_by_user", lambda: self.is_dragging)() or self._camera_active or self._browser_active:
             return False
-        if self._camera_active or self._browser_active:
+        last_at = getattr(self, "_last_glitch_at", 0.0)
+        if last_at > 0 and time.monotonic() - last_at < self.GLITCH_COOLDOWN_SECONDS:
             return False
-        if random.random() >= self.GLITCH_CHANCE:
+        chance = self.GLITCH_CHANCE
+        if getattr(self, "_special_days_enabled", True):
+            from content.special_days import seasonal_multiplier
+
+            chance *= seasonal_multiplier("glitch_mult")
+        if random.random() >= chance:
             return False
         self.root.after(0, self._flash_screen_glitch)
         return True
@@ -97,15 +104,19 @@ class GlitchMixin:
             return False
         if getattr(self, "_is_game_active", lambda: False)():
             return False
-        if self.paused or getattr(
-            self, "_is_position_locked_by_user", lambda: self.is_dragging
-        )():
-            return False
-        if self._camera_active or self._browser_active:
+        if self.paused or getattr(self, "_is_position_locked_by_user", lambda: self.is_dragging)() or self._camera_active or self._browser_active:
             return False
         if not os.path.isfile(crash_image_path):
             return False
-        if random.random() >= self.BLUE_SCREEN_CHANCE:
+        last_at = getattr(self, "_last_blue_screen_at", 0.0)
+        if last_at > 0 and time.monotonic() - last_at < self.BLUE_SCREEN_COOLDOWN_SECONDS:
+            return False
+        chance = self.BLUE_SCREEN_CHANCE
+        if getattr(self, "_special_days_enabled", True):
+            from content.special_days import seasonal_multiplier
+
+            chance *= seasonal_multiplier("blue_screen_mult")
+        if random.random() >= chance:
             return False
         self.root.after(0, self._flash_blue_screen)
         return True
@@ -122,7 +133,7 @@ class GlitchMixin:
             if self._screen_effects_enabled
             else dlg.SCREEN_EFFECTS_OFF_LINES
         )
-        self.speak(dlg.pick_line(lines))
+        self.speak(dlg.pick_line(lines), skip_ai=True)
 
     def _has_glitch_overlay(self) -> bool:
         window = getattr(self, "_glitch_window", None)
@@ -231,28 +242,41 @@ class GlitchMixin:
         if width < 1 or height < 1:
             return
 
-        noise_w = max(width // self.GLITCH_NOISE_SCALE, 1)
-        noise_h = max(height // self.GLITCH_NOISE_SCALE, 1)
-        noise = Image.effect_noise((noise_w, noise_h), random.randint(40, 70)).convert("RGB")
-        noise = noise.resize((width, height), Image.NEAREST)
-
-        self._glitch_window = self._make_overlay_window(x=x, y=y, width=width, height=height)
+        shown = False
         try:
-            self._glitch_window.attributes("-alpha", 0.28)
-        except tk.TclError:
-            pass
+            noise_w = max(width // self.GLITCH_NOISE_SCALE, 1)
+            noise_h = max(height // self.GLITCH_NOISE_SCALE, 1)
+            noise = Image.effect_noise((noise_w, noise_h), random.randint(40, 70)).convert(
+                "RGB"
+            )
+            noise = noise.resize((width, height), Image.NEAREST)
 
-        self._glitch_tk_image = ImageTk.PhotoImage(noise)
-        label = tk.Label(
-            self._glitch_window, image=self._glitch_tk_image, bd=0, highlightthickness=0
-        )
-        label.pack(fill="both", expand=True)
+            self._glitch_window = self._make_overlay_window(
+                x=x, y=y, width=width, height=height
+            )
+            try:
+                self._glitch_window.attributes("-alpha", 0.28)
+            except tk.TclError:
+                pass
 
-        self._raise_screen_effect_overlays()
-        self._glitch_hide_timer = self.root.after(
-            self.GLITCH_DURATION_MS,
-            self.hide_screen_glitch,
-        )
+            self._glitch_tk_image = ImageTk.PhotoImage(noise)
+            label = tk.Label(
+                self._glitch_window, image=self._glitch_tk_image, bd=0, highlightthickness=0
+            )
+            label.pack(fill="both", expand=True)
+
+            self._raise_screen_effect_overlays()
+            self._glitch_hide_timer = self.root.after(
+                self.GLITCH_DURATION_MS,
+                self.hide_screen_glitch,
+            )
+            shown = True
+            self._last_glitch_at = time.monotonic()
+        except Exception as exc:
+            print(f"Warning: screen glitch failed: {exc!r}", flush=True)
+        finally:
+            if not shown:
+                self.hide_screen_glitch()
 
     def _flash_blue_screen(self):
         """Show the BSOD on the primary monitor; black out other screens briefly."""
@@ -271,23 +295,32 @@ class GlitchMixin:
         if vw < 1 or vh < 1 or pw < 1 or ph < 1:
             return
 
-        # Full virtual desktop goes black; BSOD sits on top of the primary only.
-        self._crash_blackout_window = self._make_overlay_window(
-            x=vx, y=vy, width=vw, height=vh
-        )
+        shown = False
+        try:
+            # Full virtual desktop goes black; BSOD sits on top of the primary only.
+            self._crash_blackout_window = self._make_overlay_window(
+                x=vx, y=vy, width=vw, height=vh
+            )
 
-        if crash_img.size != (pw, ph):
-            crash_img = crash_img.resize((pw, ph), Image.Resampling.LANCZOS)
+            if crash_img.size != (pw, ph):
+                crash_img = crash_img.resize((pw, ph), Image.Resampling.LANCZOS)
 
-        self._crash_window = self._make_overlay_window(x=px, y=py, width=pw, height=ph)
-        self._crash_tk_image = ImageTk.PhotoImage(crash_img)
-        label = tk.Label(
-            self._crash_window, image=self._crash_tk_image, bd=0, highlightthickness=0
-        )
-        label.pack(fill="both", expand=True)
+            self._crash_window = self._make_overlay_window(x=px, y=py, width=pw, height=ph)
+            self._crash_tk_image = ImageTk.PhotoImage(crash_img)
+            label = tk.Label(
+                self._crash_window, image=self._crash_tk_image, bd=0, highlightthickness=0
+            )
+            label.pack(fill="both", expand=True)
 
-        self._raise_screen_effect_overlays()
-        self._crash_hide_timer = self.root.after(
-            self.BLUE_SCREEN_DURATION_MS,
-            self.hide_blue_screen,
-        )
+            self._raise_screen_effect_overlays()
+            self._crash_hide_timer = self.root.after(
+                self.BLUE_SCREEN_DURATION_MS,
+                self.hide_blue_screen,
+            )
+            shown = True
+            self._last_blue_screen_at = time.monotonic()
+        except Exception as exc:
+            print(f"Warning: blue screen flash failed: {exc!r}", flush=True)
+        finally:
+            if not shown:
+                self.hide_blue_screen()

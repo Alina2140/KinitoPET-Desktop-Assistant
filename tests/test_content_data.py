@@ -9,7 +9,13 @@ from content.allowed_sites import ALLOWED_SITES
 from content.app_lines import APP_AWARE_IDLE_LINES, APP_AWARE_NUDGE_LINES
 from content.browser_lines import BROWSER_LINES, HORROR_BROWSER_LINES
 from content.camera_lines import CAMERA_LINES
-from content.facts import FACTS, KINITO_FACT_WEIGHT, KINITO_FACTS, get_random_fact
+from content.facts import (
+    FACTS,
+    KINITO_FACT_WEIGHT,
+    KINITO_FACTS,
+    get_random_fact,
+    reset_recent_fun_facts_for_tests,
+)
 from content.fancy_lines import FANCY_LINES
 from content.goodbye_lines import GOODBYE_LINES
 from content.hug_lines import HUG_ASK_LINES, HUG_LINES
@@ -18,8 +24,9 @@ from content.nudge_lines import (
     CREEPY_NUDGE_LINES,
     PLAY_INVITE_NUDGE_LINES,
     WELLNESS_NUDGE_LINES,
+    pick_nudge_line,
 )
-from content.poems import POEMS
+from content.poems import POEMS, pick_poem
 from content.startup import STARTUP_LINES, STARTUP_LINES_WITH_NAME
 from content.stories import STORIES
 from content.wisdom import WISDOM, format_wisdom_line, get_random_wisdom, load_quotes
@@ -153,17 +160,68 @@ def test_kinito_fact_weight_is_in_target_range():
 
 
 def test_get_random_fact_uses_kinito_pool_when_weight_hits():
+    reset_recent_fun_facts_for_tests()
     with patch("content.facts.random.random", return_value=0.0):
         with patch("content.facts.random.choice", return_value=KINITO_FACTS[0]) as choice:
             assert get_random_fact() == KINITO_FACTS[0]
-            choice.assert_called_once_with(KINITO_FACTS)
+            args, _kwargs = choice.call_args
+            assert set(args[0]) <= set(KINITO_FACTS)
 
 
 def test_get_random_fact_uses_randfacts_when_weight_misses():
+    reset_recent_fun_facts_for_tests()
     with patch("content.facts.random.random", return_value=0.99):
         with patch("content.facts.randfacts.get_fact", return_value="library fact") as get_fact:
             assert get_random_fact() == "library fact"
             get_fact.assert_called_once()
+
+
+def test_get_random_fact_respects_seasonal_weight_override():
+    reset_recent_fun_facts_for_tests()
+    with patch("content.facts.random.random", return_value=0.5):
+        with patch("content.facts.random.choice", return_value=KINITO_FACTS[0]) as choice:
+            assert get_random_fact(kinito_weight=0.6) == KINITO_FACTS[0]
+            args, _kwargs = choice.call_args
+            assert set(args[0]) <= set(KINITO_FACTS)
+
+
+def test_get_random_fact_avoids_immediate_repeat_from_kinito_pool():
+    reset_recent_fun_facts_for_tests()
+    jelly = KINITO_FACTS[17]
+    other = KINITO_FACTS[0]
+    with patch("content.facts.random.random", return_value=0.0):
+        with patch("content.facts.random.choice", side_effect=[jelly, other]) as choice:
+            assert get_random_fact() == jelly
+            assert get_random_fact() == other
+            second_pool = choice.call_args_list[1].args[0]
+            assert jelly not in second_pool
+
+
+def test_pick_nudge_line_respects_creepy_chance():
+    with patch("content.nudge_lines.random.random", return_value=0.1):
+        with patch("content.nudge_lines.pick_line", side_effect=lambda pool: pool[0]) as pick:
+            line = pick_nudge_line(creepy_chance=0.8)
+    assert line == CREEPY_NUDGE_LINES[0]
+    pick.assert_called_once_with(CREEPY_NUDGE_LINES)
+
+
+def test_pick_nudge_line_prefers_wellness_when_creepy_chance_low():
+    with patch("content.nudge_lines.random.random", return_value=0.4):
+        with patch("content.nudge_lines.pick_line", side_effect=lambda pool: pool[0]) as pick:
+            line = pick_nudge_line(creepy_chance=0.2)
+    assert line == WELLNESS_NUDGE_LINES[0]
+    pick.assert_called_once_with(WELLNESS_NUDGE_LINES)
+
+
+def test_pick_poem_can_bias_to_theme():
+    themed = [poem for poem in POEMS if "christmas" in (poem.get("themes") or ())]
+    assert themed
+    with patch("content.poems.random.random", return_value=0.0):
+        with patch("content.poems.random.choice", side_effect=lambda pool: pool[0]) as choice:
+            poem = pick_poem(("christmas",), theme_bias=1.0)
+    assert poem in themed
+    choice.assert_called_once()
+    assert all("christmas" in (item.get("themes") or ()) for item in choice.call_args[0][0])
 
 
 def test_dialogue_line_pools_not_empty():

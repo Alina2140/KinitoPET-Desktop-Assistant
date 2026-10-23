@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+﻿from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -8,7 +8,6 @@ from content.questions import QUESTIONS
 from content.stories import STORIES
 from kinito.assets import newbeginnings_file_path
 from kinito.features.content import ContentMixin
-from kinito.memory.questions import MemoryQuestion
 from kinito.speech import SpeechMixin
 
 
@@ -29,12 +28,21 @@ def content():
     stub.talking = False
     stub._fancy_mode = False
     stub.tk_img_fancy = "fancy"
+    stub.tk_img_normal = "normal"
     stub.change_sprite = MagicMock()
+    stub._chat_mode = False
+    stub._awaiting_response = False
+    stub._focus_mode = False
+    stub._hug_mode = False
+    stub._preserve_sprite = False
+    stub.dragging = False
+    stub._is_game_active = MagicMock(return_value=False)
     for name in (
         "print_current_datetime",
         "offer_browser_visit",
         "offer_random_music",
         "offer_game_picker",
+        "offer_chat",
         "ask_for_hug",
         "spontaneous_nap",
     ):
@@ -81,23 +89,18 @@ def test_speak_random_question_can_use_memory_followup(content):
     memory = MagicMock()
     memory.has_any_memory.return_value = True
     content._memory = memory
-    spec = MemoryQuestion("Hey Alex, plans?", "textbox", "weekend_plans")
+    spec = MagicMock(
+        question="Alex, got any plans?",
+        ui="textbox",
+        topic="weekend_plans",
+        save_as="note",
+    )
     content.ask_memory_question = MagicMock()
-    with (
-        patch("kinito.features.content.random.random", return_value=0.1),
-        patch("kinito.features.content.pick_template_followup", return_value=spec),
-    ):
-        content.speak_random_question()
+    with patch("kinito.features.content.random.random", return_value=0.0):
+        with patch("kinito.features.content.pick_template_followup", return_value=spec):
+            content.speak_random_question()
     content.ask_memory_question.assert_called_once_with(spec)
     content.speak.assert_not_called()
-
-
-def test_available_questions_skip_answered_markers(content):
-    memory = MagicMock()
-    memory.is_question_answered.side_effect = lambda q: dlg.NAME_QUESTION in q
-    content._memory = memory
-    pool = content._available_spontaneous_questions()
-    assert all(dlg.NAME_QUESTION not in q for q in pool)
 
 
 def test_available_questions_skip_camera_while_active(content):
@@ -109,7 +112,7 @@ def test_available_questions_skip_camera_while_active(content):
 
 def test_say_random_poem_whisper(content):
     poem = {"text": "secret poem", "whisper": True, "play_music": False}
-    with patch("kinito.features.content.random.choice", return_value=poem):
+    with patch("kinito.features.content.pick_poem", return_value=poem):
         content.say_random_poem()
     content.speak_whisper.assert_called_once_with(
         "secret poem",
@@ -121,7 +124,7 @@ def test_say_random_poem_whisper(content):
 
 def test_say_random_poem_plays_music_and_uses_normal_voice(content):
     poem = {"text": "loud poem", "whisper": False, "play_music": True}
-    with patch("kinito.features.content.random.choice", return_value=poem):
+    with patch("kinito.features.content.pick_poem", return_value=poem):
         content.say_random_poem()
     content.play_mp3.assert_not_called()
     content.speak.assert_called_once_with(
@@ -182,3 +185,59 @@ def test_run_fancy_idle_cycles_sprites_during_speech(content):
     assert "fancy2" in sprite_calls
     assert content.change_sprite.call_count >= 3
     assert content._fancy_mode is False
+    assert sprite_calls[-1] == "normal"
+
+
+def test_run_fancy_idle_aborts_when_speech_never_starts(content):
+    content._magician_sprites = ("fancy", "fancy2")
+    content.tk_img_fancy_2 = "fancy2"
+    content.perform_fancy_show = MagicMock()
+    content.FANCY_SPEECH_START_TIMEOUT = 0.9
+
+    with patch("kinito.features.content.time.sleep", return_value=None):
+        content._run_fancy_idle()
+
+    assert content._fancy_mode is False
+    assert content.change_sprite.call_args_list[-1].args[0] == "normal"
+
+
+def test_run_fancy_idle_aborts_when_response_pending_before_speech(content):
+    content._magician_sprites = ("fancy", "fancy2")
+    content.tk_img_fancy_2 = "fancy2"
+    content.perform_fancy_show = MagicMock()
+
+    def fake_sleep(_seconds):
+        content._awaiting_response = True
+
+    with patch("kinito.features.content.time.sleep", side_effect=fake_sleep):
+        content._run_fancy_idle()
+
+    assert content._fancy_mode is False
+    assert content.change_sprite.call_args_list[-1].args[0] == "normal"
+
+
+def test_run_fancy_idle_skips_when_busy(content):
+    content._can_initiate_spontaneous_speech.return_value = False
+    content.perform_fancy_show = MagicMock()
+    content._run_fancy_idle()
+    content.perform_fancy_show.assert_not_called()
+    assert content._fancy_mode is False
+
+
+def test_stop_fancy_idle_clears_mode_and_sprite(content):
+    content._fancy_mode = True
+    content._stop_fancy_idle()
+    assert content._fancy_mode is False
+    content.change_sprite.assert_called_once_with("normal")
+
+
+def test_perform_fancy_show_uses_speech_accompaniment(content):
+    with patch("kinito.features.content.random.choice", return_value="ta-da"):
+        content.perform_fancy_show()
+    content.speak.assert_called_once_with(
+        "ta-da",
+        skip_ai=True,
+        speech_accompaniment_path=ANY,
+        speech_accompaniment_volume=ContentMixin.POEM_BACKGROUND_MUSIC_VOLUME,
+    )
+    content.play_mp3.assert_not_called()

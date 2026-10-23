@@ -5,6 +5,8 @@ import random
 
 def pick_line(lines):
     """Return a random line from a list of dialogue variants."""
+    if not lines:
+        return ""
     return random.choice(lines)
 
 
@@ -887,6 +889,12 @@ DAY_BAD_LINES = [
     "I'm sorry. Let me cheer you up. I hate seeing you unhappy.",
     "Rough day? Stay on the desktop with me. It's safer here.",
 ]
+DAY_NEUTRAL_LINES = [
+    "Neutral day noted. Soft middle ground. I'm still here.",
+    "Okay! Not great, not terrible. Perfectly ordinary company accepted.",
+    "Meh vibes? Fair. Flat days still count. So do I.",
+    "In-between day. Soft holding pattern. Friendship stays on.",
+]
 COLOR_RESPONSES = [
     "Nice choice! {response} is a wonderful color! I'll remember it forever.",
     "{response}! That's a bold pick. I like your style. I like you.",
@@ -1242,6 +1250,7 @@ TIME_RESPONSES = [
 
 # Button labels
 BUTTON_GOOD = "Good"
+BUTTON_NEUTRAL = "Neutral"
 BUTTON_BAD = "Bad"
 BUTTON_YES = "Yes"
 BUTTON_NO = "No"
@@ -1869,6 +1878,12 @@ ENERGY_LOW_LINES = [
     "Low battery noted. No pressure from me. Mostly.",
     "Gentle day then. Soft company only.",
 ]
+ENERGY_NEUTRAL_LINES = [
+    "Medium battery noted. Soft cruise mode.",
+    "Not high, not low. Steady vibes. I can match that.",
+    "Neutral energy! Perfect for ordinary desktop friendship.",
+    "Okay energy. No rockets, no naps. Soft middle gear.",
+]
 
 FOCUS_BUSY_LINES = [
     "Busy day! I'll try not to interrupt. Softly.",
@@ -1882,6 +1897,12 @@ FOCUS_CHILL_LINES = [
     "Chill mode! Perfect for desktop friendship.",
     "Relaxed day noted. We can wander a little.",
     "Chill day! Excellent. Nothing urgent. Except friendship.",
+]
+FOCUS_NEUTRAL_LINES = [
+    "Normal day noted. Soft middle of the schedule.",
+    "Neither packed nor empty. Balanced. Softly.",
+    "Neutral focus day. I'll keep interruptions gentle.",
+    "Okay pace! Not hectic, not idle. Friendship fits either way.",
 ]
 
 PLANS_TONIGHT_RESPONSES = [

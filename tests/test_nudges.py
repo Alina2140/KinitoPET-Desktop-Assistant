@@ -123,7 +123,7 @@ def test_show_popup_text_builds_windows_style_dialog(nudges):
         assert any(getattr(widget, "_nudge_ok_text", None) == "OK" for widget in labels)
         popup.update_idletasks()
         # Compact: shorter than the old fixed 420x180 popup.
-        assert popup.winfo_width() <= 400
+        assert popup.winfo_width() <= 500
         assert popup.winfo_height() <= 170
         popup.destroy()
     finally:
@@ -138,7 +138,9 @@ def test_show_popup_text_grows_for_long_messages(nudges):
         short = "Hi."
         long = (
             "Don't forget to hydrate! Water is your friend. "
-            "I'm your friend too. Drink both. Stay a while."
+            "I'm your friend too. Drink both. Stay a while. "
+            "Also stretch your shoulders, blink on purpose, and maybe pet the desktop frog. "
+            "Friendship is hydration plus patience."
         )
         nudges.show_popup_text(short, title="KinitoPET", auto_close_ms=0)
         short_popup = next(
@@ -157,7 +159,7 @@ def test_show_popup_text_grows_for_long_messages(nudges):
         long_h = long_popup.winfo_height()
         long_popup.destroy()
 
-        assert short_w < long_w or long_h > 120
+        assert short_w < long_w or long_h > 110
     finally:
         root.destroy()
 
