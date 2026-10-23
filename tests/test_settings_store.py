@@ -5,7 +5,12 @@ import os
 
 import pytest
 
-from kinito.settings_store import SettingsStore
+from kinito.settings_store import (
+    SettingsStore,
+    clamp_music_volume,
+    clamp_sfx_volume,
+    clamp_tts_volume,
+)
 
 
 @pytest.fixture
@@ -16,6 +21,27 @@ def settings_dir(tmp_path):
 @pytest.fixture
 def store(settings_dir):
     return SettingsStore(directory=settings_dir)
+
+
+def test_clamp_tts_volume():
+    assert clamp_tts_volume(40) == 40
+    assert clamp_tts_volume(150) == 100
+    assert clamp_tts_volume(-5) == 0
+    assert clamp_tts_volume("nope") == 100
+
+
+def test_clamp_sfx_volume():
+    assert clamp_sfx_volume(40) == 40
+    assert clamp_sfx_volume(150) == 100
+    assert clamp_sfx_volume(-5) == 0
+    assert clamp_sfx_volume("nope") == 100
+
+
+def test_clamp_music_volume():
+    assert clamp_music_volume(40) == 40
+    assert clamp_music_volume(150) == 100
+    assert clamp_music_volume(-5) == 0
+    assert clamp_music_volume("nope") == 75
 
 
 def test_defaults_when_missing(store):
@@ -34,6 +60,7 @@ def test_defaults_when_missing(store):
     assert store.get("mood_system_enabled") is True
     assert store.get("color_guess_voice_enabled") is True
     assert store.get_int("tts_volume") == 100
+    assert store.get_int("sfx_volume") == 100
     assert store.get_int("music_volume") == 75
     assert store.get_music_folder() == ""
 
@@ -52,6 +79,7 @@ def test_update_and_reload_roundtrip(store, settings_dir):
         player_focus_enabled=False,
         music_comments_enabled=False,
         tts_volume=40,
+        sfx_volume=70,
         music_volume=55,
         music_folder=r"C:\Music",
         music_shuffle=True,
@@ -72,6 +100,7 @@ def test_update_and_reload_roundtrip(store, settings_dir):
     assert reloaded.get("music_comments_enabled") is False
     assert reloaded.get("music_shuffle") is True
     assert reloaded.get_int("tts_volume") == 40
+    assert reloaded.get_int("sfx_volume") == 70
     assert reloaded.get_int("music_volume") == 55
     assert reloaded.get_music_folder() == r"C:\Music"
     assert reloaded.get("mood_system_enabled") is False
@@ -95,13 +124,41 @@ def test_ignores_unknown_keys(store):
     assert raw["screen_effects_enabled"] is False
 
 
-def test_int_and_music_folder_roundtrip(store, settings_dir):
-    from kinito.settings_store import clamp_tts_volume
+def test_tts_volume_clamped(store):
+    store.update(tts_volume=250)
+    assert store.get_int("tts_volume") == 100
+    store.update(tts_volume=-10)
+    assert store.get_int("tts_volume") == 0
 
+
+def test_sfx_volume_clamped(store):
+    store.update(sfx_volume=250)
+    assert store.get_int("sfx_volume") == 100
+    store.update(sfx_volume=-10)
+    assert store.get_int("sfx_volume") == 0
+
+
+def test_sfx_channel_volumes_roundtrip(store, settings_dir):
+    assert store.get_sfx_channel_volumes() == {}
+    store.set_sfx_channel_volume("surf", 40)
+    store.set_sfx_channel_volume("nope", 10)  # unknown ignored
+    assert store.get_sfx_channel_volumes() == {"surf": 40}
+    reloaded = SettingsStore(directory=settings_dir)
+    assert reloaded.get_sfx_channel_volumes() == {"surf": 40}
+    reloaded.set_sfx_channel_volumes({"reading": 70, "surf": 250, "bogus": 1})
+    assert reloaded.get_sfx_channel_volumes() == {"reading": 70, "surf": 100}
+
+
+def test_int_and_music_folder_roundtrip(store, settings_dir):
     store.update(tts_volume=40, music_volume=20, music_folder=r"C:\Music")
     reloaded = SettingsStore(directory=settings_dir)
     assert reloaded.get_int("tts_volume") == 40
     assert reloaded.get_int("music_volume") == 20
     assert reloaded.get_music_folder() == r"C:\Music"
-    assert clamp_tts_volume(150) == 100
-    assert clamp_tts_volume(-3) == 0
+
+
+def test_music_volume_clamped(store):
+    store.update(music_volume=250)
+    assert store.get_int("music_volume") == 100
+    store.update(music_volume=-10)
+    assert store.get_int("music_volume") == 0

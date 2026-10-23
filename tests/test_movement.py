@@ -121,14 +121,14 @@ def test_stop_audio_for_drag_keeps_user_music(movement):
     movement.stop_speech_accompaniment_music.assert_not_called()
 
 
-def test_stop_audio_for_drag_stops_speech_accompaniment(movement):
+def test_stop_audio_for_drag_keeps_speech_accompaniment(movement):
     movement._speech_accompaniment_active = True
     movement.stop_speech_accompaniment_music = MagicMock()
     movement.stop_background_music = MagicMock()
 
     movement._stop_audio_for_drag()
 
-    movement.stop_speech_accompaniment_music.assert_called_once()
+    movement.stop_speech_accompaniment_music.assert_not_called()
     movement.stop_background_music.assert_not_called()
 
 
@@ -753,22 +753,24 @@ def test_idle_wait_before_next_action_in_valid_ranges(movement):
         assert MovementMixin.IDLE_WAIT_LONG[0] <= wait <= MovementMixin.IDLE_WAIT_LONG[1]
 
 
-def test_smooth_movement_calls_random_question(movement):
+def test_smooth_movement_calls_mood_idle_line(movement):
     movement._startup_complete = True
     movement._allow_random_questions = True
     movement._focus_mode = False
     movement._is_game_active = MagicMock(return_value=False)
+    movement.speak_idle_mood_line = MagicMock(side_effect=lambda: setattr(movement, "_running", False))
     movement.perform_random_menu_action = MagicMock()
-    movement.speak_random_question = MagicMock(side_effect=lambda: setattr(movement, "_running", False))
+    movement.speak_random_question = MagicMock()
     movement._idle_wait_before_next_action = MagicMock(return_value=0)
 
     with (
-        patch("kinito.movement.random.random", side_effect=[0.1, 0.5, 0.9]),
+        patch("kinito.movement.random.random", side_effect=[0.1, 0.5, 0.1]),
         patch("kinito.movement.time.sleep"),
     ):
         movement.smooth_movement()
 
-    movement.speak_random_question.assert_called_once()
+    movement.speak_idle_mood_line.assert_called_once()
+    movement.speak_random_question.assert_not_called()
 
 
 def test_smooth_movement_waits_while_reading_idle(movement):
@@ -1184,10 +1186,10 @@ def test_update_mouse_attention_outside_skips_when_chance_misses(movement):
 def test_mouse_follow_target_uses_longer_range_when_flagged(movement):
     _configure_mouse_attention(movement)
     movement._mouse_follow_long_range = True
-    target_x, target_y = movement._mouse_follow_target(1100, 240)
-    # Center starts at 120; dx exceeds OUTSIDE_MAX so hop length is capped.
+    target_x, target_y = movement._mouse_follow_target(900, 240)
+    # Center starts at 120; full dx would be 780, capped at OUTSIDE_MAX when farther.
     capped = float(movement.MOUSE_FOLLOW_OUTSIDE_MAX_PX)
-    assert target_x == pytest.approx(100 + capped)
+    assert target_x == pytest.approx(100 + min(780.0, capped))
     assert target_y == pytest.approx(200)
 
 

@@ -91,7 +91,9 @@ def test_handle_response_routes_pending_memory_question(app):
     app.handle_response(dlg.BUTTON_NO)
     assert app._memory.is_topic_asked("jazz_followup")
     app.interrupt_speech.assert_called_once()
-    app._close_speech_bubble_impl.assert_called_once_with(clear_pending=False)
+    app._close_speech_bubble_impl.assert_called_once_with(
+        stop_tts=False, clear_pending=False
+    )
     app.speak.assert_called_once()
 
 

@@ -174,13 +174,10 @@ class MovementMixin:
         self._follow_speech_bubble_to_kinito(self.x, self.y)
 
     def _stop_audio_for_drag(self) -> None:
-        """Stop poem/ambient music on drag, but keep user-selected songs playing."""
+        """Stop ambient background music on drag, but keep sing/poem and user songs."""
         if getattr(self, "_user_music_path", None):
             return
-        if getattr(self, "_speech_accompaniment_active", False) and hasattr(
-            self, "stop_speech_accompaniment_music"
-        ):
-            self.stop_speech_accompaniment_music()
+        if getattr(self, "_speech_accompaniment_active", False):
             return
         if hasattr(self, "stop_background_music"):
             self.stop_background_music()

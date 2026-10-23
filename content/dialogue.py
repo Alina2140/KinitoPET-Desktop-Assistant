@@ -751,6 +751,33 @@ TTS_VOLUME_SET_LINES = [
     "TTS volume: {volume}%. Adjust anytime in Settings.",
 ]
 
+# Marker must be more specific than TTS_VOLUME_MARKER and registered first.
+SFX_VOLUME_MARKER = "sound effects volume"
+SFX_VOLUME_QUESTION = (
+    "Sound effects volume is {volume}% right now. Soft, normal, or loud?"
+)
+SFX_CHANNEL_VOLUME_QUESTION = (
+    "{label} sound effects volume is {volume}% right now. Soft, normal, or loud?"
+)
+SFX_VOLUME_MENU_MARKER = "which sound to adjust"
+SFX_VOLUME_MENU_QUESTION = (
+    "SFX volumes! Pick all sounds, or one effect — which sound to adjust?"
+)
+SFX_VOLUME_SOFT = 40
+SFX_VOLUME_NORMAL = 70
+SFX_VOLUME_LOUD = 100
+
+SFX_VOLUME_SET_LINES = [
+    "SFX volume set to {volume}%. Woosh and bomp, dialed in.",
+    "Okay! Sound effects at {volume}% now. Soft clicks. Soft boops.",
+    "Sound effects volume: {volume}%. Adjust anytime in Settings.",
+]
+SFX_CHANNEL_VOLUME_SET_LINES = [
+    "{label} set to {volume}%. Softly testing…",
+    "Okay! {label} at {volume}% now.",
+    "{label} volume: {volume}%. Dialed in.",
+]
+
 SPECIAL_DAYS_ON_LINES = [
     "Special days on! If the calendar looks festive, I might mention it. Softly.",
     "Holiday comments enabled. Birthdays for the world. And jokes. I like jokes.",
@@ -1323,6 +1350,18 @@ BUTTON_TTS_VOLUME = "TTS Volume"
 BUTTON_TTS_VOLUME_SOFT = "Soft"
 BUTTON_TTS_VOLUME_NORMAL = "Normal"
 BUTTON_TTS_VOLUME_LOUD = "Loud"
+BUTTON_SFX_VOLUME = "SFX Volume"
+BUTTON_SFX_ALL = "All Sounds"
+BUTTON_SFX_SURF = "Surf"
+BUTTON_SFX_MAGIC = "Magic"
+BUTTON_SFX_POEM = "Poem"
+BUTTON_SFX_BUBBLE_OPEN = "Bubble Open"
+BUTTON_SFX_BUBBLE_CLOSE = "Bubble Close"
+BUTTON_SFX_READING = "Reading"
+BUTTON_SFX_WOOSH = "Throw"
+BUTTON_SFX_BOMP = "Bomp"
+BUTTON_SFX_SNORING = "Snoring"
+BUTTON_SFX_TIMER = "Timer"
 BUTTON_MUSIC_FOLDER = "Music Folder"
 BUTTON_SPECIAL_DAYS = "Special Days"
 BUTTON_SPECIAL_DAYS_ON = "Special Days on"

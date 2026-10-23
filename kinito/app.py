@@ -93,26 +93,47 @@ def _open_sprite(path, fallback_path):
     return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
 
 
-def _load_look_around_sprites(paths, *, default_path, fallback):
+def _scale_pil_sprite(img, scale: float):
+    """Nearest-neighbor scale a PIL sprite (pixel art)."""
+    if img is None:
+        return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+    if abs(float(scale) - 1.0) < 0.02:
+        return img
+    size = getattr(img, "size", None)
+    if not size or len(size) < 2:
+        return img
+    width, height = int(size[0]), int(size[1])
+    return img.resize(
+        (max(1, int(round(width * scale))), max(1, int(round(height * scale)))),
+        Image.Resampling.NEAREST,
+    )
+
+
+def _photo_from_pil(img, scale: float = 1.0):
+    """Build a Tk PhotoImage from *img*, optionally DPI-scaled."""
+    return ImageTk.PhotoImage(_scale_pil_sprite(img, scale))
+
+
+def _load_look_around_sprites(paths, *, default_path, fallback, scale: float = 1.0):
     """Load non-default look-around sprites for a standing pose."""
     look_sprites = []
     for path in paths:
         if path == default_path:
             continue
         img = _open_sprite(path, fallback)
-        look_sprites.append(ImageTk.PhotoImage(img))
+        look_sprites.append(_photo_from_pil(img, scale))
     return tuple(look_sprites)
 
 
-def _load_direction_sprites(paths, *, fallback, center_image):
+def _load_direction_sprites(paths, *, fallback, center_image, scale: float = 1.0):
     """Map look-direction ids to PhotoImages from standing sprite filenames."""
-    direction_sprites = {"center": ImageTk.PhotoImage(center_image)}
+    direction_sprites = {"center": _photo_from_pil(center_image, scale)}
     for path in paths:
         direction = standing_direction_from_path(path)
         if direction is None or direction == "center":
             continue
         img = _open_sprite(path, fallback)
-        direction_sprites[direction] = ImageTk.PhotoImage(img)
+        direction_sprites[direction] = _photo_from_pil(img, scale)
     return direction_sprites
 
 
@@ -144,6 +165,8 @@ class FloatingAssistant(
     AUTO_WAKE_NAP_SECONDS = (45, 120)
     SCREEN_EDGE_MARGIN = 10
     SCREEN_BOUNDS_WATCH_MS = 750
+    # Asset pixels are authored for 96 DPI; scale up on denser monitors.
+    SPRITE_BASE_DPI = 96
 
     def __init__(self, root, image_path=None):
         """Build the window, load sprites, and start background worker threads."""
@@ -156,6 +179,8 @@ class FloatingAssistant(
         self.root.overrideredirect(True)
         self.root.attributes("-transparentcolor", "white")
         self.root.configure(bg="white")
+        self._sprite_draw_scale = 1.0
+        self._sprite_fallback_path = sprite_path_normal
 
         fallback = sprite_path_normal
         self.img_normal = _open_sprite(sprite_path_normal, fallback)
@@ -194,86 +219,11 @@ class FloatingAssistant(
         self.img_blush_left = _open_sprite(sprite_path_blush_left, fallback)
         self.img_blush_right = _open_sprite(sprite_path_blush_right, fallback)
         self.img_blush_down = _open_sprite(sprite_path_blush_down, fallback)
-        self.tk_img_normal = ImageTk.PhotoImage(self.img_normal)
-        self.tk_img_crouching = ImageTk.PhotoImage(self.img_crouching)
-        self._standing_look_sprites = _load_look_around_sprites(
-            list_standing_sprite_paths(crouch=False),
-            default_path=sprite_path_normal,
-            fallback=fallback,
-        )
-        self._crouching_look_sprites = _load_look_around_sprites(
-            list_standing_sprite_paths(crouch=True),
-            default_path=sprite_path_crouching,
-            fallback=fallback,
-        )
-        self._standing_dir_sprites = _load_direction_sprites(
-            list_standing_sprite_paths(crouch=False),
-            fallback=fallback,
-            center_image=self.img_normal,
-        )
-        self._crouching_dir_sprites = _load_direction_sprites(
-            list_standing_sprite_paths(crouch=True),
-            fallback=fallback,
-            center_image=self.img_crouching,
-        )
-        self.tk_img_idle = ImageTk.PhotoImage(self.img_idle)
-        self.tk_img_idle_2 = ImageTk.PhotoImage(self.img_idle_2)
-        self.tk_img_idle_2_page = ImageTk.PhotoImage(self.img_idle_2_page)
-        self.tk_img_idle_2_page_2 = ImageTk.PhotoImage(self.img_idle_2_page_2)
-        self.tk_img_idle_glasses = ImageTk.PhotoImage(self.img_idle_glasses)
-        self.tk_img_idle_glasses_2 = ImageTk.PhotoImage(self.img_idle_glasses_2)
-        self.tk_img_idle_glasses_2_page = ImageTk.PhotoImage(self.img_idle_glasses_2_page)
-        self.tk_img_idle_glasses_2_page_2 = ImageTk.PhotoImage(
-            self.img_idle_glasses_2_page_2
-        )
-        self.tk_img_magic = ImageTk.PhotoImage(self.img_magic)
-        self.tk_img_magic_2 = ImageTk.PhotoImage(self.img_magic_2)
-        self.tk_img_dizzy = ImageTk.PhotoImage(self.img_dizzy)
-        self.tk_img_dizzy_2 = ImageTk.PhotoImage(self.img_dizzy_2)
-        self.tk_img_dizzy_3 = ImageTk.PhotoImage(self.img_dizzy_3)
-        self._reading_sprites = (self.tk_img_idle, self.tk_img_idle_2)
-        self._reading_page_sprites = (self.tk_img_idle_2_page, self.tk_img_idle_2_page_2)
-        self._reading_glasses_sprites = (
-            self.tk_img_idle_glasses,
-            self.tk_img_idle_glasses_2,
-        )
-        self._reading_glasses_page_sprites = (
-            self.tk_img_idle_glasses_2_page,
-            self.tk_img_idle_glasses_2_page_2,
-        )
-        self._magician_sprites = (self.tk_img_magic, self.tk_img_magic_2)
-        self._magician_frame = 0
-        self._dizzy_sprites = (
-            self.tk_img_dizzy,
-            self.tk_img_dizzy_2,
-            self.tk_img_dizzy_3,
-        )
-        self._dizzy_frame = 0
-        self.tk_img_surf_left = ImageTk.PhotoImage(
-            MovementMixin._flatten_sprite_on_white(self.img_surf_left)
-        )
-        self.tk_img_surf_right = ImageTk.PhotoImage(
-            MovementMixin._flatten_sprite_on_white(self.img_surf_right)
-        )
-        self.tk_img_sleep = ImageTk.PhotoImage(self.img_sleep)
-        self.tk_img_sleep3 = ImageTk.PhotoImage(self.img_sleep3)
-        self.tk_img_sleep2 = ImageTk.PhotoImage(self.img_sleep2)
-        self.tk_img_sleep1 = ImageTk.PhotoImage(self.img_sleep1)
-        self.tk_img_talking = ImageTk.PhotoImage(self.img_talking)
-        self.tk_img_talking2 = ImageTk.PhotoImage(self.img_talking2)
-        self.tk_img_thinking = ImageTk.PhotoImage(self.img_thinking)
-        self.tk_img_thinking2 = ImageTk.PhotoImage(self.img_thinking2)
-        self.tk_img_hug = ImageTk.PhotoImage(self.img_hug)
-        self.tk_img_hug2 = ImageTk.PhotoImage(self.img_hug2)
-        self.tk_img_hand_left = ImageTk.PhotoImage(self.img_hand_left)
-        self.tk_img_hand_right = ImageTk.PhotoImage(self.img_hand_right)
-        self.tk_img_drag_left = ImageTk.PhotoImage(self.img_drag_left)
-        self.tk_img_drag_right = ImageTk.PhotoImage(self.img_drag_right)
-        self.tk_img_blush_left = ImageTk.PhotoImage(self.img_blush_left)
-        self.tk_img_blush_right = ImageTk.PhotoImage(self.img_blush_right)
-        self.tk_img_blush_down = ImageTk.PhotoImage(self.img_blush_down)
         self._surf_render_cache = {}
         self._surf_tk_image = None
+        # Authored pixel size (96 DPI). Per-monitor awareness stops Windows from
+        # bitmap-stretching; nearest-neighbor upscale looked huge/blocky on large screens.
+        self._build_tk_sprites(1.0)
 
         self.panel = tk.Label(self.root, bg="white")
         self.panel.pack(side="top", anchor="n")
@@ -282,6 +232,8 @@ class FloatingAssistant(
         self.setup_focus_timer_countdown_button()
         self.setup_music_player()
         self._assistant_controls_extended = False
+        self._last_window_dpi = None
+        self._fixing_display_scale = False
 
         self.x = 0
         self.y = 0
@@ -350,6 +302,9 @@ class FloatingAssistant(
             "music_comments_enabled", True
         )
         self._tts_volume = self._settings.get_int("tts_volume", 100)
+        self._sfx_volume = self._settings.get_int("sfx_volume", 100)
+        self._sfx_channel_volumes = dict(self._settings.get_sfx_channel_volumes())
+        self._sfx_volume_edit_channel: str | None = None
         self._tts_sd_active = False
         self._music_volume = self._settings.get_int("music_volume", 75)
         self._music_folder = self._settings.get_music_folder()
@@ -488,6 +443,7 @@ class FloatingAssistant(
                 getattr(self, "_music_comments_enabled", True)
             ),
             tts_volume=int(getattr(self, "_tts_volume", 100)),
+            sfx_volume=int(getattr(self, "_sfx_volume", 100)),
             music_volume=int(getattr(self, "_music_volume", 75)),
             music_folder=str(getattr(self, "_music_folder", "") or ""),
             music_shuffle=bool(getattr(self, "_music_shuffle", False)),
@@ -497,6 +453,9 @@ class FloatingAssistant(
                 getattr(self, "_color_guess_voice_enabled", True)
             ),
         )
+        set_channel_volumes = getattr(store, "set_sfx_channel_volumes", None)
+        if callable(set_channel_volumes):
+            set_channel_volumes(getattr(self, "_sfx_channel_volumes", {}) or {})
         set_hidden_menu = getattr(store, "set_hidden_menu_buttons", None)
         if callable(set_hidden_menu):
             set_hidden_menu(getattr(self, "_hidden_menu_buttons", set()))
@@ -679,26 +638,257 @@ class FloatingAssistant(
         min_x, min_y, max_x, max_y = bounds
         return min_x <= x <= max_x and min_y <= y <= max_y
 
+    def _sprite_scale_for_dpi(self, dpi: int) -> float:
+        """Return a draw scale for *dpi* (kept for tests / optional callers)."""
+        base = float(getattr(self, "SPRITE_BASE_DPI", 96) or 96)
+        return max(0.75, min(2.5, float(dpi) / base))
+
+    def _build_tk_sprites(self, scale: float) -> None:
+        """(Re)build all Tk PhotoImages from PIL masters at *scale*."""
+        scale = float(scale)
+        self._sprite_draw_scale = scale
+        fallback = getattr(self, "_sprite_fallback_path", sprite_path_normal)
+
+        def photo(img):
+            return _photo_from_pil(img, scale)
+
+        self.tk_img_normal = photo(self.img_normal)
+        self.tk_img_crouching = photo(self.img_crouching)
+        self._standing_look_sprites = _load_look_around_sprites(
+            list_standing_sprite_paths(crouch=False),
+            default_path=sprite_path_normal,
+            fallback=fallback,
+            scale=scale,
+        )
+        self._crouching_look_sprites = _load_look_around_sprites(
+            list_standing_sprite_paths(crouch=True),
+            default_path=sprite_path_crouching,
+            fallback=fallback,
+            scale=scale,
+        )
+        self._standing_dir_sprites = _load_direction_sprites(
+            list_standing_sprite_paths(crouch=False),
+            fallback=fallback,
+            center_image=self.img_normal,
+            scale=scale,
+        )
+        self._crouching_dir_sprites = _load_direction_sprites(
+            list_standing_sprite_paths(crouch=True),
+            fallback=fallback,
+            center_image=self.img_crouching,
+            scale=scale,
+        )
+        self.tk_img_idle = photo(self.img_idle)
+        self.tk_img_idle_2 = photo(self.img_idle_2)
+        self.tk_img_idle_2_page = photo(self.img_idle_2_page)
+        self.tk_img_idle_2_page_2 = photo(self.img_idle_2_page_2)
+        self.tk_img_idle_glasses = photo(self.img_idle_glasses)
+        self.tk_img_idle_glasses_2 = photo(self.img_idle_glasses_2)
+        self.tk_img_idle_glasses_2_page = photo(self.img_idle_glasses_2_page)
+        self.tk_img_idle_glasses_2_page_2 = photo(self.img_idle_glasses_2_page_2)
+        self.tk_img_magic = photo(self.img_magic)
+        self.tk_img_magic_2 = photo(self.img_magic_2)
+        self.tk_img_dizzy = photo(self.img_dizzy)
+        self.tk_img_dizzy_2 = photo(self.img_dizzy_2)
+        self.tk_img_dizzy_3 = photo(self.img_dizzy_3)
+        self._reading_sprites = (self.tk_img_idle, self.tk_img_idle_2)
+        self._reading_page_sprites = (self.tk_img_idle_2_page, self.tk_img_idle_2_page_2)
+        self._reading_glasses_sprites = (
+            self.tk_img_idle_glasses,
+            self.tk_img_idle_glasses_2,
+        )
+        self._reading_glasses_page_sprites = (
+            self.tk_img_idle_glasses_2_page,
+            self.tk_img_idle_glasses_2_page_2,
+        )
+        self._magician_sprites = (self.tk_img_magic, self.tk_img_magic_2)
+        self._magician_frame = 0
+        self._dizzy_sprites = (
+            self.tk_img_dizzy,
+            self.tk_img_dizzy_2,
+            self.tk_img_dizzy_3,
+        )
+        self._dizzy_frame = 0
+        self.tk_img_surf_left = photo(
+            MovementMixin._flatten_sprite_on_white(self.img_surf_left)
+        )
+        self.tk_img_surf_right = photo(
+            MovementMixin._flatten_sprite_on_white(self.img_surf_right)
+        )
+        self.tk_img_sleep = photo(self.img_sleep)
+        self.tk_img_sleep3 = photo(self.img_sleep3)
+        self.tk_img_sleep2 = photo(self.img_sleep2)
+        self.tk_img_sleep1 = photo(self.img_sleep1)
+        self.tk_img_talking = photo(self.img_talking)
+        self.tk_img_talking2 = photo(self.img_talking2)
+        self.tk_img_thinking = photo(self.img_thinking)
+        self.tk_img_thinking2 = photo(self.img_thinking2)
+        self.tk_img_hug = photo(self.img_hug)
+        self.tk_img_hug2 = photo(self.img_hug2)
+        self.tk_img_hand_left = photo(self.img_hand_left)
+        self.tk_img_hand_right = photo(self.img_hand_right)
+        self.tk_img_drag_left = photo(self.img_drag_left)
+        self.tk_img_drag_right = photo(self.img_drag_right)
+        self.tk_img_blush_left = photo(self.img_blush_left)
+        self.tk_img_blush_right = photo(self.img_blush_right)
+        self.tk_img_blush_down = photo(self.img_blush_down)
+        cache = getattr(self, "_surf_render_cache", None)
+        if isinstance(cache, dict):
+            cache.clear()
+        self._surf_tk_image = None
+
+    def _sprite_pixel_size(self) -> tuple[int, int]:
+        """Return the on-screen sprite size in pixels (DPI-scaled)."""
+        img = getattr(self, "img_normal", None)
+        scale = float(getattr(self, "_sprite_draw_scale", 1.0) or 1.0)
+        sprite_w = int(round(int(getattr(img, "width", 0) or 0) * scale))
+        sprite_h = int(round(int(getattr(img, "height", 0) or 0) * scale))
+        panel = getattr(self, "panel", None)
+        if panel is not None:
+            try:
+                req_w = int(panel.winfo_reqwidth() or 0)
+                req_h = int(panel.winfo_reqheight() or 0)
+                if req_w > 1:
+                    sprite_w = max(sprite_w, req_w)
+                if req_h > 1:
+                    sprite_h = max(sprite_h, req_h)
+            except tk.TclError:
+                pass
+        return max(sprite_w, 1), max(sprite_h, 1)
+
+    def _expected_assistant_window_size(self) -> tuple[int, int]:
+        """Return the client size the pet window should keep (sprite ± controls)."""
+        width, height = self._sprite_pixel_size()
+        if getattr(self, "_assistant_controls_extended", False) and hasattr(
+            self, "_assistant_controls_window_height"
+        ):
+            try:
+                height = max(int(self._assistant_controls_window_height()), height)
+            except (TypeError, ValueError, tk.TclError):
+                pass
+        return width, height
+
+    def _is_motion_busy(self) -> bool:
+        """Return True while drag/throw/surf should not fight size or void recovery."""
+        return bool(
+            getattr(self, "is_dragging", False)
+            or getattr(self, "_throwing", False)
+            or getattr(self, "moving", False)
+        )
+
+    def _ensure_consistent_window_scale(self) -> None:
+        """Pin the client size to the authored sprite size (no per-monitor rescale)."""
+        if not getattr(self, "_running", True) or getattr(self, "_fixing_display_scale", False):
+            return
+        try:
+            if not self.root.winfo_exists():
+                return
+        except tk.TclError:
+            return
+
+        from kinito.dpi import force_window_client_size, toplevel_hwnd, window_dpi
+
+        hwnd = toplevel_hwnd(self.root)
+        self._last_window_dpi = window_dpi(hwnd)
+
+        # Never resize mid-drag/surf/throw — causes flicker + snaps.
+        if self._is_motion_busy():
+            return
+
+        expected_w, expected_h = self._expected_assistant_window_size()
+        try:
+            self.root.update_idletasks()
+            cur_w = max(int(self.root.winfo_width()), 1)
+            cur_h = max(int(self.root.winfo_height()), 1)
+        except (tk.TclError, TypeError, ValueError):
+            return
+
+        tol_w = max(8, expected_w // 10)
+        tol_h = max(8, expected_h // 10)
+        if abs(cur_w - expected_w) <= tol_w and abs(cur_h - expected_h) <= tol_h:
+            return
+
+        self._fixing_display_scale = True
+        try:
+            force_window_client_size(self.root, expected_w, expected_h, move=False)
+        finally:
+            self._fixing_display_scale = False
+
+    def get_current_monitor_bounds(self, window_w=None, window_h=None, x=None, y=None):
+        """Return origin bounds for the monitor under the window center.
+
+        Useful for floor friction / landing checks. Movement clamping uses the
+        union of all monitors via :meth:`clamp_position` instead.
+        """
+        from kinito.window_targets import monitor_rect_for_point, origin_bounds_on_rect
+
+        if window_w is None or window_h is None:
+            measured_w, measured_h = self._window_screen_size()
+            if window_w is None:
+                window_w = measured_w
+            if window_h is None:
+                window_h = measured_h
+        if x is None:
+            x = getattr(self, "x", 0)
+        if y is None:
+            y = getattr(self, "y", 0)
+        cx = float(x) + float(window_w) * 0.5
+        cy = float(y) + float(window_h) * 0.5
+        rect = monitor_rect_for_point(cx, cy)
+        return origin_bounds_on_rect(
+            window_w,
+            window_h,
+            rect,
+            margin=self.SCREEN_EDGE_MARGIN,
+        )
+
+    def _is_position_on_a_monitor(self, x, y, window_w=None, window_h=None) -> bool:
+        """Return True when the window center sits on some real display."""
+        from kinito.window_targets import window_center_on_any_monitor
+
+        if window_w is None or window_h is None:
+            measured_w, measured_h = self._window_screen_size()
+            if window_w is None:
+                window_w = measured_w
+            if window_h is None:
+                window_h = measured_h
+        return window_center_on_any_monitor(x, y, window_w, window_h)
+
+    def clamp_position_to_monitor(self, x, y):
+        """Clamp onto the visible desktop (alias of :meth:`clamp_position`)."""
+        return self.clamp_position(x, y)
+
     def _window_screen_size(self):
         """Measure the assistant window size in screen pixels."""
         self.root.update_idletasks()
-        sprite_w = getattr(getattr(self, "img_normal", None), "width", 0)
-        sprite_h = getattr(getattr(self, "img_normal", None), "height", 0)
-        width = max(
-            self.root.winfo_width(),
-            self.root.winfo_reqwidth(),
-            getattr(self, "panel", self.root).winfo_reqwidth(),
-            sprite_w,
-            1,
-        )
-        height = max(
-            self.root.winfo_height(),
-            self.root.winfo_reqheight(),
-            getattr(self, "panel", self.root).winfo_reqheight(),
-            sprite_h,
-            1,
-        )
-        return width, height
+        sprite_w, sprite_h = self._sprite_pixel_size()
+        # Prefer designed sprite size when winfo_* is DPI-inflated after a
+        # monitor hop; otherwise clamp/center math uses the stretched size.
+        try:
+            measured_w = max(
+                int(self.root.winfo_width()),
+                int(self.root.winfo_reqwidth()),
+                1,
+            )
+            measured_h = max(
+                int(self.root.winfo_height()),
+                int(self.root.winfo_reqheight()),
+                1,
+            )
+        except (tk.TclError, TypeError, ValueError):
+            return sprite_w, sprite_h
+
+        if getattr(self, "_assistant_controls_extended", False) and hasattr(
+            self, "_assistant_controls_window_height"
+        ):
+            try:
+                sprite_h = max(sprite_h, int(self._assistant_controls_window_height()))
+            except (TypeError, ValueError, tk.TclError):
+                pass
+
+        if measured_w > sprite_w * 1.35 or measured_h > sprite_h * 1.35:
+            return sprite_w, sprite_h
+        return max(measured_w, sprite_w), max(measured_h, sprite_h)
 
     def _place_at_screen_center(self):
         """Position the friend at screen center, then reveal after a short delay."""
@@ -778,10 +968,48 @@ class FloatingAssistant(
         except (OSError, AttributeError, ValueError, TypeError, tk.TclError):
             pass
 
-    def clamp_position(self, x, y):
-        """Clamp *x*/*y* so the assistant stays within screen bounds."""
-        min_x, min_y, max_x, max_y = self.get_screen_bounds()
-        return max(min_x, min(int(x), max_x)), max(min_y, min(int(y), max_y))
+    def clamp_position(self, x, y, *, vx=None, vy=None, target=None):
+        """Hybrid clamp for multi-monitor desktops.
+
+        - Dragging: virtual-desktop fence only (smooth seams; void fix on release).
+        - Throw / surf: allow brief transit through gaps when heading toward
+          another monitor; bounce on dead-end voids (e.g. off a short screen).
+        - Idle recovery (:meth:`ensure_on_screen`): hard center-on-monitor clamp.
+        """
+        # Stable sprite size while moving — winfo_* flickers across DPI hops.
+        if self._is_motion_busy():
+            window_w, window_h = self._sprite_pixel_size()
+        else:
+            window_w, window_h = self._window_screen_size()
+        min_x, min_y, max_x, max_y = self.get_screen_bounds(window_w, window_h)
+
+        def _virtual_fence(px, py):
+            return (
+                max(min_x, min(int(px), max_x)),
+                max(min_y, min(int(py), max_y)),
+            )
+
+        if getattr(self, "is_dragging", False):
+            return _virtual_fence(x, y)
+
+        from kinito.window_targets import clamp_origin_for_movement
+
+        if vx is None and getattr(self, "_throwing", False):
+            vx = float(getattr(self, "_throw_vx", 0.0) or 0.0)
+            vy = float(getattr(self, "_throw_vy", 0.0) or 0.0)
+        if target is None:
+            target = getattr(self, "_move_target", None)
+        cx, cy = clamp_origin_for_movement(
+            x,
+            y,
+            window_w,
+            window_h,
+            vx=float(vx or 0.0),
+            vy=float(vy or 0.0),
+            target=target,
+            margin=self.SCREEN_EDGE_MARGIN,
+        )
+        return _virtual_fence(cx, cy)
 
     def _cancel_periodic_timers(self):
         """Stop recurring ``after`` loops (bubble follow, screen watch, camera frames)."""
@@ -797,24 +1025,27 @@ class FloatingAssistant(
             cancel_after(self.root, self, attr)
         if hasattr(self, "_stop_mouse_attention"):
             self._stop_mouse_attention()
+        if hasattr(self, "_clear_drag_sprite_state"):
+            self._clear_drag_sprite_state()
+        else:
+            cancel_after(self.root, self, "_drag_idle_timer")
+            cancel_after(self.root, self, "_drag_wiggle_timer")
 
     def ensure_on_screen(self):
-        """Reposition the assistant (and bubbles) if it drifted off-screen."""
-        if not self._running or self.is_dragging or getattr(self, "_throwing", False):
+        """Reposition the assistant if it drifted into a virtual-desktop void."""
+        if not self._running or self._is_motion_busy():
             return
 
         self.root.update_idletasks()
-        bounds = self.get_screen_bounds()
         x = self.root.winfo_rootx()
         y = self.root.winfo_rooty()
-        if not self._is_within_screen_bounds(x, y, bounds):
+        tracked_x = getattr(self, "x", x)
+        tracked_y = getattr(self, "y", y)
+
+        if not self._is_position_on_a_monitor(tracked_x, tracked_y):
+            target_x, target_y = tracked_x, tracked_y
+        elif not self._is_position_on_a_monitor(x, y):
             target_x, target_y = x, y
-        elif not self._is_within_screen_bounds(
-            getattr(self, "x", x),
-            getattr(self, "y", y),
-            bounds,
-        ):
-            target_x, target_y = self.x, self.y
         else:
             return
 
@@ -841,6 +1072,7 @@ class FloatingAssistant(
         try:
             current = self._query_virtual_screen_rect()
             self._last_virtual_screen_rect = current
+            self._ensure_consistent_window_scale()
             self.ensure_on_screen()
             self._keep_assistant_on_top()
         except tk.TclError:
@@ -869,9 +1101,15 @@ class FloatingAssistant(
         )
 
     def random_position_on_screen(self):
-        """Pick a random on-screen position for autonomous movement."""
-        min_x, min_y, max_x, max_y = self.get_screen_bounds()
-        return random.randint(min_x, max_x), random.randint(min_y, max_y)
+        """Pick a random position fully visible on some real monitor."""
+        from kinito.window_targets import random_fully_visible_origin
+
+        window_w, window_h = self._window_screen_size()
+        return random_fully_visible_origin(
+            window_w,
+            window_h,
+            margin=self.SCREEN_EDGE_MARGIN,
+        )
 
     def toggle_pause(self):
         """Switch between sleep (paused) and awake state."""
@@ -1071,7 +1309,96 @@ class FloatingAssistant(
         )
         self.speak(dlg.pick_line(lines), skip_ai=True)
 
-    def play_sfx(self, file_path, volume=1.0):
+    def get_sfx_volume(self) -> int:
+        """Return the current master sound-effects volume in 0–100."""
+        from kinito.settings_store import clamp_sfx_volume
+
+        return clamp_sfx_volume(getattr(self, "_sfx_volume", 100))
+
+    def get_sfx_channel_volume(self, channel_id: str) -> int:
+        """Return one channel's volume (0–100); missing channels default to 100."""
+        from kinito.settings_store import clamp_sfx_volume
+        from kinito.sfx_channels import SFX_CHANNEL_IDS
+
+        if channel_id not in SFX_CHANNEL_IDS:
+            return 100
+        volumes = getattr(self, "_sfx_channel_volumes", None) or {}
+        return clamp_sfx_volume(volumes.get(channel_id, 100))
+
+    def offer_sfx_volume_menu(self) -> None:
+        """Open the SFX volume submenu (all sounds + per-effect entries)."""
+        from content import dialogue as dlg
+
+        self._sfx_volume_edit_channel = None
+        self.speak(dlg.SFX_VOLUME_MENU_QUESTION, 45, True, skip_ai=True)
+
+    def offer_sfx_volume_picker(self, channel_id: str | None = None) -> None:
+        """Ask Soft/Normal/Loud for the master bus or one *channel_id*."""
+        from content import dialogue as dlg
+        from kinito.sfx_channels import channel_label
+
+        self._sfx_volume_edit_channel = channel_id
+        if channel_id:
+            volume = self.get_sfx_channel_volume(channel_id)
+            self.speak(
+                dlg.SFX_CHANNEL_VOLUME_QUESTION.format(
+                    label=channel_label(channel_id),
+                    volume=volume,
+                ),
+                45,
+                True,
+                skip_ai=True,
+            )
+            return
+        volume = self.get_sfx_volume()
+        self.speak(
+            dlg.SFX_VOLUME_QUESTION.format(volume=volume),
+            45,
+            True,
+            skip_ai=True,
+        )
+
+    def set_sfx_volume(self, volume: int) -> None:
+        """Set and persist master sound-effects volume, then confirm aloud."""
+        from content import dialogue as dlg
+        from kinito.settings_store import clamp_sfx_volume
+
+        self._sfx_volume = clamp_sfx_volume(volume)
+        self._sfx_volume_edit_channel = None
+        if hasattr(self, "_persist_settings"):
+            self._persist_settings()
+        self.speak(
+            dlg.pick_line(dlg.SFX_VOLUME_SET_LINES).format(volume=self._sfx_volume),
+            skip_ai=True,
+        )
+
+    def set_sfx_channel_volume(self, channel_id: str, volume: int) -> None:
+        """Set and persist one SFX channel volume, preview, then confirm aloud."""
+        from content import dialogue as dlg
+        from kinito.settings_store import clamp_sfx_volume
+        from kinito.sfx_channels import channel_by_id, channel_label
+
+        channel = channel_by_id(channel_id)
+        if channel is None:
+            return
+        clamped = clamp_sfx_volume(volume)
+        volumes = dict(getattr(self, "_sfx_channel_volumes", {}) or {})
+        volumes[channel_id] = clamped
+        self._sfx_channel_volumes = volumes
+        self._sfx_volume_edit_channel = None
+        if hasattr(self, "_persist_settings"):
+            self._persist_settings()
+        if channel["kind"] == "sfx":
+            self.play_sfx(channel["path"], volume=1.0)
+        self.speak(
+            dlg.pick_line(dlg.SFX_CHANNEL_VOLUME_SET_LINES).format(
+                label=channel_label(channel_id),
+                volume=clamped,
+            ),
+            skip_ai=True,
+        )
+
+    def play_sfx(self, file_path, volume=1.0, *, respect_sfx_volume=True):
         """Play a short sound effect without interrupting background music."""
         if not getattr(self, "_sound_effects_enabled", True):
             return
@@ -1082,13 +1409,21 @@ class FloatingAssistant(
         if not os.path.isfile(file_path):
             return
         try:
+            from kinito.sfx_channels import channel_id_for_path
+
             self._ensure_mixer()
             if not hasattr(self, "_sfx_cache"):
                 self._sfx_cache = {}
             if file_path not in self._sfx_cache:
                 self._sfx_cache[file_path] = pygame.mixer.Sound(file_path)
             sound = self._sfx_cache[file_path]
-            sound.set_volume(volume)
+            effective = float(volume)
+            if respect_sfx_volume:
+                effective *= self.get_sfx_volume() / 100.0
+                channel_id = channel_id_for_path(file_path)
+                if channel_id:
+                    effective *= self.get_sfx_channel_volume(channel_id) / 100.0
+            sound.set_volume(max(0.0, min(1.0, effective)))
             sound.play()
         except (OSError, pygame.error):
             pass
@@ -1102,9 +1437,18 @@ class FloatingAssistant(
         if not os.path.isfile(file_path):
             return
         try:
+            from kinito.sfx_channels import channel_id_for_path
+
             self._ensure_mixer()
+            play_volume = float(volume)
+            if speech_accompaniment:
+                # Poem / fancy tunes share the SFX master + per-channel dials.
+                play_volume *= self.get_sfx_volume() / 100.0
+                channel_id = channel_id_for_path(file_path)
+                if channel_id:
+                    play_volume *= self.get_sfx_channel_volume(channel_id) / 100.0
             pygame.mixer.music.load(file_path)
-            pygame.mixer.music.set_volume(volume)
+            pygame.mixer.music.set_volume(max(0.0, min(1.0, play_volume)))
             pygame.mixer.music.play()
             self._speech_accompaniment_active = bool(speech_accompaniment)
         except (OSError, pygame.error):
