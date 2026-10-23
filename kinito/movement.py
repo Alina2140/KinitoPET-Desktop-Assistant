@@ -28,9 +28,14 @@ class MovementMixin:
     READING_WISDOM_CHANCE = 0.10
     READING_STORY_CHANCE = 0.03
     IDLE_FANCY_CHANCE = 0.02
+    IDLE_GLASSES_CHANCE = 0.28
+    NORMAL_DEFAULT_LOOK_CHANCE = 0.82
+    LOOK_AROUND_COOLDOWN_SECONDS = 10.0
     READING_DURATION_SECONDS = (10, 32)
     READING_PAGE_TURN_CHANCE = 0.14
     READING_PAGE_TURN_VOLUME = 0.3
+    READING_PAGE_TURN_SOUND_LEAD_SECONDS = 2.00
+    READING_PAGE_TURN_FRAME_SECONDS = 0.2
     READING_SPRITE_SWAP_SECONDS = 2.4
     IDLE_WAIT_SHORT = (20, 40)
     IDLE_WAIT_NORMAL = (40, 80)
@@ -43,11 +48,6 @@ class MovementMixin:
     SURF_TILT_QUANTUM = 0.5
     SURF_MOVE_SPEED = 5
     SURF_MOVE_FRAME_DELAY = 0.022
-    IDLE_GLASSES_CHANCE = 0.28
-    NORMAL_DEFAULT_LOOK_CHANCE = 0.82
-    LOOK_AROUND_COOLDOWN_SECONDS = 10.0
-    READING_PAGE_TURN_SOUND_LEAD_SECONDS = 2.00
-    READING_PAGE_TURN_FRAME_SECONDS = 0.2
     MOUSE_LOOK_RADIUS_PX = 230
     MOUSE_FOLLOW_RADIUS_PX = 180
     MOUSE_LOOK_DEADZONE_PX = 40
@@ -59,6 +59,14 @@ class MovementMixin:
     MOUSE_FOLLOW_OUTSIDE_MAX_PX = 900
     MOUSE_FOLLOW_COOLDOWN_SECONDS = (15, 35)
     MOUSE_LOOK_STANCE_SECONDS = 1.0
+    DIZZY_ORBIT_MIN_RADIUS_PX = 55
+    DIZZY_ORBIT_MAX_RADIUS_PX = 230
+    DIZZY_ORBIT_REVOLUTIONS = 8
+    DIZZY_ORBIT_WINDOW_SECONDS = 10.0
+    DIZZY_REACT_CHANCE = 0.50
+    DIZZY_COOLDOWN_SECONDS = (40, 75)
+    DIZZY_SPRITE_SWAP_SECONDS = 0.45
+    DIZZY_SPEECH_START_TIMEOUT = 3.0
     SNORING_CHANCE = 0.38
     SNORING_VOLUME = 0.5
     SNORING_COOLDOWN_SECONDS = 5.0
@@ -81,24 +89,44 @@ class MovementMixin:
     DRAG_WIGGLE_FRAME_MS = 240
     HOLD_WIGGLE_REACT_CHANCE = 0.50
     _DRAG_WIGGLE_FRAMES = ("left", "standing", "right", "standing")
+    HEAD_ZONE_HEIGHT_FRAC = 0.50
+    HEAD_ZONE_PAD_X_PX = 30
+    HEAD_ZONE_PAD_TOP_PX = 10
+    HEAD_STROKE_MIN_SECONDS = 2.0
+    HEAD_STROKE_MOTION_GAP_SECONDS = 0.45
+    HEAD_STROKE_MIN_MOVE_PX = 3.0
+    HEAD_STROKE_BLUSH_CHANCE = 0.35
+    HEAD_STROKE_REACT_CHANCE = 0.35
+    HEAD_STROKE_COOLDOWN_SECONDS = (12, 28)
+    HEAD_STROKE_BLUSH_FRAME_MS = 500
+    HEAD_STROKE_MIN_DURATION_SECONDS = 2.5
+    _HEAD_STROKE_BLUSH_FRAMES = (
+        "blush_left",
+        "blush_down",
+        "blush_right",
+        "blush_down",
+    )
 
     def setup_mouse_bindings(self):
-        """Bind drag to the sprite only so control buttons stay clickable."""
+        """Bind drag/hover to the sprite only so control buttons stay clickable."""
         self.panel.bind("<Button-1>", self.on_mouse_down)
+        self.panel.bind("<Motion>", self.on_panel_motion)
+        self.panel.bind("<Leave>", self.on_panel_leave)
         self.root.bind("<Configure>", self._on_root_moved)
         self._sync_kinito_screen_position()
 
     def _sync_kinito_screen_position(self):
         """Keep tracked screen coordinates aligned with the root window."""
-        if getattr(self, "moving", False):
+        # Never overwrite logical coords mid-drag/throw/surf — Configure fires on
+        # every geometry() and winfo_* can disagree across DPI monitor hops.
+        if getattr(self, "moving", False) or self._is_position_locked_by_user():
             return
         try:
             x = self.root.winfo_rootx()
             y = self.root.winfo_rooty()
         except tk.TclError:
             return
-        if x > 0 and y > 0:
-            self.x, self.y = x, y
+        self.x, self.y = int(x), int(y)
 
     def _start_drag_tracking(self):
         """Track drag globally so motion still works over other top-level windows."""
@@ -121,6 +149,8 @@ class MovementMixin:
             return
         if kinito_x is None or kinito_y is None:
             kinito_x, kinito_y = getattr(self, "x", 0), getattr(self, "y", 0)
+        # While the user is dragging/throwing, use the light placement path
+        # (no update_idletasks) so side flips stay responsive.
         if self._is_position_locked_by_user() and hasattr(
             self, "_move_speech_bubble_with_kinito"
         ):
@@ -132,7 +162,9 @@ class MovementMixin:
         """Keep speech bubbles aligned whenever Kinito's window moves."""
         if event.widget is not self.root:
             return
-        if getattr(self, "moving", False):
+        # Drag/throw already follow the bubble explicitly; Configure sync snaps
+        # across monitors when Tk and Win32 briefly disagree on coordinates.
+        if getattr(self, "moving", False) or self._is_position_locked_by_user():
             return
         prev_x = getattr(self, "x", None)
         prev_y = getattr(self, "y", None)
@@ -214,20 +246,29 @@ class MovementMixin:
             self.note_user_attention()
         if getattr(self, "_throwing", False):
             self._cancel_throw()
-        self.is_dragging = True
         self._drag_moved = False
         self._drag_samples = []
         self._drag_hold_reacted = False
+        self._exit_head_stroke_mode(restore_sprite=False)
         self.moving = False
         self._stop_audio_for_drag()
         if not self._should_skip_drag_sounds():
             self.play_sfx(bomp_file_path)
+        # Sync position BEFORE locking drag — _sync skips while is_dragging.
         self.root.update_idletasks()
-        self._sync_kinito_screen_position()
-        root_x = self.x
-        root_y = self.y
-        self.mouse_click_offset_x = root_x - event.x_root
-        self.mouse_click_offset_y = root_y - event.y_root
+        try:
+            self.x = int(self.root.winfo_rootx())
+            self.y = int(self.root.winfo_rooty())
+        except (tk.TclError, TypeError, ValueError):
+            pass
+        self.is_dragging = True
+        root_x = int(getattr(self, "x", 0) or 0)
+        root_y = int(getattr(self, "y", 0) or 0)
+        cursor_x = int(event.x_root)
+        cursor_y = int(event.y_root)
+        self.mouse_click_offset_x = root_x - cursor_x
+        self.mouse_click_offset_y = root_y - cursor_y
+        self._drag_last_cursor = (cursor_x, cursor_y)
         self._record_drag_sample(root_x, root_y)
         self._stop_drag_wiggle()
         if self._drag_sprites_allowed():
@@ -244,15 +285,48 @@ class MovementMixin:
         if not self.is_dragging:
             return
         self._drag_moved = True
-        prev_x = getattr(self, "x", event.x_root + self.mouse_click_offset_x)
-        new_x = event.x_root + self.mouse_click_offset_x
-        new_y = event.y_root + self.mouse_click_offset_y
-        new_x, new_y = self.clamp_position(new_x, new_y)
+        # Prefer live pointer coords — B1-Motion can lag behind a fast cursor.
+        try:
+            cursor_x = int(self.root.winfo_pointerx())
+            cursor_y = int(self.root.winfo_pointery())
+        except (tk.TclError, TypeError, ValueError):
+            cursor_x = int(event.x_root)
+            cursor_y = int(event.y_root)
+        prev_x = int(getattr(self, "x", 0) or 0)
+        offset_x = int(getattr(self, "mouse_click_offset_x", 0) or 0)
+        offset_y = int(getattr(self, "mouse_click_offset_y", 0) or 0)
+        # Absolute sticky grab — follow the cursor even across large jumps.
+        # (A distance-based "teleport re-anchor" caused drift on fast drags.)
+        new_x = cursor_x + offset_x
+        new_y = cursor_y + offset_y
+        self._drag_last_cursor = (cursor_x, cursor_y)
         self.x, self.y = new_x, new_y
-        self.root.geometry(f"+{new_x}+{new_y}")
+        try:
+            self.root.geometry(f"+{new_x}+{new_y}")
+        except tk.TclError:
+            return
         self._record_drag_sample(new_x, new_y)
         self._update_drag_sprite_from_dx(new_x - prev_x)
         self._follow_speech_bubble_to_kinito(new_x, new_y)
+
+    def on_panel_motion(self, event):
+        """Track hover strokes over Kinito's head (no click required)."""
+        if getattr(self, "is_dragging", False):
+            return
+        self._accumulate_head_stroke(event.x_root, event.y_root)
+
+    def on_panel_leave(self, _event=None):
+        """Stop head-pet tracking when the cursor leaves the padded head zone."""
+        if getattr(self, "is_dragging", False):
+            return
+        # Keep blushing while the reaction line is still being spoken.
+        if getattr(self, "_head_stroke_mode", False) and getattr(self, "talking", False):
+            return
+        # Leaving the sprite panel is fine if the cursor is still in the padded zone.
+        cursor = self._cursor_screen_pos()
+        if cursor is not None and self._pointer_in_head_zone(cursor[0], cursor[1]):
+            return
+        self._exit_head_stroke_mode(restore_sprite=True)
 
     def on_mouse_up(self, event):
         """End dragging: place with bomp, or throw when release speed is high."""
@@ -281,6 +355,8 @@ class MovementMixin:
         self._bubble_kinito_offset_y = None
         self._drag_samples = []
         self._follow_speech_bubble_to_kinito()
+        if hasattr(self, "_ensure_consistent_window_scale"):
+            self.root.after(0, self._ensure_consistent_window_scale)
         if hasattr(self, "ensure_on_screen"):
             self.root.after(0, self.ensure_on_screen)
         if hasattr(self, "_keep_assistant_on_top"):
@@ -306,6 +382,15 @@ class MovementMixin:
             return getattr(self, "tk_img_drag_left", None)
         if state == "right":
             return getattr(self, "tk_img_drag_right", None)
+        if state == "blush_left":
+            sprite = getattr(self, "tk_img_blush_left", None)
+            return sprite or getattr(self, "tk_img_normal", None)
+        if state == "blush_right":
+            sprite = getattr(self, "tk_img_blush_right", None)
+            return sprite or getattr(self, "tk_img_normal", None)
+        if state == "blush_down":
+            sprite = getattr(self, "tk_img_blush_down", None)
+            return sprite or getattr(self, "tk_img_normal", None)
         return getattr(self, "tk_img_normal", None)
 
     def _set_drag_sprite(self, state: str) -> None:
@@ -387,6 +472,217 @@ class MovementMixin:
         self._stop_drag_wiggle()
         self._drag_sprite_state = None
 
+    def _pointer_in_head_zone(self, x_root: float, y_root: float) -> bool:
+        """Return True when the cursor is over/near Kinito's head (with padding)."""
+        try:
+            px = int(self.panel.winfo_rootx())
+            py = int(self.panel.winfo_rooty())
+            pw = max(int(self.panel.winfo_width()), 1)
+            ph = max(int(self.panel.winfo_height()), 1)
+        except tk.TclError:
+            return False
+        pad_x = float(self.HEAD_ZONE_PAD_X_PX)
+        pad_top = float(self.HEAD_ZONE_PAD_TOP_PX)
+        left = px - pad_x
+        right = px + pw + pad_x
+        top = py - pad_top
+        bottom = py + ph * self.HEAD_ZONE_HEIGHT_FRAC
+        return left <= float(x_root) <= right and top <= float(y_root) <= bottom
+
+    def _can_head_stroke(self) -> bool:
+        """Return True when hover head-pets may change the sprite."""
+        if not getattr(self, "_running", True):
+            return False
+        if getattr(self, "paused", False) or self._is_position_locked_by_user():
+            return False
+        # Already blushing: keep going through our own reaction speech.
+        if getattr(self, "_head_stroke_mode", False):
+            return True
+        if not getattr(self, "_startup_complete", False):
+            return False
+        if getattr(self, "moving", False):
+            return False
+        if getattr(self, "talking", False):
+            return False
+        if getattr(self, "_fancy_mode", False):
+            return False
+        if getattr(self, "_dizzy_mode", False):
+            return False
+        if getattr(self, "_reading_idle_active", False):
+            return False
+        if getattr(self, "_hug_mode", False):
+            return False
+        if getattr(self, "_preserve_sprite", False):
+            return False
+        if getattr(self, "_ai_generating", False):
+            return False
+        if getattr(self, "_is_game_active", lambda: False)():
+            return False
+        return not getattr(self, "_chat_mode", False)
+
+    def _stop_head_stroke_blush_loop(self) -> None:
+        """Cancel the head-pet blush animation loop."""
+        cancel_after(self.root, self, "_head_stroke_blush_timer")
+        self._head_stroke_blush_index = 0
+
+    def _begin_head_stroke_cooldown(self) -> None:
+        """Delay the next blush reaction so petting stays occasional."""
+        low, high = self.HEAD_STROKE_COOLDOWN_SECONDS
+        self._head_stroke_ready_at = time.monotonic() + random.uniform(low, high)
+
+    def _exit_head_stroke_mode(self, *, restore_sprite: bool = False) -> None:
+        """Leave head-pet mode and stop blush cycling."""
+        was_active = getattr(self, "_head_stroke_mode", False)
+        self._head_stroke_mode = False
+        self._head_stroke_active_seconds = 0.0
+        self._head_stroke_last_t = None
+        self._head_stroke_last_pointer = None
+        self._head_stroke_started_at = 0.0
+        self._stop_head_stroke_blush_loop()
+        if was_active:
+            self._drag_sprite_state = None
+            self._begin_head_stroke_cooldown()
+            if restore_sprite and not getattr(self, "is_dragging", False):
+                normal = getattr(self, "tk_img_normal", None)
+                if normal is not None:
+                    self.change_sprite(normal)
+
+    def _set_blush_sprite(self, state: str) -> None:
+        """Show a blush frame while head-pet mode owns the sprite."""
+        if getattr(self, "_drag_sprite_state", None) == state:
+            return
+        sprite = self._drag_sprite_for_state(state)
+        if sprite is None:
+            return
+        self._apply_panel_sprite(sprite)
+        self._drag_sprite_state = state
+
+    def _reset_head_stroke_tracking(self) -> None:
+        """Clear in-progress stroke timing (cursor left the head)."""
+        self._head_stroke_active_seconds = 0.0
+        self._head_stroke_last_t = None
+        self._head_stroke_last_pointer = None
+
+    def _pointer_still_in_head_zone(self) -> bool:
+        """Return True when the current cursor is still over Kinito's head."""
+        cursor = self._cursor_screen_pos()
+        if cursor is None:
+            return False
+        return self._pointer_in_head_zone(cursor[0], cursor[1])
+
+    def _accumulate_head_stroke(self, x_root: float, y_root: float) -> bool:
+        """Track hover rubbing over the head; return True while blush mode is active."""
+        if not self._can_head_stroke():
+            if getattr(self, "_head_stroke_mode", False):
+                self._exit_head_stroke_mode(restore_sprite=True)
+            return False
+
+        if not self._pointer_in_head_zone(x_root, y_root):
+            if getattr(self, "_head_stroke_mode", False):
+                # Keep blushing while the reaction line is still being spoken.
+                if getattr(self, "talking", False):
+                    return True
+                self._exit_head_stroke_mode(restore_sprite=True)
+            else:
+                self._reset_head_stroke_tracking()
+            return False
+
+        now = time.monotonic()
+        px, py = float(x_root), float(y_root)
+        last = getattr(self, "_head_stroke_last_pointer", None)
+        moved_px = (
+            0.0
+            if last is None
+            else math.hypot(px - float(last[0]), py - float(last[1]))
+        )
+        last_t = getattr(self, "_head_stroke_last_t", None)
+        if last_t is not None:
+            dt = now - float(last_t)
+            # Ignore long pauses so resting the cursor does not count as stroking.
+            if dt > self.HEAD_STROKE_MOTION_GAP_SECONDS:
+                self._head_stroke_active_seconds = 0.0
+            elif moved_px >= self.HEAD_STROKE_MIN_MOVE_PX and dt > 0.0:
+                self._head_stroke_active_seconds = float(
+                    getattr(self, "_head_stroke_active_seconds", 0.0)
+                ) + dt
+        self._head_stroke_last_t = now
+        self._head_stroke_last_pointer = (px, py)
+
+        if getattr(self, "_head_stroke_mode", False):
+            return True
+
+        if now < float(getattr(self, "_head_stroke_ready_at", 0.0)):
+            return False
+
+        if self._head_stroke_active_seconds >= self.HEAD_STROKE_MIN_SECONDS:
+            # One roll per completed stroke attempt; miss still starts cooldown.
+            self._head_stroke_active_seconds = 0.0
+            self._head_stroke_last_t = None
+            if random.random() >= self.HEAD_STROKE_BLUSH_CHANCE:
+                self._begin_head_stroke_cooldown()
+                return False
+            self._head_stroke_mode = True
+            self._head_stroke_started_at = now
+            self._mouse_look_active = False
+            self._drag_sprite_state = None
+            self._start_head_stroke_blush_loop()
+            self._maybe_speak_head_stroke_reaction()
+            return True
+        return False
+
+    def _start_head_stroke_blush_loop(self) -> None:
+        """Cycle blush left → down → right → down while being petted."""
+        if not getattr(self, "_head_stroke_mode", False):
+            return
+        self._head_stroke_blush_index = 0
+        self._head_stroke_blush_tick()
+
+    def _head_stroke_blush_tick(self) -> None:
+        """Advance one frame of the head-pet blush loop."""
+        if not getattr(self, "_head_stroke_mode", False):
+            return
+        if not self._can_head_stroke():
+            self._exit_head_stroke_mode(restore_sprite=True)
+            return
+        # After the minimum blush window (and any reaction speech), stop if gone.
+        started = float(getattr(self, "_head_stroke_started_at", 0.0) or 0.0)
+        elapsed = time.monotonic() - started if started else 0.0
+        if (
+            elapsed >= self.HEAD_STROKE_MIN_DURATION_SECONDS
+            and not getattr(self, "talking", False)
+            and not self._pointer_still_in_head_zone()
+        ):
+            self._exit_head_stroke_mode(restore_sprite=True)
+            return
+        frames = self._HEAD_STROKE_BLUSH_FRAMES
+        index = int(getattr(self, "_head_stroke_blush_index", 0)) % len(frames)
+        self._set_blush_sprite(frames[index])
+        self._head_stroke_blush_index = index + 1
+        schedule_after(
+            self.root,
+            self,
+            "_head_stroke_blush_timer",
+            self.HEAD_STROKE_BLUSH_FRAME_MS,
+            self._head_stroke_blush_tick,
+        )
+
+    def _maybe_speak_head_stroke_reaction(self) -> None:
+        """Sometimes react verbally when the user pets Kinito's head."""
+        if getattr(self, "_focus_mode", False):
+            return
+        if not getattr(self, "_startup_complete", True):
+            return
+        if hasattr(self, "_is_busy_with_speech") and self._is_busy_with_speech():
+            return
+        if not hasattr(self, "speak"):
+            return
+        if random.random() >= self.HEAD_STROKE_REACT_CHANCE:
+            return
+        from content.head_stroke_lines import pick_head_stroke_line
+
+        # Keep blush sprites instead of the default talk cycle.
+        self.speak(pick_head_stroke_line(), preserve_sprite=True, skip_ai=True)
+
     def _update_drag_sprite_from_dx(self, dx: float) -> None:
         """Pick left/right drag sprites from horizontal motion; idle → standing."""
         if not self._drag_sprites_allowed():
@@ -434,8 +730,133 @@ class MovementMixin:
 
         self.speak(pick_throw_line())
 
+    def _maybe_speak_dizzy_reaction(self) -> None:
+        """Sometimes complain about getting dizzy from cursor orbits."""
+        low, high = self.DIZZY_COOLDOWN_SECONDS
+        self._dizzy_ready_at = time.monotonic() + random.uniform(low, high)
+        if random.random() >= self.DIZZY_REACT_CHANCE:
+            return
+        if getattr(self, "_focus_mode", False):
+            return
+        if not getattr(self, "_startup_complete", True):
+            return
+        if getattr(self, "_dizzy_mode", False):
+            return
+        if hasattr(self, "_is_busy_with_speech") and self._is_busy_with_speech():
+            return
+        if not hasattr(self, "speak"):
+            return
+        threading.Thread(target=self._run_dizzy_reaction, daemon=True).start()
+
+    def _stop_dizzy_reaction(self, *, restore_sprite: bool = True) -> None:
+        """Abort dizzy animation so other modes are not stuck spinning."""
+        if not getattr(self, "_dizzy_mode", False):
+            return
+        self._dizzy_mode = False
+        if restore_sprite:
+            self._restore_sprite_after_dizzy()
+
+    def _restore_sprite_after_dizzy(self) -> None:
+        """Return to a normal standing sprite unless another pose owns the display."""
+        if getattr(self, "talking", False) or getattr(self, "_hug_mode", False):
+            return
+        if getattr(self, "_fancy_mode", False):
+            return
+        if getattr(self, "_preserve_sprite", False) or getattr(self, "paused", False):
+            return
+        if getattr(self, "is_dragging", False):
+            return
+        normal = getattr(self, "tk_img_normal", None)
+        if normal is not None:
+            self.change_sprite(normal)
+
+    def _run_dizzy_reaction(self) -> None:
+        """Cycle dizzy sprites while complaining about being orbited."""
+        from content.dizzy_lines import pick_dizzy_line
+
+        dizzy_sprites = getattr(self, "_dizzy_sprites", ())
+        if not dizzy_sprites:
+            dizzy = getattr(self, "tk_img_dizzy", None)
+            dizzy_sprites = (dizzy,) if dizzy is not None else ()
+
+        self._dizzy_mode = True
+        self._dizzy_frame = 0
+        frame = 0
+        waited = 0.0
+        speech_started = False
+        if dizzy_sprites:
+            self.change_sprite(dizzy_sprites[0])
+        self.speak(pick_dizzy_line(), skip_ai=True)
+
+        try:
+            while self._running and not self.paused and getattr(self, "_dizzy_mode", False):
+                time.sleep(self.DIZZY_SPRITE_SWAP_SECONDS)
+                waited += self.DIZZY_SPRITE_SWAP_SECONDS
+                if not getattr(self, "_dizzy_mode", False):
+                    break
+                if dizzy_sprites:
+                    frame += 1
+                    self.change_sprite(dizzy_sprites[frame % len(dizzy_sprites)])
+                    self._dizzy_frame = frame
+                if self.talking:
+                    speech_started = True
+                elif speech_started or waited >= self.DIZZY_SPEECH_START_TIMEOUT:
+                    break
+        finally:
+            self._dizzy_mode = False
+            self._restore_sprite_after_dizzy()
+
+    def _reset_dizzy_orbit(self) -> None:
+        """Clear orbit-tracking state used for dizzy reactions."""
+        self._dizzy_orbit_angle = None
+        self._dizzy_orbit_accum = 0.0
+        self._dizzy_orbit_started_at = 0.0
+
+    def _track_dizzy_orbit(self, dx: float, dy: float, distance: float) -> None:
+        """Accumulate cursor revolutions around Kinito; maybe speak when dizzy."""
+        now = time.monotonic()
+        if now < float(getattr(self, "_dizzy_ready_at", 0.0)):
+            return
+        min_r = float(self.DIZZY_ORBIT_MIN_RADIUS_PX)
+        max_r = float(self.DIZZY_ORBIT_MAX_RADIUS_PX)
+        if distance < min_r or distance > max_r:
+            self._reset_dizzy_orbit()
+            return
+
+        angle = math.atan2(dy, dx)
+        prev = getattr(self, "_dizzy_orbit_angle", None)
+        if prev is None:
+            self._dizzy_orbit_angle = angle
+            self._dizzy_orbit_accum = 0.0
+            self._dizzy_orbit_started_at = now
+            return
+
+        delta = angle - float(prev)
+        if delta > math.pi:
+            delta -= 2.0 * math.pi
+        elif delta < -math.pi:
+            delta += 2.0 * math.pi
+
+        started = float(getattr(self, "_dizzy_orbit_started_at", 0.0) or now)
+        if now - started > float(self.DIZZY_ORBIT_WINDOW_SECONDS):
+            self._dizzy_orbit_angle = angle
+            self._dizzy_orbit_accum = 0.0
+            self._dizzy_orbit_started_at = now
+            return
+
+        self._dizzy_orbit_angle = angle
+        self._dizzy_orbit_accum = float(getattr(self, "_dizzy_orbit_accum", 0.0)) + delta
+        threshold = 2.0 * math.pi * float(self.DIZZY_ORBIT_REVOLUTIONS)
+        if abs(self._dizzy_orbit_accum) < threshold:
+            return
+
+        self._reset_dizzy_orbit()
+        self._maybe_speak_dizzy_reaction()
+
     def _start_throw(self, vx: float, vy: float) -> None:
         """Begin ballistic flight from the given release velocity."""
+        if getattr(self, "paused", False):
+            return
         self._throwing = True
         self.moving = True
         self._throw_vx = float(vx)
@@ -495,32 +916,54 @@ class MovementMixin:
         x = float(getattr(self, "x", 0)) + vx * dt
         y = float(getattr(self, "y", 0)) + vy * dt
 
-        min_x, min_y, max_x, max_y = self.get_screen_bounds()
+        # Stay on the union of real monitors: cross freely between screens, but
+        # bounce out of virtual-desktop voids (gaps above/below shorter displays).
         bounced = False
         hit_floor = False
-        if x < min_x:
-            x = float(min_x)
-            vx = -vx * self.THROW_BOUNCE_DAMPING
-            bounced = True
-        elif x > max_x:
-            x = float(max_x)
-            vx = -vx * self.THROW_BOUNCE_DAMPING
-            bounced = True
-        if y < min_y:
-            y = float(min_y)
-            vy = -vy * self.THROW_BOUNCE_DAMPING
-            bounced = True
-        elif y > max_y:
-            y = float(max_y)
-            vy = -vy * self.THROW_BOUNCE_DAMPING
-            vx *= max(0.0, 1.0 - self.THROW_FLOOR_FRICTION * dt)
-            bounced = True
-            hit_floor = True
+        if hasattr(self, "clamp_position"):
+            clamped_x, clamped_y = self.clamp_position(x, y)
+            if abs(clamped_x - x) > 0.5:
+                x = float(clamped_x)
+                vx = -vx * self.THROW_BOUNCE_DAMPING
+                bounced = True
+            if abs(clamped_y - y) > 0.5:
+                # Pulled upward ⇒ hit a floor/void below; pulled downward ⇒ ceiling.
+                if clamped_y < y:
+                    hit_floor = True
+                y = float(clamped_y)
+                vy = -vy * self.THROW_BOUNCE_DAMPING
+                if hit_floor:
+                    vx *= max(0.0, 1.0 - self.THROW_FLOOR_FRICTION * dt)
+                bounced = True
+        else:
+            min_x, min_y, max_x, max_y = self.get_screen_bounds()
+            if x < min_x:
+                x = float(min_x)
+                vx = -vx * self.THROW_BOUNCE_DAMPING
+                bounced = True
+            elif x > max_x:
+                x = float(max_x)
+                vx = -vx * self.THROW_BOUNCE_DAMPING
+                bounced = True
+            if y < min_y:
+                y = float(min_y)
+                vy = -vy * self.THROW_BOUNCE_DAMPING
+                bounced = True
+            elif y > max_y:
+                y = float(max_y)
+                vy = -vy * self.THROW_BOUNCE_DAMPING
+                vx *= max(0.0, 1.0 - self.THROW_FLOOR_FRICTION * dt)
+                bounced = True
+                hit_floor = True
 
         if bounced:
             self._throw_bounce_count = getattr(self, "_throw_bounce_count", 0) + 1
 
-        # Extra slide kill while resting on the floor between hops.
+        # Floor friction against the monitor currently under Kinito.
+        if hasattr(self, "get_current_monitor_bounds"):
+            _min_x, _min_y, _max_x, max_y = self.get_current_monitor_bounds(x=x, y=y)
+        else:
+            _min_x, _min_y, _max_x, max_y = self.get_screen_bounds()
         if hit_floor or y >= max_y - 2:
             vx *= max(0.0, 1.0 - self.THROW_FLOOR_FRICTION * dt)
 
@@ -533,6 +976,8 @@ class MovementMixin:
             self._cancel_throw()
             return
         self._follow_speech_bubble_to_kinito(x, y)
+        if hasattr(self, "_schedule_raise_screen_effect_overlays"):
+            self._schedule_raise_screen_effect_overlays()
 
         speed = math.hypot(vx, vy)
         if bounced and speed < self.THROW_STOP_SPEED_PX_S:
@@ -563,16 +1008,13 @@ class MovementMixin:
         self._bubble_kinito_offset_y = None
         if hasattr(self, "clamp_position"):
             self.x, self.y = self.clamp_position(self.x, self.y)
-            try:
-                self.root.geometry(f"+{int(self.x)}+{int(self.y)}")
-            except tk.TclError:
-                pass
+        try:
+            self.root.geometry(f"+{int(self.x)}+{int(self.y)}")
+        except tk.TclError:
+            pass
         if play_sound and was_throwing and not self._should_skip_drag_sounds():
             self.play_sfx(bomp_file_path)
-        if hasattr(self, "position_speech_bubble"):
-            self.position_speech_bubble(redraw_shell=True)
-        else:
-            self._follow_speech_bubble_to_kinito()
+        self._follow_speech_bubble_to_kinito()
         if hasattr(self, "ensure_on_screen"):
             self.root.after(0, self.ensure_on_screen)
         if hasattr(self, "_keep_assistant_on_top"):
@@ -584,18 +1026,39 @@ class MovementMixin:
             return
         self._finish_throw(play_sound=False)
 
+    def _run_on_ui(self, callback) -> None:
+        """Run *callback* on the Tk main thread (safe from worker threads)."""
+        if threading.current_thread() is threading.main_thread():
+            try:
+                callback()
+            except tk.TclError:
+                pass
+            return
 
-    def change_sprite(self, new_sprite):
-        """Swap the visible sprite unless drag/throw owns the pose."""
-        if getattr(self, "_throwing", False):
-            return
-        if self.is_dragging and self._drag_sprites_allowed():
-            return
+        def _invoke():
+            try:
+                callback()
+            except tk.TclError:
+                pass
+
         try:
-            if self.panel.winfo_exists():
-                self.panel.config(image=new_sprite)
+            self.root.after(0, _invoke)
         except tk.TclError:
             pass
+
+    def change_sprite(self, new_sprite):
+        """Swap the visible sprite unless an awake drag owns the pose."""
+        # While asleep, keep cycling sleep sprites even if the user is dragging.
+        if self.is_dragging and self._drag_sprites_allowed():
+            return
+
+        def _apply():
+            if self.is_dragging and self._drag_sprites_allowed():
+                return
+            if self.panel.winfo_exists():
+                self.panel.config(image=new_sprite)
+
+        self._run_on_ui(_apply)
 
     def _start_mouse_attention(self) -> None:
         """Begin polling the cursor for look-at / occasional follow behavior."""
@@ -620,6 +1083,8 @@ class MovementMixin:
         cancel_after(self.root, self, "_mouse_attention_timer")
         cancel_after(self.root, self, "_mouse_think_timer")
         self._mouse_look_active = False
+        self._reset_dizzy_orbit()
+        self._exit_head_stroke_mode(restore_sprite=False)
         if getattr(self, "_mouse_follow_state", "idle") == "thinking":
             self._mouse_follow_state = "idle"
 
@@ -655,7 +1120,11 @@ class MovementMixin:
             return False
         if getattr(self, "moving", False):
             return False
+        if getattr(self, "_head_stroke_mode", False):
+            return False
         if getattr(self, "_fancy_mode", False):
+            return False
+        if getattr(self, "_dizzy_mode", False):
             return False
         if getattr(self, "_reading_idle_active", False):
             return False
@@ -666,6 +1135,8 @@ class MovementMixin:
         if getattr(self, "_ai_generating", False):
             return False
         if getattr(self, "_is_game_active", lambda: False)():
+            return False
+        if getattr(self, "_chat_mode", False):
             return False
         if getattr(self, "talking", False):
             return False
@@ -687,6 +1158,8 @@ class MovementMixin:
 
     def _mouse_attention_owns_sprite(self) -> bool:
         """Return True when idle animation must not overwrite mouse-driven sprites."""
+        if getattr(self, "_head_stroke_mode", False):
+            return True
         if getattr(self, "_mouse_look_active", False):
             return True
         return getattr(self, "_mouse_follow_state", "idle") in {"thinking", "chasing"}
@@ -695,13 +1168,13 @@ class MovementMixin:
         """Return the PhotoImage for *direction*, falling back to center/front."""
         mapping = getattr(
             self,
-            "_standing2_dir_sprites" if crouch else "_standing_dir_sprites",
+            "_crouching_dir_sprites" if crouch else "_standing_dir_sprites",
             {},
         )
         if not isinstance(mapping, dict) or not mapping:
-            return getattr(self, "tk_img_normal_2" if crouch else "tk_img_normal", None)
+            return getattr(self, "tk_img_crouching" if crouch else "tk_img_normal", None)
         return mapping.get(direction) or mapping.get("center") or getattr(
-            self, "tk_img_normal_2" if crouch else "tk_img_normal", None
+            self, "tk_img_crouching" if crouch else "tk_img_normal", None
         )
 
     def _refresh_mouse_look_stance(self, *, force: bool = False) -> None:
@@ -767,13 +1240,16 @@ class MovementMixin:
         """Roll the follow chance after thinking; chase briefly or cool down."""
         if getattr(self, "_mouse_follow_state", "idle") != "thinking":
             return
-        if getattr(self, "talking", False):
+        if getattr(self, "_chat_mode", False) or getattr(self, "talking", False):
             self._begin_mouse_follow_cooldown()
             return
         if getattr(self, "paused", False) or self._is_position_locked_by_user():
             self._mouse_follow_state = "idle"
             return
-        if getattr(self, "_fancy_mode", False) or getattr(self, "_reading_idle_active", False):
+        if getattr(self, "_fancy_mode", False) or getattr(self, "_dizzy_mode", False):
+            self._mouse_follow_state = "idle"
+            return
+        if getattr(self, "_reading_idle_active", False):
             self._mouse_follow_state = "idle"
             return
         if getattr(self, "_hug_mode", False) or getattr(self, "_preserve_sprite", False):
@@ -814,28 +1290,44 @@ class MovementMixin:
             self._keep_assistant_on_top()
 
     def _update_mouse_attention(self) -> None:
-        """Poll cursor proximity and update look / follow state."""
+        """Poll cursor proximity and update look / follow / head-pet state."""
         try:
             if not getattr(self, "_running", True):
                 return
 
             follow_state = getattr(self, "_mouse_follow_state", "idle")
             if follow_state == "chasing":
+                self._reset_dizzy_orbit()
                 self._schedule_mouse_attention_poll()
                 return
+
+            cursor = self._cursor_screen_pos()
+            # Head pets use a padded zone and keep working slightly off-sprite.
+            # While building up a stroke, still allow look-at-mouse; only blush
+            # mode owns the sprite exclusively.
+            if cursor is not None:
+                self._accumulate_head_stroke(cursor[0], cursor[1])
+                if getattr(self, "_head_stroke_mode", False):
+                    self._mouse_look_active = False
+                    self._mouse_look_crouch = False
+                    self._mouse_look_stance_until = 0.0
+                    self._reset_dizzy_orbit()
+                    self._schedule_mouse_attention_poll()
+                    return
 
             if not self._can_look_at_mouse():
                 self._mouse_look_active = False
                 self._mouse_look_crouch = False
                 self._mouse_look_stance_until = 0.0
+                self._reset_dizzy_orbit()
                 self._schedule_mouse_attention_poll()
                 return
 
-            cursor = self._cursor_screen_pos()
             if cursor is None:
                 self._mouse_look_active = False
                 self._mouse_look_crouch = False
                 self._mouse_look_stance_until = 0.0
+                self._reset_dizzy_orbit()
                 self._schedule_mouse_attention_poll()
                 return
 
@@ -851,14 +1343,15 @@ class MovementMixin:
                 if was_looking:
                     self._mouse_look_crouch = False
                     self._mouse_look_stance_until = 0.0
+                self._reset_dizzy_orbit()
                 # Occasional surf toward the cursor even when it is outside the look radius.
-                if (
-                    follow_state != "thinking"
-                    and self._can_follow_mouse()
-                    and random.random() < self.MOUSE_FOLLOW_OUTSIDE_CHANCE
-                ):
-                    self._mouse_follow_long_range = True
-                    self._start_mouse_think(cursor_x, cursor_y)
+                if follow_state != "thinking" and self._can_follow_mouse():
+                    if random.random() < self.MOUSE_FOLLOW_OUTSIDE_CHANCE:
+                        self._mouse_follow_long_range = True
+                        self._start_mouse_think(cursor_x, cursor_y)
+                    else:
+                        # Miss still starts cooldown so we don't re-roll every poll tick.
+                        self._begin_mouse_follow_cooldown()
                 self._schedule_mouse_attention_poll()
                 return
 
@@ -871,6 +1364,7 @@ class MovementMixin:
             self._mouse_look_active = True
             self._refresh_mouse_look_stance(force=not was_looking)
             self._apply_mouse_look_sprite(direction)
+            self._track_dizzy_orbit(dx, dy, distance)
 
             # Already deciding whether to follow — keep looking, don't re-trigger.
             if follow_state == "thinking":
@@ -888,6 +1382,38 @@ class MovementMixin:
                 self._schedule_mouse_attention_poll()
             except Exception:
                 pass
+
+    def _maybe_play_snoring(self) -> None:
+        """Occasionally play a quiet snore while Kinito is asleep."""
+        if not getattr(self, "_snoring_enabled", True):
+            return
+        if not getattr(self, "paused", False):
+            return
+        if getattr(self, "talking", False):
+            return
+        last_at = float(getattr(self, "_last_snore_at", 0.0))
+        if last_at > 0 and time.monotonic() - last_at < self.SNORING_COOLDOWN_SECONDS:
+            return
+        if random.random() >= self.SNORING_CHANCE:
+            return
+        self._last_snore_at = time.monotonic()
+        play_sfx = getattr(self, "play_sfx", None)
+        if callable(play_sfx):
+            play_sfx(snoring_file_path, volume=self.SNORING_VOLUME)
+
+    def toggle_snoring(self):
+        """Enable or disable snoring sounds while asleep."""
+        from content import dialogue as dlg
+
+        self._snoring_enabled = not getattr(self, "_snoring_enabled", True)
+        if hasattr(self, "_persist_settings"):
+            self._persist_settings()
+        lines = (
+            dlg.SNORING_ON_LINES
+            if self._snoring_enabled
+            else dlg.SNORING_OFF_LINES
+        )
+        self.speak(dlg.pick_line(lines), skip_ai=True)
 
     def _update_surf_facing(self, dx: float) -> None:
         """Remember whether Kinito is surfing left or right."""
@@ -983,32 +1509,43 @@ class MovementMixin:
             self._surf_tilt_degrees(wave_phase) / self.SURF_TILT_QUANTUM
         ) * self.SURF_TILT_QUANTUM
         facing = self._surf_facing
-        if abs(tilt) < 0.05:
-            photo = self.tk_img_surf_left if facing == "left" else self.tk_img_surf_right
-        else:
-            cache = getattr(self, "_surf_render_cache", None)
-            if cache is None:
-                self._surf_render_cache = {}
-                cache = self._surf_render_cache
-            cache_key = (facing, tilt)
-            photo = cache.get(cache_key)
-            if photo is None:
-                base = self.img_surf_left if facing == "left" else self.img_surf_right
-                rendered = self._rotate_sprite_padded(base, tilt)
-                photo = ImageTk.PhotoImage(rendered, master=self.root)
-                cache[cache_key] = photo
-        try:
+        # Match tk_img_surf_* size — unscaled tilted frames flashed larger/smaller.
+        scale = float(getattr(self, "_sprite_draw_scale", 1.0) or 1.0)
+
+        def _apply():
+            if abs(tilt) < 0.05:
+                photo = self.tk_img_surf_left if facing == "left" else self.tk_img_surf_right
+            else:
+                cache = getattr(self, "_surf_render_cache", None)
+                if cache is None:
+                    self._surf_render_cache = {}
+                    cache = self._surf_render_cache
+                cache_key = (facing, tilt, round(scale, 3))
+                photo = cache.get(cache_key)
+                if photo is None:
+                    base = self.img_surf_left if facing == "left" else self.img_surf_right
+                    rendered = self._rotate_sprite_padded(base, tilt)
+                    if abs(scale - 1.0) >= 0.02:
+                        width = max(1, int(round(rendered.width * scale)))
+                        height = max(1, int(round(rendered.height * scale)))
+                        rendered = rendered.resize(
+                            (width, height), Image.Resampling.NEAREST
+                        )
+                    photo = ImageTk.PhotoImage(rendered, master=self.root)
+                    cache[cache_key] = photo
             if self.panel.winfo_exists():
                 self.panel.config(image=photo)
                 self._surf_tk_image = photo
-        except tk.TclError:
-            pass
+
+        self._run_on_ui(_apply)
 
     def _finish_surf_movement(self) -> None:
         """Reset surf visuals after roaming."""
         cache = getattr(self, "_surf_render_cache", None)
         if cache is not None:
             cache.clear()
+        if getattr(self, "paused", False):
+            return
         self.change_sprite(self.tk_img_normal)
 
     def _stop_roaming(self) -> None:
@@ -1027,10 +1564,39 @@ class MovementMixin:
 
     def _apply_surf_geometry(self, x: float, y: float, wave_phase: float) -> None:
         """Move the window along the path while bobbing on a sine wave."""
-        display_y = y + self._surf_wave_offset(wave_phase)
-        clamped_x, clamped_y = self.clamp_position(x, display_y)
-        self.x, self.y = x, y
-        self.root.geometry(f"+{int(clamped_x)}+{int(clamped_y)}")
+        target = getattr(self, "_move_target", None)
+        path_x, path_y = self.clamp_position(x, y, target=target)
+        self.x, self.y = path_x, path_y
+        # Wave bob uses a virtual fence only — a second void-clamp fights the
+        # sine and vibrates at monitor seams / DPI hops. No Win32 SetWindowPos:
+        # mixing it with Tk geometry snaps across DPI boundaries.
+        display_y = path_y + self._surf_wave_offset(wave_phase)
+        if hasattr(self, "get_screen_bounds") and hasattr(self, "_sprite_pixel_size"):
+            window_w, window_h = self._sprite_pixel_size()
+            min_x, min_y, max_x, max_y = self.get_screen_bounds(window_w, window_h)
+            clamped_x = max(min_x, min(int(path_x), max_x))
+            clamped_y = max(min_y, min(int(display_y), max_y))
+        else:
+            clamped_x, clamped_y = int(path_x), int(display_y)
+
+        def _apply():
+            try:
+                # Pin client size while surfing so a mismatched frame cannot grow
+                # the overrideredirect window (looked like a one-frame size glitch).
+                if hasattr(self, "_sprite_pixel_size"):
+                    sw, sh = self._sprite_pixel_size()
+                    self.root.geometry(
+                        f"{int(sw)}x{int(sh)}+{int(clamped_x)}+{int(clamped_y)}"
+                    )
+                else:
+                    self.root.geometry(f"+{int(clamped_x)}+{int(clamped_y)}")
+            except tk.TclError:
+                self._stop_roaming()
+                return
+            if hasattr(self, "_schedule_raise_screen_effect_overlays"):
+                self._schedule_raise_screen_effect_overlays()
+
+        self._run_on_ui(_apply)
 
     def _talking_sprite_pair(self):
         """Return the two-frame sprite pair for the current speech mode."""
@@ -1050,8 +1616,8 @@ class MovementMixin:
     def _pick_normal_idle_sprite(self, *, crouch: bool = False):
         """Pick standing or crouch idle sprite; look-arounds are rare and cooled down."""
         if crouch:
-            default = getattr(self, "tk_img_normal_2", None)
-            variants = getattr(self, "_standing2_look_sprites", ())
+            default = getattr(self, "tk_img_crouching", None)
+            variants = getattr(self, "_crouching_look_sprites", ())
         else:
             default = getattr(self, "tk_img_normal", None)
             variants = getattr(self, "_standing_look_sprites", ())
@@ -1070,39 +1636,6 @@ class MovementMixin:
 
         self._look_around_ready_at = time.monotonic() + self.LOOK_AROUND_COOLDOWN_SECONDS
         return random.choice(variants)
-
-
-    def _maybe_play_snoring(self) -> None:
-        """Occasionally play a quiet snore while Kinito is asleep."""
-        if not getattr(self, "_snoring_enabled", True):
-            return
-        if not getattr(self, "paused", False):
-            return
-        if getattr(self, "talking", False):
-            return
-        last_at = float(getattr(self, "_last_snore_at", 0.0))
-        if last_at > 0 and time.monotonic() - last_at < self.SNORING_COOLDOWN_SECONDS:
-            return
-        if random.random() >= self.SNORING_CHANCE:
-            return
-        self._last_snore_at = time.monotonic()
-        play_sfx = getattr(self, "play_sfx", None)
-        if callable(play_sfx):
-            play_sfx(snoring_file_path, volume=self.SNORING_VOLUME)
-
-    def toggle_snoring(self):
-        """Enable or disable snoring sounds while asleep."""
-        from content import dialogue as dlg
-
-        self._snoring_enabled = not getattr(self, "_snoring_enabled", True)
-        if hasattr(self, "_persist_settings"):
-            self._persist_settings()
-        lines = (
-            dlg.SNORING_ON_LINES
-            if self._snoring_enabled
-            else dlg.SNORING_OFF_LINES
-        )
-        self.speak(dlg.pick_line(lines))
 
     def maybe_trigger_screen_glitch(self) -> bool:
         """No-op unless GlitchMixin is mixed in."""
@@ -1142,6 +1675,7 @@ class MovementMixin:
             and not self._is_position_locked_by_user()
             and not getattr(self, "_focus_mode", False)
             and not getattr(self, "_fancy_mode", False)
+            and not getattr(self, "_dizzy_mode", False)
             and (not self.talking or getattr(self, "_preserve_sprite", False))
         )
 
@@ -1157,6 +1691,7 @@ class MovementMixin:
             and not self.talking
             and not getattr(self, "_focus_mode", False)
             and not getattr(self, "_fancy_mode", False)
+            and not getattr(self, "_dizzy_mode", False)
         )
 
     def _maybe_play_reading_page_turn(self, session: int, *, page_sprites=(), restore_sprite=None) -> bool:
@@ -1235,79 +1770,89 @@ class MovementMixin:
     def smooth_movement(self):
         """Background loop: roam the screen or trigger spontaneous speech/actions."""
         while self._running:
-            if (
-                self.paused
-                or self._is_position_locked_by_user()
-                or not self._startup_complete
-                or self._is_busy_with_speech()
-                or self._is_background_music_playing()
-                or getattr(self, "_reading_idle_active", False)
-                or getattr(self, "_window_grab_active", False)
-                or getattr(self, "_mouse_follow_state", "idle") in {"thinking", "chasing"}
-            ):
-                time.sleep(0.1)
-                continue
-            self.maybe_trigger_screen_glitch()
-            self.maybe_trigger_blue_screen()
-            self.maybe_trigger_random_ad()
-            self.maybe_trigger_ambient_reminder()
-            if self.maybe_trigger_screen_comment():
-                time.sleep(self._idle_wait_before_next_action())
-                continue
-            if self.maybe_trigger_paint_recall():
-                time.sleep(self._idle_wait_before_next_action())
-                continue
-            if self.maybe_trigger_window_grab():
-                time.sleep(self._idle_wait_before_next_action())
-                continue
-            if hasattr(self, "maybe_drift_mood"):
-                self.maybe_drift_mood()
-            speech_chance = self.SPONTANEOUS_CHANCE
-            menu_chance = self.MENU_ACTION_CHANCE
-            if hasattr(self, "mood_action_weights"):
-                weights = self.mood_action_weights()
-                speech_chance *= weights.get("speech_chance_mult", 1.0)
-                menu_chance *= weights.get("menu_action_mult", 1.0)
-            if getattr(self, "_special_days_enabled", True):
-                from content.special_days import seasonal_multiplier
+            try:
+                self._smooth_movement_tick()
+            except Exception as exc:
+                print(f"Warning: smooth_movement tick failed: {exc!r}", flush=True)
+                time.sleep(0.5)
 
-                speech_chance *= seasonal_multiplier("speech_chance_mult")
-                menu_chance *= seasonal_multiplier("menu_action_mult")
-            if (
-                random.random() < speech_chance
-                and self._allow_random_questions
-                and not getattr(self, "_focus_mode", False)
-                and not (
-                    callable(getattr(self, "_player_focus_active", None))
-                    and self._player_focus_active()
-                )
-                and not getattr(self, "_is_game_active", lambda: False)()
-            ):
-                if random.random() < menu_chance:
-                    self.perform_random_menu_action()
-                elif (
-                    hasattr(self, "speak_idle_mood_line")
-                    and random.random() < getattr(self, "IDLE_MOOD_SNIPPET_CHANCE", 0.35)
-                ):
-                    self.speak_idle_mood_line()
-                else:
-                    self.speak_random_question()
-            else:
-                self.ensure_on_screen()
-                target_x, target_y = self.random_position_on_screen()
-                self.moving = True
-                current_x = self.root.winfo_rootx()
-                self._render_surf_sprite(target_x - current_x, 0.0)
-                self.play_sfx(surf_file_path)
-                self.move_towards(target_x, target_y)
-                self.moving = False
-                self._finish_surf_movement()
-                self.root.after(0, self.ensure_on_screen)
-                if hasattr(self, "_keep_assistant_on_top"):
-                    self.root.after(0, self._keep_assistant_on_top)
+    def _smooth_movement_tick(self) -> None:
+        """One iteration of the autonomous roam / speech loop."""
+        if (
+            self.paused
+            or self._is_position_locked_by_user()
+            or not self._startup_complete
+            or self._is_busy_with_speech()
+            or self._is_background_music_playing()
+            or getattr(self, "_reading_idle_active", False)
+            or getattr(self, "_window_grab_active", False)
+            or getattr(self, "_mouse_follow_state", "idle") in {"thinking", "chasing"}
+        ):
+            time.sleep(0.1)
+            return
+        self.maybe_trigger_screen_glitch()
+        self.maybe_trigger_blue_screen()
+        self.maybe_trigger_random_ad()
+        self.maybe_trigger_ambient_reminder()
+        if self.maybe_trigger_screen_comment():
             time.sleep(self._idle_wait_before_next_action())
-            if self._startup_complete:
-                self._allow_random_questions = True
+            return
+        if self.maybe_trigger_paint_recall():
+            time.sleep(self._idle_wait_before_next_action())
+            return
+        if self.maybe_trigger_window_grab():
+            time.sleep(self._idle_wait_before_next_action())
+            return
+        if hasattr(self, "maybe_drift_mood"):
+            self.maybe_drift_mood()
+        speech_chance = self.SPONTANEOUS_CHANCE
+        menu_chance = self.MENU_ACTION_CHANCE
+        if hasattr(self, "mood_action_weights"):
+            weights = self.mood_action_weights()
+            speech_chance *= weights.get("speech_chance_mult", 1.0)
+            menu_chance *= weights.get("menu_action_mult", 1.0)
+        if getattr(self, "_special_days_enabled", True):
+            from content.special_days import seasonal_multiplier
+
+            speech_chance *= seasonal_multiplier("speech_chance_mult")
+            menu_chance *= seasonal_multiplier("menu_action_mult")
+        if (
+            random.random() < speech_chance
+            and self._allow_random_questions
+            and not getattr(self, "_focus_mode", False)
+            and not (
+                callable(getattr(self, "_player_focus_active", None))
+                and self._player_focus_active()
+            )
+            and not getattr(self, "_is_game_active", lambda: False)()
+        ):
+            if random.random() < menu_chance:
+                self.perform_random_menu_action()
+            elif (
+                hasattr(self, "speak_idle_mood_line")
+                and random.random() < getattr(self, "IDLE_MOOD_SNIPPET_CHANCE", 0.35)
+            ):
+                self.speak_idle_mood_line()
+            else:
+                self.speak_random_question()
+        else:
+            self.ensure_on_screen()
+            target_x, target_y = self.random_position_on_screen()
+            self.moving = True
+            current_x = self.root.winfo_rootx()
+            self._render_surf_sprite(target_x - current_x, 0.0)
+            self.play_sfx(surf_file_path)
+            self.move_towards(target_x, target_y)
+            self.moving = False
+            self._finish_surf_movement()
+            if hasattr(self, "_ensure_consistent_window_scale"):
+                self.root.after(0, self._ensure_consistent_window_scale)
+            self.root.after(0, self.ensure_on_screen)
+            if hasattr(self, "_keep_assistant_on_top"):
+                self.root.after(0, self._keep_assistant_on_top)
+        time.sleep(self._idle_wait_before_next_action())
+        if self._startup_complete:
+            self._allow_random_questions = True
 
     def move_towards(self, target_x, target_y, speed=None, frame_delay=None):
         """Animate movement toward (*target_x*, *target_y*) at *speed* pixels per step."""
@@ -1315,118 +1860,173 @@ class MovementMixin:
             speed = self.SURF_MOVE_SPEED
         if frame_delay is None:
             frame_delay = self.SURF_MOVE_FRAME_DELAY
-        current_x, current_y = self.root.winfo_rootx(), self.root.winfo_rooty()
-        current_x, current_y = self.clamp_position(current_x, current_y)
-        self.x, self.y = current_x, current_y
-        if (current_x, current_y) != (self.root.winfo_rootx(), self.root.winfo_rooty()):
-            self.root.geometry(f"+{current_x}+{current_y}")
+        target = (float(target_x), float(target_y))
+        self._move_target = target
+        try:
+            current_x, current_y = self.root.winfo_rootx(), self.root.winfo_rooty()
+            current_x, current_y = self.clamp_position(
+                current_x, current_y, target=target
+            )
+            self.x, self.y = current_x, current_y
+            if (current_x, current_y) != (self.root.winfo_rootx(), self.root.winfo_rooty()):
+                clamped_x, clamped_y = current_x, current_y
 
-        target_x, target_y = self.clamp_position(target_x, target_y)
-        wave_phase = 0.0
-        while self._running:
-            if self.paused or self._is_position_locked_by_user() or self._is_busy_with_speech():
-                self._finish_surf_movement()
-                self._realign_speech_bubble_after_move()
-                return
-            current_x, current_y = self.x, self.y
-            dx = target_x - current_x
-            dy = target_y - current_y
-            distance = ((dx**2) + (dy**2)) ** 0.5
-            if distance < 1:
-                self.x, self.y = target_x, target_y
-                self.root.geometry(f"+{int(self.x)}+{int(self.y)}")
-                break
-            self._render_surf_sprite(dx, wave_phase)
-            steps = min(speed, distance)
-            theta = math.atan2(dy, dx)
-            next_x = current_x + steps * math.cos(theta)
-            next_y = current_y + steps * math.sin(theta)
-            wave_phase += self.SURF_WAVE_STEP
-            self._apply_surf_geometry(next_x, next_y, wave_phase)
-            self.root.update()
-            time.sleep(frame_delay)
+                def _snap():
+                    try:
+                        self.root.geometry(f"+{clamped_x}+{clamped_y}")
+                    except tk.TclError:
+                        self._stop_roaming()
+
+                self._run_on_ui(_snap)
+
+            # Keep the chosen destination (may sit on another monitor); only fence
+            # against leaving the virtual desktop entirely.
+            target_x, target_y = self.clamp_position(
+                target_x, target_y, target=target
+            )
+            self._move_target = (float(target_x), float(target_y))
+            wave_phase = 0.0
+            while self._running:
+                if self.paused or self._is_position_locked_by_user() or self._is_busy_with_speech():
+                    self._finish_surf_movement()
+                    self._realign_speech_bubble_after_move()
+                    return
+                if not getattr(self, "moving", True):
+                    return
+                current_x, current_y = self.x, self.y
+                dx = target_x - current_x
+                dy = target_y - current_y
+                distance = ((dx**2) + (dy**2)) ** 0.5
+                if distance < 1:
+                    self.x, self.y = target_x, target_y
+
+                    def _arrive():
+                        try:
+                            self.root.geometry(f"+{int(self.x)}+{int(self.y)}")
+                        except tk.TclError:
+                            self._stop_roaming()
+
+                    self._run_on_ui(_arrive)
+                    break
+                self._render_surf_sprite(dx, wave_phase)
+                steps = min(speed, distance)
+                theta = math.atan2(dy, dx)
+                next_x = current_x + steps * math.cos(theta)
+                next_y = current_y + steps * math.sin(theta)
+                wave_phase += self.SURF_WAVE_STEP
+                self._apply_surf_geometry(next_x, next_y, wave_phase)
+                # Let the Tk main thread process geometry/sprite callbacks; never call
+                # root.update() from this worker thread.
+                time.sleep(frame_delay)
+        finally:
+            self._move_target = None
 
     def idle_animation(self):
         """Background loop: alternate normal sprites, reading, fancy, sleep, and thinking."""
         while self._running:
-            if self.moving:
-                time.sleep(0.1)
-                continue
-            if not self.paused and not self.talking:
-                if self._mouse_attention_owns_sprite():
-                    time.sleep(0.25)
-                    continue
-                idle_roll = random.random()
-                focus_mode = getattr(self, "_focus_mode", False)
-                if (
-                    not focus_mode
-                    and idle_roll < self.IDLE_READING_CHANCE
-                    and self._allow_random_questions
-                ):
-                    self._run_reading_idle()
-                    continue
-                if (
-                    not focus_mode
-                    and idle_roll < self.IDLE_READING_CHANCE + self.IDLE_FANCY_CHANCE
-                    and self._allow_random_questions
-                    and self._can_initiate_spontaneous_speech()
-                ):
-                    self._run_fancy_idle()
-                    continue
-                self.change_sprite(self._pick_normal_idle_sprite(crouch=False))
-                time.sleep(1)
+            try:
+                self._idle_animation_tick()
+            except Exception as exc:
+                print(f"Warning: idle_animation tick failed: {exc!r}", flush=True)
+                time.sleep(0.5)
+
+    def _idle_animation_tick(self) -> None:
+        """One iteration of the idle / talking sprite cycle."""
+        if self.moving:
+            time.sleep(0.1)
+            return
+        if not self.paused and not self.talking:
+            if self._mouse_attention_owns_sprite():
+                time.sleep(0.25)
+                return
+            idle_roll = random.random()
+            focus_mode = getattr(self, "_focus_mode", False)
+            game_active = getattr(self, "_is_game_active", lambda: False)()
+            if (
+                not focus_mode
+                and not game_active
+                and idle_roll < self.IDLE_READING_CHANCE
+                and self._allow_random_questions
+            ):
+                self._run_reading_idle()
+                return
+            if (
+                not focus_mode
+                and not game_active
+                and idle_roll < self.IDLE_READING_CHANCE + self.IDLE_FANCY_CHANCE
+                and self._allow_random_questions
+                and self._can_initiate_spontaneous_speech()
+            ):
+                self._run_fancy_idle()
+                return
+            self.change_sprite(self._pick_normal_idle_sprite(crouch=False))
+            time.sleep(1)
+            if not self._running:
+                return
+            if self._mouse_attention_owns_sprite():
+                return
+            self.change_sprite(self._pick_normal_idle_sprite(crouch=True))
+            time.sleep(1)
+        elif self.paused:
+            self._maybe_play_snoring()
+            for sprite in (
+                self.tk_img_sleep,
+                self.tk_img_sleep1,
+                self.tk_img_sleep2,
+                self.tk_img_sleep3,
+            ):
                 if not self._running:
-                    break
-                if self._mouse_attention_owns_sprite():
-                    continue
-                self.change_sprite(self._pick_normal_idle_sprite(crouch=True))
+                    return
+                self.change_sprite(sprite)
                 time.sleep(1)
-            elif self.paused and not self.talking:
-                self._maybe_play_snoring()
-                for sprite in (
-                    self.tk_img_sleep,
-                    self.tk_img_sleep1,
-                    self.tk_img_sleep2,
-                    self.tk_img_sleep3,
-                ):
-                    if not self._running:
-                        return
-                    self.change_sprite(sprite)
-                    time.sleep(1)
-            elif self.talking:
-                if getattr(self, "_preserve_sprite", False):
-                    time.sleep(0.1)
-                    continue
-                if getattr(self, "_ai_generating", False):
-                    sprite_a, sprite_b = self._talking_sprite_pair()
-                    self.change_sprite(sprite_a)
-                    time.sleep(1)
-                    if not self._running:
-                        break
-                    self.change_sprite(sprite_b)
-                    time.sleep(1)
-                    continue
-                if self._fancy_mode:
-                    magician_sprites = getattr(self, "_magician_sprites", (self.tk_img_fancy,))
-                    frame = getattr(self, "_magician_frame", 0)
-                    self.change_sprite(magician_sprites[frame % len(magician_sprites)])
-                    self._magician_frame = frame + 1
-                    time.sleep(0.45)
-                    continue
-                if self._hug_mode:
-                    self.change_sprite(self.tk_img_hug)
-                    time.sleep(1)
-                    if not self._running:
-                        break
-                    self.change_sprite(self.tk_img_hug2)
-                    time.sleep(1)
-                    continue
+        elif self.talking:
+            if getattr(self, "_preserve_sprite", False):
+                time.sleep(0.1)
+                return
+            if getattr(self, "_head_stroke_mode", False):
+                time.sleep(0.1)
+                return
+            if self._fancy_mode:
+                magician_sprites = getattr(self, "_magician_sprites", (self.tk_img_magic,))
+                frame = getattr(self, "_magician_frame", 0)
+                self.change_sprite(magician_sprites[frame % len(magician_sprites)])
+                self._magician_frame = frame + 1
+                time.sleep(0.45)
+                return
+            if getattr(self, "_dizzy_mode", False):
+                dizzy_sprites = getattr(self, "_dizzy_sprites", ())
+                if not dizzy_sprites:
+                    dizzy = getattr(self, "tk_img_dizzy", None)
+                    dizzy_sprites = (dizzy,) if dizzy is not None else ()
+                if dizzy_sprites:
+                    frame = getattr(self, "_dizzy_frame", 0)
+                    self.change_sprite(dizzy_sprites[frame % len(dizzy_sprites)])
+                    self._dizzy_frame = frame + 1
+                    time.sleep(self.DIZZY_SPRITE_SWAP_SECONDS)
+                    return
+            if getattr(self, "_ai_generating", False):
                 sprite_a, sprite_b = self._talking_sprite_pair()
                 self.change_sprite(sprite_a)
                 time.sleep(1)
                 if not self._running:
-                    break
+                    return
                 self.change_sprite(sprite_b)
                 time.sleep(1)
-            else:
-                time.sleep(0.1)
+                return
+            if self._hug_mode:
+                self.change_sprite(self.tk_img_hug)
+                time.sleep(1)
+                if not self._running:
+                    return
+                self.change_sprite(self.tk_img_hug2)
+                time.sleep(1)
+                return
+            sprite_a, sprite_b = self._talking_sprite_pair()
+            self.change_sprite(sprite_a)
+            time.sleep(1)
+            if not self._running:
+                return
+            self.change_sprite(sprite_b)
+            time.sleep(1)
+        else:
+            time.sleep(0.1)

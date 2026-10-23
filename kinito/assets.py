@@ -14,9 +14,10 @@ script_directory = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 assets_directory = os.path.join(script_directory, "GameAssets")
 sprites_directory = os.path.join(assets_directory, "sprites")
 sprites_standing_directory = os.path.join(sprites_directory, "Standing")
-sprites_standing2_directory = os.path.join(sprites_directory, "Standing2")
+sprites_crouching_directory = os.path.join(sprites_directory, "Crouching")
 sprites_reading_directory = os.path.join(sprites_directory, "Reading")
 sprites_magic_directory = os.path.join(sprites_directory, "Magic")
+sprites_dizzy_directory = os.path.join(sprites_directory, "Dizzy")
 sprites_surfing_directory = os.path.join(sprites_directory, "Surfing")
 sprites_sleeping_directory = os.path.join(sprites_directory, "Sleeping")
 sprites_talking_directory = os.path.join(sprites_directory, "Talking")
@@ -24,6 +25,7 @@ sprites_thinking_directory = os.path.join(sprites_directory, "Thinking")
 sprites_hugging_directory = os.path.join(sprites_directory, "Hugging")
 sprites_hand_directory = os.path.join(sprites_directory, "Hand")
 sprites_drag_directory = os.path.join(sprites_directory, "Drag")
+sprites_blushing_directory = os.path.join(sprites_directory, "Blushing")
 icons_directory = os.path.join(assets_directory, "icons")
 music_player_directory = os.path.join(assets_directory, "musicPlayer")
 sounds_directory = os.path.join(assets_directory, "sounds")
@@ -40,7 +42,7 @@ crash_directory = os.path.join(assets_directory, "crash")
 balconexe_directory = os.path.join(programs_directory, "balcon.exe")
 
 SPRITE_NORMAL_DEFAULT = "KinitoNormal.png"
-SPRITE_NORMAL2_DEFAULT = "KinitoNormal2.png"
+SPRITE_CROUCHING_DEFAULT = "KinitoCrouching.png"
 
 # 8-way look directions derived from standing sprite filenames.
 LOOK_DIRECTION_CENTER = "center"
@@ -69,7 +71,7 @@ _STANDING_DIRECTION_SUFFIXES: dict[str, str] = {
 }
 
 sprite_path_normal = os.path.join(sprites_standing_directory, SPRITE_NORMAL_DEFAULT)
-sprite_path_normal_2 = os.path.join(sprites_standing2_directory, SPRITE_NORMAL2_DEFAULT)
+sprite_path_crouching = os.path.join(sprites_crouching_directory, SPRITE_CROUCHING_DEFAULT)
 sprite_path_idle = os.path.join(sprites_reading_directory, "Idle.png")
 sprite_path_idle_2 = os.path.join(sprites_reading_directory, "Idle2.png")
 sprite_path_idle_2_page = os.path.join(sprites_reading_directory, "Idle2Page.png")
@@ -82,8 +84,14 @@ sprite_path_idle_glasses_2_page = os.path.join(
 sprite_path_idle_glasses_2_page_2 = os.path.join(
     sprites_reading_directory, "IdleGlasses2Page2.png"
 )
-sprite_path_fancy = os.path.join(sprites_magic_directory, "Fancy.png")
-sprite_path_fancy_1 = os.path.join(sprites_magic_directory, "Fancy1.png")
+sprite_path_magic = os.path.join(sprites_magic_directory, "Magic.png")
+sprite_path_magic_2 = os.path.join(sprites_magic_directory, "Magic2.png")
+sprite_path_dizzy = os.path.join(sprites_dizzy_directory, "Dizzy.png")
+sprite_path_dizzy_2 = os.path.join(sprites_dizzy_directory, "Dizzy2.png")
+sprite_path_dizzy_3 = os.path.join(sprites_dizzy_directory, "Dizzy3.png")
+sprite_path_blush_left = os.path.join(sprites_blushing_directory, "KinitoBlushLeft.png")
+sprite_path_blush_right = os.path.join(sprites_blushing_directory, "KinitoBlushRight.png")
+sprite_path_blush_down = os.path.join(sprites_blushing_directory, "KinitoBlushDown.png")
 sprite_path_surf_left = os.path.join(sprites_surfing_directory, "KinitoSurfLeft.png")
 sprite_path_surf_right = os.path.join(sprites_surfing_directory, "KinitoSurfRight.png")
 sprite_path_moving = sprite_path_surf_right
@@ -102,7 +110,9 @@ sprite_path_hand_right = os.path.join(sprites_hand_directory, "HandToRight.png")
 sprite_path_drag_left = os.path.join(sprites_drag_directory, "KinitoDragLeft.png")
 sprite_path_drag_right = os.path.join(sprites_drag_directory, "KinitoDragRight.png")
 
-icon_path = os.path.join(icons_directory, "Icon.ico")
+# Prefer Kinito.ico (cache-busting name); Icon.ico kept as identical copy.
+icon_path = os.path.join(icons_directory, "Kinito.ico")
+icon_path_legacy = os.path.join(icons_directory, "Icon.ico")
 favicon_path = os.path.join(icons_directory, "Favicon.png")
 music_player_play_icon_path = os.path.join(music_player_directory, "play.png")
 music_player_pause_icon_path = os.path.join(music_player_directory, "pause.png")
@@ -154,8 +164,8 @@ def list_image_files(directory):
 def list_standing_sprite_paths(*, crouch: bool = False) -> list[str]:
     """Return standing (or crouch) sprite paths with the default variant first."""
     if crouch:
-        directory = sprites_standing2_directory
-        default_name = SPRITE_NORMAL2_DEFAULT
+        directory = sprites_crouching_directory
+        default_name = SPRITE_CROUCHING_DEFAULT
     else:
         directory = sprites_standing_directory
         default_name = SPRITE_NORMAL_DEFAULT
@@ -177,7 +187,8 @@ def list_standing_sprite_paths(*, crouch: bool = False) -> list[str]:
 def standing_direction_from_path(path: str) -> str | None:
     """Return a look-direction id from a standing/crouch sprite filename, or None."""
     stem = os.path.splitext(os.path.basename(path))[0]
-    for prefix in ("KinitoNormal2", "KinitoNormal"):
+    # Longer crouching prefix must be checked before standing "KinitoNormal".
+    for prefix in ("KinitoCrouching", "KinitoNormal"):
         if stem.startswith(prefix):
             suffix = stem[len(prefix) :]
             return _STANDING_DIRECTION_SUFFIXES.get(suffix)

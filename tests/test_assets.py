@@ -15,9 +15,11 @@ def test_assets_directory_is_under_project_root():
     [
         ("sprites_directory", os.path.join("GameAssets", "sprites")),
         ("sprites_standing_directory", os.path.join("GameAssets", "sprites", "Standing")),
-        ("sprites_standing2_directory", os.path.join("GameAssets", "sprites", "Standing2")),
+        ("sprites_crouching_directory", os.path.join("GameAssets", "sprites", "Crouching")),
         ("sprites_reading_directory", os.path.join("GameAssets", "sprites", "Reading")),
         ("sprites_magic_directory", os.path.join("GameAssets", "sprites", "Magic")),
+        ("sprites_dizzy_directory", os.path.join("GameAssets", "sprites", "Dizzy")),
+        ("sprites_blushing_directory", os.path.join("GameAssets", "sprites", "Blushing")),
         ("sprites_surfing_directory", os.path.join("GameAssets", "sprites", "Surfing")),
         ("sprites_sleeping_directory", os.path.join("GameAssets", "sprites", "Sleeping")),
         ("sprites_talking_directory", os.path.join("GameAssets", "sprites", "Talking")),
@@ -42,7 +44,7 @@ def test_asset_subdirectories(directory_attr, relative_path):
     "path_attr,filename,parent_attr",
     [
         ("sprite_path_normal", "KinitoNormal.png", "sprites_standing_directory"),
-        ("sprite_path_normal_2", "KinitoNormal2.png", "sprites_standing2_directory"),
+        ("sprite_path_crouching", "KinitoCrouching.png", "sprites_crouching_directory"),
         ("sprite_path_idle", "Idle.png", "sprites_reading_directory"),
         ("sprite_path_idle_2", "Idle2.png", "sprites_reading_directory"),
         ("sprite_path_idle_2_page", "Idle2Page.png", "sprites_reading_directory"),
@@ -59,8 +61,11 @@ def test_asset_subdirectories(directory_attr, relative_path):
             "IdleGlasses2Page2.png",
             "sprites_reading_directory",
         ),
-        ("sprite_path_fancy", "Fancy.png", "sprites_magic_directory"),
-        ("sprite_path_fancy_1", "Fancy1.png", "sprites_magic_directory"),
+        ("sprite_path_magic", "Magic.png", "sprites_magic_directory"),
+        ("sprite_path_magic_2", "Magic2.png", "sprites_magic_directory"),
+        ("sprite_path_dizzy", "Dizzy.png", "sprites_dizzy_directory"),
+        ("sprite_path_dizzy_2", "Dizzy2.png", "sprites_dizzy_directory"),
+        ("sprite_path_dizzy_3", "Dizzy3.png", "sprites_dizzy_directory"),
         ("sprite_path_surf_left", "KinitoSurfLeft.png", "sprites_surfing_directory"),
         ("sprite_path_surf_right", "KinitoSurfRight.png", "sprites_surfing_directory"),
         ("sprite_path_moving", "KinitoSurfRight.png", "sprites_surfing_directory"),
@@ -78,7 +83,8 @@ def test_asset_subdirectories(directory_attr, relative_path):
         ("sprite_path_hand_right", "HandToRight.png", "sprites_hand_directory"),
         ("sprite_path_drag_left", "KinitoDragLeft.png", "sprites_drag_directory"),
         ("sprite_path_drag_right", "KinitoDragRight.png", "sprites_drag_directory"),
-        ("icon_path", "Icon.ico", "icons_directory"),
+        ("icon_path", "Kinito.ico", "icons_directory"),
+        ("icon_path_legacy", "Icon.ico", "icons_directory"),
         ("favicon_path", "Favicon.png", "icons_directory"),
         ("music_player_play_icon_path", "play.png", "music_player_directory"),
         ("music_player_pause_icon_path", "pause.png", "music_player_directory"),
@@ -135,9 +141,13 @@ def test_asset_paths_point_to_expected_files(path_attr, filename, parent_attr):
     "path_attr",
     [
         "sprite_path_normal",
-        "sprite_path_normal_2",
+        "sprite_path_crouching",
         "sprite_path_idle",
-        "sprite_path_fancy",
+        "sprite_path_magic",
+        "sprite_path_magic_2",
+        "sprite_path_dizzy",
+        "sprite_path_dizzy_2",
+        "sprite_path_dizzy_3",
         "sprite_path_surf_left",
         "sprite_path_surf_right",
         "sprite_path_moving",
@@ -164,7 +174,7 @@ def test_sprite_paths_stay_under_sprites_directory(path_attr):
 
 @pytest.mark.parametrize(
     "path_attr",
-    ["icon_path", "favicon_path"],
+    ["icon_path", "icon_path_legacy", "favicon_path"],
 )
 def test_icon_paths_stay_under_icons_directory(path_attr):
     path = getattr(assets, path_attr)
@@ -212,7 +222,7 @@ def test_list_standing_sprite_paths_puts_default_first():
 
     crouch_paths = assets.list_standing_sprite_paths(crouch=True)
     assert crouch_paths
-    assert crouch_paths[0] == assets.sprite_path_normal_2
+    assert crouch_paths[0] == assets.sprite_path_crouching
     assert len(crouch_paths) >= 2
 
 
@@ -228,9 +238,9 @@ def test_list_standing_sprite_paths_puts_default_first():
         ("KinitoNormalTopRight.png", "top_right"),
         ("KinitoNormalBottomLeft.png", "bottom_left"),
         ("KinitoNormalBottomRight.png", "bottom_right"),
-        ("KinitoNormal2.png", "center"),
-        ("KinitoNormal2Left.png", "left"),
-        ("KinitoNormal2TopRight.png", "top_right"),
+        ("KinitoCrouching.png", "center"),
+        ("KinitoCrouchingLeft.png", "left"),
+        ("KinitoCrouchingTopRight.png", "top_right"),
     ],
 )
 def test_standing_direction_from_path(filename, direction):
@@ -238,7 +248,7 @@ def test_standing_direction_from_path(filename, direction):
 
 
 def test_standing_direction_from_path_rejects_unknown():
-    assert assets.standing_direction_from_path("/sprites/Fancy.png") is None
+    assert assets.standing_direction_from_path("/sprites/Magic.png") is None
 
 
 @pytest.mark.parametrize(
@@ -264,6 +274,12 @@ def test_look_direction_from_delta(dx, dy, expected):
 )
 def test_packaged_asset_files_exist_on_disk():
     expected_files = [
+        assets.sprite_path_normal,
+        assets.sprite_path_crouching,
+        assets.sprite_path_magic_2,
+        assets.sprite_path_dizzy,
+        assets.sprite_path_dizzy_2,
+        assets.sprite_path_dizzy_3,
         assets.sprite_path_surf_left,
         assets.sprite_path_surf_right,
         assets.sprite_path_talking,
@@ -272,6 +288,7 @@ def test_packaged_asset_files_exist_on_disk():
         assets.sprite_path_drag_left,
         assets.sprite_path_drag_right,
         assets.icon_path,
+        assets.icon_path_legacy,
         assets.favicon_path,
         assets.timer_file_path,
         assets.starttalk_file_path,

@@ -1,4 +1,5 @@
 import math
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,6 +26,14 @@ def movement():
     stub._drag_wiggle_timer = None
     stub._drag_wiggle_index = 0
     stub._drag_hold_reacted = False
+    stub._head_stroke_mode = False
+    stub._head_stroke_active_seconds = 0.0
+    stub._head_stroke_ready_at = 0.0
+    stub._head_stroke_started_at = 0.0
+    stub._head_stroke_last_t = None
+    stub._head_stroke_last_pointer = None
+    stub._head_stroke_blush_index = 0
+    stub._head_stroke_blush_timer = None
     stub._throw_after_id = None
     stub._throw_vx = 0.0
     stub._throw_vy = 0.0
@@ -32,6 +41,7 @@ def movement():
     stub._throw_last_t = 0.0
     stub._startup_complete = True
     stub._allow_random_questions = False
+    stub._focus_mode = False
     stub.talking = False
     stub.moving = False
     stub.root = MagicMock()
@@ -39,31 +49,47 @@ def movement():
     stub.root.winfo_y.return_value = 100
     stub.root.winfo_rootx.return_value = 100
     stub.root.winfo_rooty.return_value = 200
+    stub.root.winfo_pointerx.return_value = 100
+    stub.root.winfo_pointery.return_value = 200
+    stub.root.winfo_exists.return_value = True
+    stub.root.after = MagicMock(return_value="timer")
+    stub.root.after_cancel = MagicMock()
     stub.panel = MagicMock()
+    stub.panel.winfo_exists.return_value = True
     stub.tk_img_surf_left = "surf_left"
     stub.tk_img_surf_right = "surf_right"
     stub.tk_img_normal = "normal"
     stub.tk_img_drag_left = "drag_left"
     stub.tk_img_drag_right = "drag_right"
-    stub.panel.winfo_exists.return_value = True
-    stub.root.after = MagicMock(return_value="timer")
-    stub.root.after_cancel = MagicMock()
+    stub.tk_img_blush_left = "blush_left"
+    stub.tk_img_blush_right = "blush_right"
+    stub.tk_img_blush_down = "blush_down"
+    stub.panel.winfo_rootx.return_value = 100
+    stub.panel.winfo_rooty.return_value = 200
+    stub.panel.winfo_width.return_value = 100
+    stub.panel.winfo_height.return_value = 200
     stub.img_surf_left = Image.new("RGBA", (24, 48), (255, 255, 255, 0))
     stub.img_surf_right = Image.new("RGBA", (24, 48), (255, 255, 255, 0))
     stub._surf_render_cache = {}
     stub._surf_facing = "right"
     stub.play_sfx = MagicMock()
-    stub.speak = MagicMock()
-    stub.clamp_position = MagicMock(side_effect=lambda x, y: (x, y))
     stub.get_screen_bounds = MagicMock(return_value=(0, 0, 1900, 1000))
+
+    def _clamp_to_stub_bounds(x, y, **_kwargs):
+        min_x, min_y, max_x, max_y = stub.get_screen_bounds()
+        return (
+            max(min_x, min(int(round(x)), max_x)),
+            max(min_y, min(int(round(y)), max_y)),
+        )
+
+    stub.clamp_position = MagicMock(side_effect=_clamp_to_stub_bounds)
     stub._should_skip_drag_sounds = MagicMock(return_value=False)
     stub._has_active_speech_bubble = MagicMock(return_value=False)
     stub._is_busy_with_speech = MagicMock(return_value=False)
     stub._is_background_music_playing = MagicMock(return_value=False)
     stub.ensure_on_screen = MagicMock()
     stub.position_speech_bubble = MagicMock()
-    stub.x = 100
-    stub.y = 200
+    stub.speak = MagicMock()
     return stub
 
 
@@ -98,10 +124,12 @@ def test_stop_audio_for_drag_keeps_user_music(movement):
 def test_stop_audio_for_drag_stops_speech_accompaniment(movement):
     movement._speech_accompaniment_active = True
     movement.stop_speech_accompaniment_music = MagicMock()
+    movement.stop_background_music = MagicMock()
 
     movement._stop_audio_for_drag()
 
     movement.stop_speech_accompaniment_music.assert_called_once()
+    movement.stop_background_music.assert_not_called()
 
 
 def test_setup_mouse_bindings_drags_sprite_only(movement):
@@ -110,7 +138,10 @@ def test_setup_mouse_bindings_drags_sprite_only(movement):
     movement.root.winfo_rootx.return_value = 100
     movement.root.winfo_rooty.return_value = 200
     movement.setup_mouse_bindings()
-    movement.panel.bind.assert_called_once_with("<Button-1>", movement.on_mouse_down)
+    movement.panel.bind.assert_any_call("<Button-1>", movement.on_mouse_down)
+    movement.panel.bind.assert_any_call("<Motion>", movement.on_panel_motion)
+    movement.panel.bind.assert_any_call("<Leave>", movement.on_panel_leave)
+    assert movement.panel.bind.call_count == 3
     movement.root.bind.assert_called_once_with("<Configure>", movement._on_root_moved)
     assert movement.x == 100
     assert movement.y == 200
@@ -154,21 +185,49 @@ def test_on_mouse_up_skips_bomp_without_drag(movement):
     movement.play_sfx.assert_not_called()
 
 
-def test_on_mouse_move_clamps_position(movement):
+def test_on_mouse_move_follows_cursor_with_sticky_offset(movement):
+    """Absolute grab keeps the sprite under the cursor even when events are sparse."""
     movement.is_dragging = True
-    movement.mouse_click_offset_x = 10
-    movement.mouse_click_offset_y = 20
-    event = MagicMock(x_root=300, y_root=400)
-    movement.on_mouse_move(event)
-    movement.clamp_position.assert_called_once()
-    movement.root.geometry.assert_called()
+    movement.x = 100
+    movement.y = 200
+    movement.mouse_click_offset_x = -10
+    movement.mouse_click_offset_y = -20
+    movement.root.winfo_pointerx.return_value = 310
+    movement.root.winfo_pointery.return_value = 405
+    movement.on_mouse_move(MagicMock(x_root=310, y_root=405))
+    movement.clamp_position.assert_not_called()
+    movement.root.geometry.assert_called_once_with("+300+385")
+    assert movement.x == 300
+    assert movement.y == 385
+
+
+def test_on_mouse_move_follows_large_jumps_without_reanchor(movement):
+    """Fast drags must not restick the grab offset (that caused cursor drift)."""
+    movement.is_dragging = True
+    movement.x = 100
+    movement.y = 200
+    movement.mouse_click_offset_x = 0
+    movement.mouse_click_offset_y = 0
+    movement._follow_speech_bubble_to_kinito = MagicMock()
+    movement.root.winfo_pointerx.return_value = 900
+    movement.root.winfo_pointery.return_value = 400
+    movement.on_mouse_move(MagicMock(x_root=900, y_root=400))
+    movement.root.geometry.assert_called_once_with("+900+400")
+    assert movement.x == 900
+    assert movement.y == 400
+    assert movement.mouse_click_offset_x == 0
+    assert movement.mouse_click_offset_y == 0
 
 
 def test_on_mouse_move_repositions_speech_bubble(movement):
     movement.is_dragging = True
+    movement.x = 100
+    movement.y = 200
     movement.mouse_click_offset_x = 0
     movement.mouse_click_offset_y = 0
     movement._follow_speech_bubble_to_kinito = MagicMock()
+    movement.root.winfo_pointerx.return_value = 300
+    movement.root.winfo_pointery.return_value = 400
     movement.on_mouse_move(MagicMock(x_root=300, y_root=400))
     movement._follow_speech_bubble_to_kinito.assert_called_once_with(300, 400)
 
@@ -199,6 +258,15 @@ def test_on_root_moved_follows_speech_bubble(movement):
 
 def test_on_root_moved_ignores_surf_bobbing(movement):
     movement.moving = True
+    movement._sync_kinito_screen_position = MagicMock()
+    movement._follow_speech_bubble_to_kinito = MagicMock()
+    movement._on_root_moved(MagicMock(widget=movement.root))
+    movement._sync_kinito_screen_position.assert_not_called()
+    movement._follow_speech_bubble_to_kinito.assert_not_called()
+
+
+def test_on_root_moved_ignores_drag(movement):
+    movement.is_dragging = True
     movement._sync_kinito_screen_position = MagicMock()
     movement._follow_speech_bubble_to_kinito = MagicMock()
     movement._on_root_moved(MagicMock(widget=movement.root))
@@ -247,6 +315,7 @@ def test_on_mouse_down_keeps_sleep_sprite_while_paused(movement):
     movement.on_mouse_down(MagicMock(x_root=50, y_root=60, widget=movement.panel))
     movement.panel.config.assert_not_called()
     assert movement._drag_sprite_state is None
+    # No idle/wiggle timers while asleep.
     movement.root.after.assert_not_called()
 
 
@@ -256,10 +325,13 @@ def test_on_mouse_move_shows_drag_left_and_right(movement):
     movement.mouse_click_offset_y = 0
     movement.x = 300
     movement.y = 400
+    movement.root.winfo_pointerx.return_value = 250
+    movement.root.winfo_pointery.return_value = 400
     movement.on_mouse_move(MagicMock(x_root=250, y_root=400))
     movement.panel.config.assert_called_with(image="drag_left")
     assert movement._drag_sprite_state == "left"
     movement.panel.config.reset_mock()
+    movement.root.winfo_pointerx.return_value = 320
     movement.on_mouse_move(MagicMock(x_root=320, y_root=400))
     movement.panel.config.assert_called_with(image="drag_right")
     assert movement._drag_sprite_state == "right"
@@ -273,6 +345,8 @@ def test_on_mouse_move_keeps_sleep_sprite_while_paused(movement):
     movement.x = 300
     movement.y = 400
     movement.panel.config.reset_mock()
+    movement.root.winfo_pointerx.return_value = 250
+    movement.root.winfo_pointery.return_value = 400
     movement.on_mouse_move(MagicMock(x_root=250, y_root=400))
     movement.panel.config.assert_not_called()
     assert movement._drag_sprite_state is None
@@ -304,6 +378,120 @@ def test_drag_wiggle_cycles_left_standing_right_standing(movement):
     assert movement.panel.config.call_args_list[3].kwargs["image"] == "normal"
     movement._drag_wiggle_tick()
     assert movement.panel.config.call_args_list[4].kwargs["image"] == "drag_left"
+
+
+def test_pointer_in_head_zone_uses_upper_sprite_fraction(movement):
+    assert movement._pointer_in_head_zone(150, 240) is True
+    # Panel at y=200, height=200, frac=0.50 → head ends at y=300.
+    assert movement._pointer_in_head_zone(150, 320) is False
+
+
+def test_pointer_in_head_zone_allows_side_and_top_padding(movement):
+    # Panel is at (100,200) size 100x200 → head bottom at y=300 with frac 0.50.
+    # Left/right padding HEAD_ZONE_PAD_X_PX, top padding HEAD_ZONE_PAD_TOP_PX.
+    pad_x = movement.HEAD_ZONE_PAD_X_PX
+    pad_top = movement.HEAD_ZONE_PAD_TOP_PX
+    assert movement._pointer_in_head_zone(100 - pad_x, 240) is True  # left edge
+    assert movement._pointer_in_head_zone(200 + pad_x, 240) is True  # right edge
+    assert movement._pointer_in_head_zone(150, 200 - pad_top) is True  # top edge
+    assert movement._pointer_in_head_zone(100 - pad_x - 1, 240) is False  # too far left
+    assert movement._pointer_in_head_zone(150, 200 - pad_top - 1) is False  # too far above
+
+
+def test_head_stroke_requires_actual_pointer_movement(movement):
+    movement._head_stroke_last_t = 50.0
+    movement._head_stroke_last_pointer = (150.0, 240.0)
+    with patch("kinito.movement.time.monotonic", return_value=50.2):
+        # Barely moved (< MIN_MOVE_PX) → time does not count.
+        assert movement._accumulate_head_stroke(151, 240) is False
+    assert movement._head_stroke_active_seconds == 0.0
+
+
+def test_head_stroke_triggers_blush_loop_and_speech(movement):
+    movement.speak = MagicMock()
+    movement._is_busy_with_speech = MagicMock(return_value=False)
+    movement._head_stroke_active_seconds = movement.HEAD_STROKE_MIN_SECONDS - 0.1
+    movement._head_stroke_last_t = 100.0
+    movement._head_stroke_last_pointer = (140.0, 240.0)
+    with (
+        patch("kinito.movement.time.monotonic", return_value=100.2),
+        patch("kinito.movement.random.random", return_value=0.0),
+        patch(
+            "content.head_stroke_lines.pick_head_stroke_line",
+            return_value="Blush!",
+        ),
+    ):
+        assert movement._accumulate_head_stroke(150, 240) is True
+    movement.speak.assert_called_once_with(
+        "Blush!", preserve_sprite=True, skip_ai=True
+    )
+    assert movement._head_stroke_mode is True
+    movement.panel.config.assert_called()
+    movement.root.after.assert_called()
+
+
+def test_head_stroke_blush_chance_can_skip_animation(movement):
+    movement.speak = MagicMock()
+    movement._head_stroke_active_seconds = movement.HEAD_STROKE_MIN_SECONDS
+    movement._head_stroke_last_t = 100.0
+    movement._head_stroke_last_pointer = (140.0, 240.0)
+    with (
+        patch("kinito.movement.time.monotonic", return_value=100.1),
+        patch("kinito.movement.random.random", return_value=0.99),
+    ):
+        assert movement._accumulate_head_stroke(150, 240) is False
+    assert movement._head_stroke_mode is False
+    movement.speak.assert_not_called()
+    assert movement._head_stroke_ready_at > 100.1
+
+
+def test_head_stroke_requires_two_seconds_of_motion(movement):
+    movement._head_stroke_last_t = 50.0
+    movement._head_stroke_last_pointer = (140.0, 240.0)
+    with patch("kinito.movement.time.monotonic", return_value=50.2):
+        assert movement._accumulate_head_stroke(150, 240) is False
+    assert movement._head_stroke_mode is False
+    assert movement._head_stroke_active_seconds == pytest.approx(0.2)
+
+
+def test_head_stroke_blush_cycles_left_down_right_down(movement):
+    movement._head_stroke_mode = True
+    movement.talking = True
+    movement._head_stroke_blush_index = 0
+    movement._start_head_stroke_blush_loop()
+    assert movement.panel.config.call_args_list[0].kwargs["image"] == "blush_left"
+    movement._head_stroke_blush_tick()
+    assert movement.panel.config.call_args_list[1].kwargs["image"] == "blush_down"
+    movement._head_stroke_blush_tick()
+    assert movement.panel.config.call_args_list[2].kwargs["image"] == "blush_right"
+    movement._head_stroke_blush_tick()
+    assert movement.panel.config.call_args_list[3].kwargs["image"] == "blush_down"
+    movement._head_stroke_blush_tick()
+    assert movement.panel.config.call_args_list[4].kwargs["image"] == "blush_left"
+
+
+def test_head_stroke_resets_when_leaving_head_zone(movement):
+    movement._head_stroke_mode = True
+    movement.talking = False
+    movement.change_sprite = MagicMock()
+    movement._accumulate_head_stroke(150, 350)
+    assert movement._head_stroke_mode is False
+    movement.change_sprite.assert_called_once_with("normal")
+
+
+def test_head_stroke_keeps_blushing_while_talking_outside_head(movement):
+    movement._head_stroke_mode = True
+    movement.talking = True
+    movement.change_sprite = MagicMock()
+    assert movement._accumulate_head_stroke(150, 350) is True
+    assert movement._head_stroke_mode is True
+    movement.change_sprite.assert_not_called()
+
+
+def test_panel_motion_accumulates_hover_head_stroke(movement):
+    movement._accumulate_head_stroke = MagicMock(return_value=False)
+    movement.on_panel_motion(MagicMock(x_root=150, y_root=240))
+    movement._accumulate_head_stroke.assert_called_once_with(150, 240)
 
 
 def test_maybe_speak_hold_reaction_speaks_once(movement):
@@ -364,6 +552,7 @@ def test_on_mouse_up_keeps_sleep_sprite_while_paused(movement):
 def test_move_towards_stops_when_speech_starts(movement):
     movement.x = 0
     movement.y = 0
+    movement.moving = True
     movement.root.winfo_rootx.return_value = 0
     movement.root.winfo_rooty.return_value = 0
     movement._running = True
@@ -399,6 +588,7 @@ def test_stop_roaming_clears_moving_flag(movement):
 def test_move_towards_reaches_target(movement):
     movement.x = 0
     movement.y = 0
+    movement.moving = True
     movement._running = True
     with patch.object(movement, "_render_surf_sprite"):
         movement.move_towards(20, 0, speed=5)
@@ -416,10 +606,12 @@ def test_surf_wave_offset_oscillates():
 
 
 def test_apply_surf_geometry_bobs_display_y(movement):
+    movement._sprite_pixel_size = MagicMock(return_value=(128, 128))
+    movement.get_screen_bounds = MagicMock(return_value=(0, 0, 1900, 1000))
     movement._apply_surf_geometry(120, 200, math.pi / 2)
-    movement.clamp_position.assert_called_once_with(120, 200 + MovementMixin.SURF_WAVE_AMPLITUDE)
+    movement.clamp_position.assert_called_once_with(120, 200, target=None)
     movement.root.geometry.assert_called_once_with(
-        f"+120+{int(200 + MovementMixin.SURF_WAVE_AMPLITUDE)}"
+        f"128x128+120+{int(200 + MovementMixin.SURF_WAVE_AMPLITUDE)}"
     )
     assert movement.x == 120
     assert movement.y == 200
@@ -428,6 +620,7 @@ def test_apply_surf_geometry_bobs_display_y(movement):
 def test_move_towards_geometry_y_varies_with_wave(movement):
     movement.x = 100
     movement.y = 100
+    movement.moving = True
     geometries = []
     movement.root.geometry = lambda geometry: geometries.append(geometry)
     with patch.object(movement, "_render_surf_sprite"):
@@ -475,11 +668,8 @@ def test_snap_soft_edges_preserves_opaque_pixels():
 def test_render_surf_sprite_caches_rotated_frames(movement):
     import tkinter as tk
 
-    try:
-        root = tk.Tk()
-        root.withdraw()
-    except tk.TclError as exc:
-        pytest.skip(f"No usable Tcl/Tk display: {exc}")
+    root = tk.Tk()
+    root.withdraw()
     movement.root = root
     movement._render_surf_sprite(40, math.pi / 4)
     movement._render_surf_sprite(40, math.pi / 4)
@@ -493,6 +683,41 @@ def test_finish_surf_movement_clears_cache_and_restores_sprite(movement):
     movement._finish_surf_movement()
     assert movement._surf_render_cache == {}
     movement.panel.config.assert_called_with(image="normal")
+
+
+def test_finish_surf_movement_keeps_sleep_sprite_while_paused(movement):
+    movement.paused = True
+    movement._surf_render_cache[("right", 4.0)] = "cached"
+    movement._finish_surf_movement()
+    assert movement._surf_render_cache == {}
+    movement.panel.config.assert_not_called()
+
+
+def test_idle_animation_uses_sleep_sprites_while_paused_and_talking(movement):
+    movement.paused = True
+    movement.talking = True
+    movement.tk_img_sleep = "sleep0"
+    movement.tk_img_sleep1 = "sleep1"
+    movement.tk_img_sleep2 = "sleep2"
+    movement.tk_img_sleep3 = "sleep3"
+    movement.tk_img_talking = "talk_a"
+    movement.tk_img_talking2 = "talk_b"
+    movement.tk_img_thinking = "think_a"
+    movement.tk_img_thinking2 = "think_b"
+    movement.change_sprite = MagicMock()
+    movement._maybe_play_snoring = MagicMock()
+
+    calls = {"n": 0}
+
+    def stop_after_first_sleep_frame(_seconds):
+        calls["n"] += 1
+        if calls["n"] >= 1:
+            movement._running = False
+
+    with patch("kinito.movement.time.sleep", side_effect=stop_after_first_sleep_frame):
+        movement._idle_animation_tick()
+
+    movement.change_sprite.assert_called_once_with("sleep0")
 
 
 def test_surf_sprite_for_movement_uses_direction(movement):
@@ -532,18 +757,18 @@ def test_smooth_movement_calls_random_question(movement):
     movement._startup_complete = True
     movement._allow_random_questions = True
     movement._focus_mode = False
+    movement._is_game_active = MagicMock(return_value=False)
     movement.perform_random_menu_action = MagicMock()
     movement.speak_random_question = MagicMock(side_effect=lambda: setattr(movement, "_running", False))
     movement._idle_wait_before_next_action = MagicMock(return_value=0)
 
     with (
-        patch("kinito.movement.random.random", side_effect=[0.1, 0.5]),
+        patch("kinito.movement.random.random", side_effect=[0.1, 0.5, 0.9]),
         patch("kinito.movement.time.sleep"),
     ):
         movement.smooth_movement()
 
     movement.speak_random_question.assert_called_once()
-    movement.perform_random_menu_action.assert_not_called()
 
 
 def test_smooth_movement_waits_while_reading_idle(movement):
@@ -615,13 +840,126 @@ def test_maybe_play_reading_page_turn_skips_stale_session(movement):
 
 def test_maybe_play_reading_page_turn_plays_when_active(movement):
     movement.play_sfx = MagicMock()
+    movement.change_sprite = MagicMock()
+    movement._reading_idle_active = True
+    movement._reading_idle_session = 1
+    movement._is_reading_idle_active = MagicMock(return_value=True)
+
+    with (
+        patch("kinito.movement.random.random", return_value=0.0),
+        patch("kinito.movement.time.sleep") as sleep,
+    ):
+        assert (
+            movement._maybe_play_reading_page_turn(
+                1,
+                page_sprites=("page1", "page2"),
+                restore_sprite="idle2",
+            )
+            is True
+        )
+
+    movement.play_sfx.assert_called_once()
+    assert movement.change_sprite.call_args_list == [
+        (("page1",),),
+        (("page2",),),
+        (("idle2",),),
+    ]
+    assert sleep.call_count == 3
+    sleep.assert_any_call(movement.READING_PAGE_TURN_SOUND_LEAD_SECONDS)
+
+
+def test_maybe_play_reading_page_turn_without_page_sprites_still_plays_sound(movement):
+    movement.play_sfx = MagicMock()
+    movement.change_sprite = MagicMock()
     movement._reading_idle_active = True
     movement._reading_idle_session = 1
 
     with patch("kinito.movement.random.random", return_value=0.0):
-        movement._maybe_play_reading_page_turn(1)
+        assert movement._maybe_play_reading_page_turn(1) is True
 
     movement.play_sfx.assert_called_once()
+    movement.change_sprite.assert_not_called()
+
+
+def test_pick_normal_idle_sprite_prefers_default(movement):
+    movement.tk_img_normal = "default"
+    movement._standing_look_sprites = ("left", "right")
+    movement._look_around_ready_at = 0.0
+    with patch("kinito.movement.random.random", return_value=0.1):
+        assert movement._pick_normal_idle_sprite(crouch=False) == "default"
+
+
+def test_pick_normal_idle_sprite_can_look_around(movement):
+    movement.tk_img_normal = "default"
+    movement._standing_look_sprites = ("left", "right")
+    movement._look_around_ready_at = 0.0
+    with (
+        patch("kinito.movement.time.monotonic", return_value=100.0),
+        patch("kinito.movement.random.random", return_value=0.9),
+        patch("kinito.movement.random.choice", return_value="left") as choose,
+    ):
+        assert movement._pick_normal_idle_sprite(crouch=False) == "left"
+    choose.assert_called_once_with(("left", "right"))
+    assert movement._look_around_ready_at == 100.0 + movement.LOOK_AROUND_COOLDOWN_SECONDS
+
+
+def test_pick_normal_idle_sprite_respects_look_around_cooldown(movement):
+    movement.tk_img_normal = "default"
+    movement._standing_look_sprites = ("left", "right")
+    movement._look_around_ready_at = 200.0
+    with (
+        patch("kinito.movement.time.monotonic", return_value=150.0),
+        patch("kinito.movement.random.random", return_value=0.99) as roll,
+    ):
+        assert movement._pick_normal_idle_sprite(crouch=False) == "default"
+    roll.assert_not_called()
+
+
+def test_pick_normal_idle_sprite_crouch_uses_crouching_pool(movement):
+    movement.tk_img_crouching = "crouch-default"
+    movement._crouching_look_sprites = ("crouch-left",)
+    movement._look_around_ready_at = 0.0
+    with patch("kinito.movement.random.random", return_value=0.1):
+        assert movement._pick_normal_idle_sprite(crouch=True) == "crouch-default"
+
+
+def test_run_reading_idle_can_use_glasses_sprites(movement):
+    movement.tk_img_idle = "idle"
+    movement.tk_img_idle_2 = "idle2"
+    movement._reading_sprites = ("idle", "idle2")
+    movement._reading_glasses_sprites = ("glasses", "glasses2")
+    movement.change_sprite = MagicMock()
+    movement._is_reading_idle_active = MagicMock(return_value=False)
+    movement.offer_random_story = MagicMock()
+    movement.say_random_wisdom = MagicMock()
+
+    with (
+        patch("kinito.movement.random.random", side_effect=[0.0, 1.0, 1.0]),
+        patch("kinito.movement.random.randint", return_value=1),
+        patch("kinito.movement.time.sleep"),
+    ):
+        movement._run_reading_idle()
+
+    movement.change_sprite.assert_called_with("glasses")
+
+
+def test_run_reading_idle_uses_normal_sprites_when_glasses_miss(movement):
+    movement.tk_img_idle = "idle"
+    movement._reading_sprites = ("idle", "idle2")
+    movement._reading_glasses_sprites = ("glasses", "glasses2")
+    movement.change_sprite = MagicMock()
+    movement._is_reading_idle_active = MagicMock(return_value=False)
+    movement.offer_random_story = MagicMock()
+    movement.say_random_wisdom = MagicMock()
+
+    with (
+        patch("kinito.movement.random.random", side_effect=[0.99, 1.0, 1.0]),
+        patch("kinito.movement.random.randint", return_value=1),
+        patch("kinito.movement.time.sleep"),
+    ):
+        movement._run_reading_idle()
+
+    movement.change_sprite.assert_called_with("idle")
 
 
 def _configure_mouse_attention(movement):
@@ -632,6 +970,7 @@ def _configure_mouse_attention(movement):
     movement.moving = False
     movement.talking = False
     movement._fancy_mode = False
+    movement._dizzy_mode = False
     movement._reading_idle_active = False
     movement._hug_mode = False
     movement._preserve_sprite = False
@@ -646,6 +985,14 @@ def _configure_mouse_attention(movement):
     movement._mouse_follow_long_range = False
     movement._mouse_follow_ready_at = 0.0
     movement._mouse_look_direction = "center"
+    movement._dizzy_orbit_angle = None
+    movement._dizzy_orbit_accum = 0.0
+    movement._dizzy_orbit_started_at = 0.0
+    movement._dizzy_ready_at = 0.0
+    movement._dizzy_sprites = ("dizzy", "dizzy2", "dizzy3")
+    movement._dizzy_frame = 0
+    movement.tk_img_dizzy = "dizzy"
+    movement.tk_img_normal = "normal"
     movement._last_snore_at = 0.0
     movement.x = 100
     movement.y = 200
@@ -661,7 +1008,7 @@ def _configure_mouse_attention(movement):
         "bottom_left": "look_bottom_left",
         "bottom_right": "look_bottom_right",
     }
-    movement._standing2_dir_sprites = {
+    movement._crouching_dir_sprites = {
         "center": "crouch_center",
         "left": "crouch_left",
         "right": "crouch_right",
@@ -676,6 +1023,26 @@ def _configure_mouse_attention(movement):
     movement._schedule_mouse_attention_poll = MagicMock()
     movement._is_busy_with_speech = MagicMock(return_value=False)
     movement._is_game_active = MagicMock(return_value=False)
+
+
+def test_can_look_at_mouse_blocked_during_fancy(movement):
+    _configure_mouse_attention(movement)
+    movement._fancy_mode = True
+    assert movement._can_look_at_mouse() is False
+
+
+def test_can_look_at_mouse_blocked_during_reading(movement):
+    _configure_mouse_attention(movement)
+    movement._reading_idle_active = True
+    assert movement._can_look_at_mouse() is False
+
+
+def test_can_look_at_mouse_blocked_during_chat(movement):
+    _configure_mouse_attention(movement)
+    movement._chat_mode = True
+    movement.talking = True
+    assert movement._can_look_at_mouse() is False
+    assert movement._can_follow_mouse() is False
 
 
 def test_mouse_attention_allowed_during_focus_mode(movement):
@@ -701,8 +1068,127 @@ def test_finish_mouse_think_starts_chase_in_focus_mode(movement):
         movement._finish_mouse_think(250, 240)
 
     assert movement._mouse_follow_state == "chasing"
+    mock_thread.assert_called_once()
+
+
+def test_update_mouse_attention_looks_right(movement):
+    _configure_mouse_attention(movement)
+    # Outside follow radius (180) but inside look radius (280).
+    movement.root.winfo_pointerx.return_value = 340
+    movement.root.winfo_pointery.return_value = 240
+    movement._update_mouse_attention()
+    assert movement._mouse_look_active is True
+    assert movement._mouse_look_direction == "right"
+    assert movement._mouse_look_crouch is False
+    movement.change_sprite.assert_called_with("look_right")
+    assert movement._mouse_follow_state == "idle"
+
+
+def test_update_mouse_attention_alternates_to_crouch(movement):
+    _configure_mouse_attention(movement)
+    movement.root.winfo_pointerx.return_value = 340
+    movement.root.winfo_pointery.return_value = 240
+    movement._update_mouse_attention()
+    assert movement._mouse_look_crouch is False
+    movement.change_sprite.reset_mock()
+
+    # Stance timer expired → flip to crouch like idle (~1s).
+    movement._mouse_look_stance_until = 0.0
+    movement._update_mouse_attention()
+    assert movement._mouse_look_crouch is True
+    assert movement._mouse_look_direction == "right"
+    movement.change_sprite.assert_called_with("crouch_right")
+
+
+def test_apply_mouse_look_sprite_uses_crouch_pool(movement):
+    _configure_mouse_attention(movement)
+    movement._mouse_look_crouch = True
+    movement._apply_mouse_look_sprite("left")
+    movement.change_sprite.assert_called_once_with("crouch_left")
+    assert movement._mouse_look_direction == "left"
+
+
+def test_update_mouse_attention_skips_busy_modes(movement):
+    _configure_mouse_attention(movement)
+    movement._fancy_mode = True
+    movement.root.winfo_pointerx.return_value = 120
+    movement.root.winfo_pointery.return_value = 240
+    movement._update_mouse_attention()
+    assert movement._mouse_look_active is False
+    movement.change_sprite.assert_not_called()
+
+
+def test_finish_mouse_think_declines_follow(movement):
+    _configure_mouse_attention(movement)
+    movement._mouse_follow_state = "thinking"
+    with (
+        patch("kinito.movement.random.random", return_value=0.99),
+        patch("kinito.movement.random.uniform", return_value=20.0),
+    ):
+        movement._finish_mouse_think(150, 240)
+    assert movement._mouse_follow_state == "idle"
+    assert movement._mouse_follow_ready_at > 0
+    movement.play_sfx.assert_not_called()
+
+
+def test_finish_mouse_think_starts_chase(movement):
+    _configure_mouse_attention(movement)
+    movement._mouse_follow_state = "thinking"
+    movement.move_towards = MagicMock()
+    movement._finish_surf_movement = MagicMock()
+    movement._on_mouse_chase_finished = MagicMock()
+
+    with (
+        patch("kinito.movement.random.random", return_value=0.0),
+        patch("kinito.movement.threading.Thread") as mock_thread,
+    ):
+        mock_thread.return_value = MagicMock()
+        movement._finish_mouse_think(250, 240)
+
+    assert movement._mouse_follow_state == "chasing"
     assert movement.moving is True
     mock_thread.assert_called_once()
+    worker = mock_thread.call_args.kwargs["target"]
+    worker()
+    movement.move_towards.assert_called_once()
+    movement.play_sfx.assert_called_once()
+
+
+def test_update_mouse_attention_can_follow_outside_look_radius(movement):
+    _configure_mouse_attention(movement)
+    # Far outside look radius (230): center at (120, 240), cursor at (900, 240).
+    movement.root.winfo_pointerx.return_value = 900
+    movement.root.winfo_pointery.return_value = 240
+    with patch("kinito.movement.random.random", return_value=0.0):
+        movement._update_mouse_attention()
+    assert movement._mouse_follow_long_range is True
+    assert movement._mouse_follow_state == "thinking"
+    # Think keeps sprite ownership (same as near-cursor follow).
+    assert movement._mouse_attention_owns_sprite() is True
+
+
+def test_update_mouse_attention_outside_skips_when_chance_misses(movement):
+    _configure_mouse_attention(movement)
+    movement.root.winfo_pointerx.return_value = 900
+    movement.root.winfo_pointery.return_value = 240
+    with (
+        patch("kinito.movement.random.random", return_value=0.99),
+        patch("kinito.movement.random.uniform", return_value=40.0),
+    ):
+        movement._update_mouse_attention()
+    assert movement._mouse_follow_state == "idle"
+    assert movement._mouse_follow_long_range is False
+    assert movement._mouse_follow_ready_at > 0
+
+
+def test_mouse_follow_target_uses_longer_range_when_flagged(movement):
+    _configure_mouse_attention(movement)
+    movement._mouse_follow_long_range = True
+    target_x, target_y = movement._mouse_follow_target(1100, 240)
+    # Center starts at 120; dx exceeds OUTSIDE_MAX so hop length is capped.
+    capped = float(movement.MOUSE_FOLLOW_OUTSIDE_MAX_PX)
+    assert target_x == pytest.approx(100 + capped)
+    assert target_y == pytest.approx(200)
 
 
 def test_maybe_play_snoring_respects_volume_and_chance(movement):
@@ -763,6 +1249,158 @@ def test_idle_skips_sprite_when_mouse_look_active(movement):
     movement.change_sprite.assert_not_called()
 
 
+def _simulate_cursor_orbit(movement, *, revolutions: float, radius: float = 120.0, steps: int | None = None):
+    """Feed orbit samples around the buddy center into dizzy tracking."""
+    if steps is None:
+        steps = max(40, int(revolutions * 16))
+    for i in range(steps + 1):
+        t = 2.0 * math.pi * revolutions * i / steps
+        dx = radius * math.cos(t)
+        dy = radius * math.sin(t)
+        movement._track_dizzy_orbit(dx, dy, math.hypot(dx, dy))
+
+
+def test_track_dizzy_orbit_triggers_after_revolutions(movement):
+    _configure_mouse_attention(movement)
+
+    def _react():
+        movement._dizzy_ready_at = time.monotonic() + 60.0
+
+    movement._maybe_speak_dizzy_reaction = MagicMock(side_effect=_react)
+    needed = float(movement.DIZZY_ORBIT_REVOLUTIONS) + 0.2
+    _simulate_cursor_orbit(movement, revolutions=needed)
+    movement._maybe_speak_dizzy_reaction.assert_called_once()
+    assert movement._dizzy_orbit_accum == 0.0
+    assert movement._dizzy_orbit_angle is None
+
+
+def test_track_dizzy_orbit_ignores_partial_spin(movement):
+    _configure_mouse_attention(movement)
+    movement._maybe_speak_dizzy_reaction = MagicMock()
+    partial = max(1.0, float(movement.DIZZY_ORBIT_REVOLUTIONS) * 0.4)
+    _simulate_cursor_orbit(movement, revolutions=partial)
+    movement._maybe_speak_dizzy_reaction.assert_not_called()
+    assert abs(movement._dizzy_orbit_accum) > 0
+
+
+def test_track_dizzy_orbit_resets_when_too_close(movement):
+    _configure_mouse_attention(movement)
+    movement._dizzy_orbit_angle = 0.5
+    movement._dizzy_orbit_accum = 4.0
+    movement._dizzy_orbit_started_at = 1.0
+    movement._track_dizzy_orbit(10.0, 0.0, 10.0)
+    assert movement._dizzy_orbit_angle is None
+    assert movement._dizzy_orbit_accum == 0.0
+
+
+def test_maybe_speak_dizzy_reaction_starts_animation_on_chance_hit(movement):
+    _configure_mouse_attention(movement)
+    movement._run_dizzy_reaction = MagicMock()
+    with (
+        patch("kinito.movement.random.random", return_value=0.0),
+        patch("kinito.movement.random.uniform", return_value=50.0),
+        patch("kinito.movement.time.monotonic", return_value=100.0),
+        patch("kinito.movement.threading.Thread") as mock_thread,
+    ):
+        mock_thread.return_value = MagicMock()
+        movement._maybe_speak_dizzy_reaction()
+    mock_thread.assert_called_once()
+    assert mock_thread.call_args.kwargs["target"] is movement._run_dizzy_reaction
+    mock_thread.return_value.start.assert_called_once()
+    assert movement._dizzy_ready_at == 150.0
+
+
+def test_maybe_speak_dizzy_reaction_skips_on_chance_miss(movement):
+    _configure_mouse_attention(movement)
+    movement.speak = MagicMock()
+    with (
+        patch("kinito.movement.random.random", return_value=0.99),
+        patch("kinito.movement.random.uniform", return_value=50.0),
+        patch("kinito.movement.time.monotonic", return_value=100.0),
+        patch("kinito.movement.threading.Thread") as mock_thread,
+    ):
+        movement._maybe_speak_dizzy_reaction()
+    movement.speak.assert_not_called()
+    mock_thread.assert_not_called()
+    assert movement._dizzy_ready_at == 150.0
+
+
+def test_run_dizzy_reaction_cycles_sprites_during_speech(movement):
+    _configure_mouse_attention(movement)
+    movement.speak = MagicMock()
+    movement.change_sprite = MagicMock()
+    movement._running = True
+    movement.paused = False
+
+    def fake_sleep(_seconds):
+        if movement.change_sprite.call_count == 2:
+            movement.talking = True
+        elif movement.change_sprite.call_count >= 4:
+            movement.talking = False
+
+    with (
+        patch("content.dizzy_lines.pick_dizzy_line", return_value="I'm dizzy!"),
+        patch("kinito.movement.time.sleep", side_effect=fake_sleep),
+    ):
+        movement._run_dizzy_reaction()
+
+    sprite_calls = [call.args[0] for call in movement.change_sprite.call_args_list]
+    assert sprite_calls[0] == "dizzy"
+    assert "dizzy2" in sprite_calls
+    assert movement.change_sprite.call_count >= 3
+    assert movement._dizzy_mode is False
+    assert sprite_calls[-1] == "normal"
+    movement.speak.assert_called_once_with("I'm dizzy!", skip_ai=True)
+
+
+def test_run_dizzy_reaction_aborts_when_speech_never_starts(movement):
+    _configure_mouse_attention(movement)
+    movement.speak = MagicMock()
+    movement.change_sprite = MagicMock()
+    movement.DIZZY_SPEECH_START_TIMEOUT = 0.9
+
+    with (
+        patch("content.dizzy_lines.pick_dizzy_line", return_value="I'm dizzy!"),
+        patch("kinito.movement.time.sleep", return_value=None),
+    ):
+        movement._run_dizzy_reaction()
+
+    assert movement._dizzy_mode is False
+    assert movement.change_sprite.call_args_list[-1].args[0] == "normal"
+
+
+def test_stop_dizzy_reaction_clears_mode_and_sprite(movement):
+    _configure_mouse_attention(movement)
+    movement.change_sprite = MagicMock()
+    movement._dizzy_mode = True
+    movement._stop_dizzy_reaction()
+    assert movement._dizzy_mode is False
+    movement.change_sprite.assert_called_once_with("normal")
+
+
+def test_track_dizzy_orbit_respects_cooldown(movement):
+    _configure_mouse_attention(movement)
+    movement._dizzy_ready_at = 9999.0
+    movement._maybe_speak_dizzy_reaction = MagicMock()
+    with patch("kinito.movement.time.monotonic", return_value=100.0):
+        _simulate_cursor_orbit(
+            movement,
+            revolutions=float(movement.DIZZY_ORBIT_REVOLUTIONS) + 1.0,
+        )
+    movement._maybe_speak_dizzy_reaction.assert_not_called()
+
+
+def test_update_mouse_attention_tracks_orbit(movement):
+    _configure_mouse_attention(movement)
+    movement._track_dizzy_orbit = MagicMock()
+    movement.root.winfo_pointerx.return_value = 240
+    movement.root.winfo_pointery.return_value = 240
+    movement._update_mouse_attention()
+    movement._track_dizzy_orbit.assert_called_once()
+    dx, dy, distance = movement._track_dizzy_orbit.call_args[0]
+    assert distance == pytest.approx(math.hypot(dx, dy))
+
+
 def test_velocity_from_samples_caps_speed():
     samples = [(0.0, 0.0, 0.0), (0.05, 500.0, 0.0)]
     vx, vy, speed = MovementMixin._velocity_from_samples(samples, max_speed=1000, scale=1.0)
@@ -775,6 +1413,8 @@ def test_on_mouse_move_records_drag_samples(movement):
     movement.is_dragging = True
     movement.mouse_click_offset_x = 0
     movement.mouse_click_offset_y = 0
+    movement.root.winfo_pointerx.return_value = 300
+    movement.root.winfo_pointery.return_value = 400
     movement.on_mouse_move(MagicMock(x_root=300, y_root=400))
     assert len(movement._drag_samples) == 1
     assert movement._drag_samples[0][1:] == (300.0, 400.0)
@@ -819,6 +1459,27 @@ def test_on_mouse_up_throws_when_release_speed_high(movement):
     movement.play_sfx.assert_not_called()
 
 
+def test_on_mouse_up_skips_throw_while_paused(movement):
+    movement.paused = True
+    movement.is_dragging = True
+    movement._drag_moved = True
+    movement._stop_drag_tracking = MagicMock()
+    movement._follow_speech_bubble_to_kinito = MagicMock()
+    movement._start_throw = MagicMock()
+    now = 50.0
+    movement._drag_samples = [
+        (now - 0.05, 0.0, 100.0),
+        (now, 100.0, 50.0),
+    ]
+    with patch("kinito.movement.time.monotonic", return_value=now):
+        movement.on_mouse_up(MagicMock())
+    movement._start_throw.assert_not_called()
+    # Soft place instead of throw: drop bomp, no woosh/throw line.
+    movement.play_sfx.assert_called_once()
+    movement.speak.assert_not_called()
+    assert movement._throwing is False
+
+
 def test_start_throw_plays_woosh_and_speaks(movement):
     with (
         patch("kinito.movement.random.random", return_value=0.0),
@@ -830,6 +1491,17 @@ def test_start_throw_plays_woosh_and_speaks(movement):
     movement.play_sfx.assert_called_once()
     movement.speak.assert_called_once_with("Weeeee!")
     movement.root.after.assert_called()
+
+
+def test_start_throw_noop_while_paused(movement):
+    movement.paused = True
+    with patch("kinito.movement.random.random", return_value=0.0):
+        movement._start_throw(1200.0, -800.0)
+    assert movement._throwing is False
+    assert movement.moving is False
+    movement.play_sfx.assert_not_called()
+    movement.speak.assert_not_called()
+    movement.root.after.assert_not_called()
 
 
 def test_start_throw_skips_speech_when_busy(movement):
@@ -871,6 +1543,47 @@ def test_throw_tick_bounces_and_damps(movement):
     assert movement._throw_vx < 0
     assert abs(movement._throw_vx) < 2000.0 * movement.THROW_BOUNCE_DAMPING + 50
     assert movement._throw_bounce_count == 1
+
+
+def test_throw_tick_bounces_out_of_virtual_desktop_void(movement):
+    """Throwing into a gap above a shorter monitor must bounce, not disappear."""
+    movement._throwing = True
+    movement.moving = True
+    movement.x = 2800.0
+    movement.y = 380.0
+    movement._throw_vx = 0.0
+    movement._throw_vy = -2000.0
+    movement._throw_bounce_count = 0
+    movement._throw_last_t = 1.0
+    movement._follow_speech_bubble_to_kinito = MagicMock()
+    # Union clamp: void above secondary snaps to y=370.
+    movement.clamp_position = MagicMock(side_effect=lambda x, y: (int(x), 370))
+    movement.get_current_monitor_bounds = MagicMock(return_value=(2570, 370, 3702, 942))
+    with patch("kinito.movement.time.monotonic", return_value=1.02):
+        movement._throw_tick()
+    assert movement.y == 370.0
+    assert movement._throw_vy > 0
+    assert movement._throw_bounce_count == 1
+
+
+def test_throw_tick_can_cross_onto_another_monitor(movement):
+    """Positions already valid on another display must not be bounced back."""
+    movement._throwing = True
+    movement.moving = True
+    movement.x = 2500.0
+    movement.y = 500.0
+    movement._throw_vx = 2000.0
+    movement._throw_vy = 0.0
+    movement._throw_bounce_count = 0
+    movement._throw_last_t = 1.0
+    movement._follow_speech_bubble_to_kinito = MagicMock()
+    # Keep whatever position physics reaches — simulates "already on a monitor".
+    movement.clamp_position = MagicMock(side_effect=lambda x, y: (int(round(x)), int(round(y))))
+    movement.get_current_monitor_bounds = MagicMock(return_value=(2570, 370, 3702, 942))
+    with patch("kinito.movement.time.monotonic", return_value=1.02):
+        movement._throw_tick()
+    assert movement.x > 2500.0
+    assert movement._throw_bounce_count == 0
 
 
 def test_throw_stops_after_max_bounces(movement):

@@ -16,8 +16,15 @@ from kinito.assets import (
     balconexe_directory,
     ensure_user_media_directories,
     list_standing_sprite_paths,
-    sprite_path_fancy,
-    sprite_path_fancy_1,
+    sprite_path_blush_down,
+    sprite_path_blush_left,
+    sprite_path_blush_right,
+    sprite_path_crouching,
+    sprite_path_dizzy,
+    sprite_path_dizzy_2,
+    sprite_path_dizzy_3,
+    sprite_path_magic,
+    sprite_path_magic_2,
     sprite_path_drag_left,
     sprite_path_drag_right,
     sprite_path_hand_left,
@@ -33,7 +40,6 @@ from kinito.assets import (
     sprite_path_idle_glasses_2_page,
     sprite_path_idle_glasses_2_page_2,
     sprite_path_normal,
-    sprite_path_normal_2,
     sprite_path_sleep,
     sprite_path_sleep1,
     sprite_path_sleep2,
@@ -153,7 +159,7 @@ class FloatingAssistant(
 
         fallback = sprite_path_normal
         self.img_normal = _open_sprite(sprite_path_normal, fallback)
-        self.img_normal_2 = _open_sprite(sprite_path_normal_2, fallback)
+        self.img_crouching = _open_sprite(sprite_path_crouching, fallback)
         self.img_idle = _open_sprite(sprite_path_idle, fallback)
         self.img_idle_2 = _open_sprite(sprite_path_idle_2, fallback)
         self.img_idle_2_page = _open_sprite(sprite_path_idle_2_page, fallback)
@@ -164,8 +170,11 @@ class FloatingAssistant(
         self.img_idle_glasses_2_page_2 = _open_sprite(
             sprite_path_idle_glasses_2_page_2, fallback
         )
-        self.img_fancy = _open_sprite(sprite_path_fancy, fallback)
-        self.img_fancy_2 = _open_sprite(sprite_path_fancy_1, self.img_fancy)
+        self.img_magic = _open_sprite(sprite_path_magic, fallback)
+        self.img_magic_2 = _open_sprite(sprite_path_magic_2, fallback)
+        self.img_dizzy = _open_sprite(sprite_path_dizzy, fallback)
+        self.img_dizzy_2 = _open_sprite(sprite_path_dizzy_2, fallback)
+        self.img_dizzy_3 = _open_sprite(sprite_path_dizzy_3, fallback)
         self.img_surf_left = _open_sprite(sprite_path_surf_left, fallback)
         self.img_surf_right = _open_sprite(sprite_path_surf_right, fallback)
         self.img_sleep = _open_sprite(sprite_path_sleep, fallback)
@@ -182,16 +191,19 @@ class FloatingAssistant(
         self.img_hand_right = _open_sprite(sprite_path_hand_right, fallback)
         self.img_drag_left = _open_sprite(sprite_path_drag_left, fallback)
         self.img_drag_right = _open_sprite(sprite_path_drag_right, fallback)
+        self.img_blush_left = _open_sprite(sprite_path_blush_left, fallback)
+        self.img_blush_right = _open_sprite(sprite_path_blush_right, fallback)
+        self.img_blush_down = _open_sprite(sprite_path_blush_down, fallback)
         self.tk_img_normal = ImageTk.PhotoImage(self.img_normal)
-        self.tk_img_normal_2 = ImageTk.PhotoImage(self.img_normal_2)
+        self.tk_img_crouching = ImageTk.PhotoImage(self.img_crouching)
         self._standing_look_sprites = _load_look_around_sprites(
             list_standing_sprite_paths(crouch=False),
             default_path=sprite_path_normal,
             fallback=fallback,
         )
-        self._standing2_look_sprites = _load_look_around_sprites(
+        self._crouching_look_sprites = _load_look_around_sprites(
             list_standing_sprite_paths(crouch=True),
-            default_path=sprite_path_normal_2,
+            default_path=sprite_path_crouching,
             fallback=fallback,
         )
         self._standing_dir_sprites = _load_direction_sprites(
@@ -199,10 +211,10 @@ class FloatingAssistant(
             fallback=fallback,
             center_image=self.img_normal,
         )
-        self._standing2_dir_sprites = _load_direction_sprites(
+        self._crouching_dir_sprites = _load_direction_sprites(
             list_standing_sprite_paths(crouch=True),
             fallback=fallback,
-            center_image=self.img_normal_2,
+            center_image=self.img_crouching,
         )
         self.tk_img_idle = ImageTk.PhotoImage(self.img_idle)
         self.tk_img_idle_2 = ImageTk.PhotoImage(self.img_idle_2)
@@ -214,8 +226,11 @@ class FloatingAssistant(
         self.tk_img_idle_glasses_2_page_2 = ImageTk.PhotoImage(
             self.img_idle_glasses_2_page_2
         )
-        self.tk_img_fancy = ImageTk.PhotoImage(self.img_fancy)
-        self.tk_img_fancy_2 = ImageTk.PhotoImage(self.img_fancy_2)
+        self.tk_img_magic = ImageTk.PhotoImage(self.img_magic)
+        self.tk_img_magic_2 = ImageTk.PhotoImage(self.img_magic_2)
+        self.tk_img_dizzy = ImageTk.PhotoImage(self.img_dizzy)
+        self.tk_img_dizzy_2 = ImageTk.PhotoImage(self.img_dizzy_2)
+        self.tk_img_dizzy_3 = ImageTk.PhotoImage(self.img_dizzy_3)
         self._reading_sprites = (self.tk_img_idle, self.tk_img_idle_2)
         self._reading_page_sprites = (self.tk_img_idle_2_page, self.tk_img_idle_2_page_2)
         self._reading_glasses_sprites = (
@@ -226,8 +241,14 @@ class FloatingAssistant(
             self.tk_img_idle_glasses_2_page,
             self.tk_img_idle_glasses_2_page_2,
         )
-        self._magician_sprites = (self.tk_img_fancy, self.tk_img_fancy_2)
+        self._magician_sprites = (self.tk_img_magic, self.tk_img_magic_2)
         self._magician_frame = 0
+        self._dizzy_sprites = (
+            self.tk_img_dizzy,
+            self.tk_img_dizzy_2,
+            self.tk_img_dizzy_3,
+        )
+        self._dizzy_frame = 0
         self.tk_img_surf_left = ImageTk.PhotoImage(
             MovementMixin._flatten_sprite_on_white(self.img_surf_left)
         )
@@ -248,6 +269,9 @@ class FloatingAssistant(
         self.tk_img_hand_right = ImageTk.PhotoImage(self.img_hand_right)
         self.tk_img_drag_left = ImageTk.PhotoImage(self.img_drag_left)
         self.tk_img_drag_right = ImageTk.PhotoImage(self.img_drag_right)
+        self.tk_img_blush_left = ImageTk.PhotoImage(self.img_blush_left)
+        self.tk_img_blush_right = ImageTk.PhotoImage(self.img_blush_right)
+        self.tk_img_blush_down = ImageTk.PhotoImage(self.img_blush_down)
         self._surf_render_cache = {}
         self._surf_tk_image = None
 
@@ -272,6 +296,7 @@ class FloatingAssistant(
         self._reminder_id = 0
         self._pending_story = None
         self._fancy_mode = False
+        self._dizzy_mode = False
         self._reading_idle_active = False
         self._reading_idle_session = 0
         self._speech_accompaniment_active = False
@@ -378,6 +403,10 @@ class FloatingAssistant(
         self._mouse_attention_timer = None
         self._mouse_think_timer = None
         self._mouse_look_direction = "center"
+        self._dizzy_orbit_angle = None
+        self._dizzy_orbit_accum = 0.0
+        self._dizzy_orbit_started_at = 0.0
+        self._dizzy_ready_at = 0.0
         self._last_snore_at = 0.0
         self.root.wm_attributes("-topmost", True)
 
@@ -395,6 +424,14 @@ class FloatingAssistant(
         self._drag_wiggle_timer = None
         self._drag_wiggle_index = 0
         self._drag_hold_reacted = False
+        self._head_stroke_mode = False
+        self._head_stroke_active_seconds = 0.0
+        self._head_stroke_ready_at = 0.0
+        self._head_stroke_started_at = 0.0
+        self._head_stroke_last_t = None
+        self._head_stroke_last_pointer = None
+        self._head_stroke_blush_index = 0
+        self._head_stroke_blush_timer = None
         self._throw_after_id = None
         self._throw_vx = 0.0
         self._throw_vy = 0.0
@@ -549,6 +586,8 @@ class FloatingAssistant(
         self.end_hug()
         if hasattr(self, "_stop_fancy_idle"):
             self._stop_fancy_idle()
+        if hasattr(self, "_stop_dizzy_reaction"):
+            self._stop_dizzy_reaction()
         self.hide_screen_glitch()
         self.hide_blue_screen()
         if hasattr(self, "_ensure_single_game_window"):

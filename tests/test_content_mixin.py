@@ -27,7 +27,7 @@ def content():
     stub.paused = False
     stub.talking = False
     stub._fancy_mode = False
-    stub.tk_img_fancy = "fancy"
+    stub.tk_img_magic = "magic"
     stub.tk_img_normal = "normal"
     stub.change_sprite = MagicMock()
     stub._chat_mode = False
@@ -167,8 +167,8 @@ def test_say_random_joke(content):
 
 
 def test_run_fancy_idle_cycles_sprites_during_speech(content):
-    content.tk_img_fancy_2 = "fancy2"
-    content._magician_sprites = ("fancy", "fancy2")
+    content.tk_img_magic_2 = "magic2"
+    content._magician_sprites = ("magic", "magic2")
     content.perform_fancy_show = MagicMock()
 
     def fake_sleep(_seconds):
@@ -181,16 +181,16 @@ def test_run_fancy_idle_cycles_sprites_during_speech(content):
         content._run_fancy_idle()
 
     sprite_calls = [call.args[0] for call in content.change_sprite.call_args_list]
-    assert sprite_calls[0] == "fancy"
-    assert "fancy2" in sprite_calls
+    assert sprite_calls[0] == "magic"
+    assert "magic2" in sprite_calls
     assert content.change_sprite.call_count >= 3
     assert content._fancy_mode is False
     assert sprite_calls[-1] == "normal"
 
 
 def test_run_fancy_idle_aborts_when_speech_never_starts(content):
-    content._magician_sprites = ("fancy", "fancy2")
-    content.tk_img_fancy_2 = "fancy2"
+    content._magician_sprites = ("magic", "magic2")
+    content.tk_img_magic_2 = "magic2"
     content.perform_fancy_show = MagicMock()
     content.FANCY_SPEECH_START_TIMEOUT = 0.9
 
@@ -202,8 +202,8 @@ def test_run_fancy_idle_aborts_when_speech_never_starts(content):
 
 
 def test_run_fancy_idle_aborts_when_response_pending_before_speech(content):
-    content._magician_sprites = ("fancy", "fancy2")
-    content.tk_img_fancy_2 = "fancy2"
+    content._magician_sprites = ("magic", "magic2")
+    content.tk_img_magic_2 = "magic2"
     content.perform_fancy_show = MagicMock()
 
     def fake_sleep(_seconds):
