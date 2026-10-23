@@ -76,6 +76,8 @@ def test_asset_subdirectories(directory_attr, relative_path):
         ("sprite_path_hug2", "KinitoHug2.png", "sprites_hugging_directory"),
         ("sprite_path_hand_left", "HandToLeft.png", "sprites_hand_directory"),
         ("sprite_path_hand_right", "HandToRight.png", "sprites_hand_directory"),
+        ("sprite_path_drag_left", "KinitoDragLeft.png", "sprites_drag_directory"),
+        ("sprite_path_drag_right", "KinitoDragRight.png", "sprites_drag_directory"),
         ("icon_path", "Icon.ico", "icons_directory"),
         ("favicon_path", "Favicon.png", "icons_directory"),
         ("music_player_play_icon_path", "play.png", "music_player_directory"),
@@ -151,6 +153,8 @@ def test_asset_paths_point_to_expected_files(path_attr, filename, parent_attr):
         "sprite_path_hug2",
         "sprite_path_hand_left",
         "sprite_path_hand_right",
+        "sprite_path_drag_left",
+        "sprite_path_drag_right",
     ],
 )
 def test_sprite_paths_stay_under_sprites_directory(path_attr):
@@ -265,6 +269,8 @@ def test_packaged_asset_files_exist_on_disk():
         assets.sprite_path_talking,
         assets.sprite_path_hug,
         assets.sprite_path_hug2,
+        assets.sprite_path_drag_left,
+        assets.sprite_path_drag_right,
         assets.icon_path,
         assets.favicon_path,
         assets.timer_file_path,
