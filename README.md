@@ -35,7 +35,7 @@ A free, open-source desktop companion inspired by **KinitoPET**. Kinito lives on
 | **Music player** | Play MP3s from your PC |
 | **Hug** | Hug sprites + sweet lines |
 | **Mini-games** | Tic-tac-toe, memory, battleships, RPS, trivia, and more (right-click → **Play a Game**) |
-| **Idle animations** | Blinking, reading, fancy hat mode, sleep sprites |
+| **Idle animations** | Blinking, reading, magic hat mode, sleep sprites |
 | **Reminders** | Timer with sound after X minutes |
 
 ---
@@ -122,7 +122,7 @@ While idle, Kinito may:
 - Mention today's **special day** (holidays and joke days, when **Special Days** is on)
 - Offer to open the camera, browser, music, or a hug
 - Read a short story or wisdom quote
-- Do a “fancy” show with a top hat sprite
+- Do a “magic” show with a top hat sprite
 
 Click the buttons in the speech bubble to respond. Press **Enter** in text boxes to submit.
 
@@ -209,14 +209,26 @@ The app expects a `GameAssets` folder next to `Kinito.py`:
 
 ```
 GameAssets/
-├── Kinito.png, KinitoNormal.png, KinitoHug.png, Thinking.png, ...   # Sprites
+├── sprites/
+│   ├── Standing/      # KinitoNormal.png + look-around variants
+│   ├── Crouching/     # crouch pose + look-around variants
+│   ├── Reading/       # Idle / IdleGlasses
+│   ├── Magic/         # Magic.png / Magic2.png magician pose
+│   ├── Surfing/       # movement sprites
+│   ├── Sleeping/
+│   ├── Talking/
+│   ├── Thinking/
+│   ├── Hugging/
+│   ├── Drag/          # drag left/right
+│   ├── Dizzy/         # dizzy reaction frames
+│   └── Blushing/      # head-pet blush frames
 ├── Timer.mp3, Woosh.mp3, StartTalking.mp3, ...       # Sounds
 ├── Programs/balcon.exe                               # Windows TTS (optional fallback: pyttsx3)
 ├── SecretImages/                                     # Optional images for easter egg
 └── UserMedia/                                        # Paintings, memory, and settings
 ```
 
-If a sprite is missing, Kinito falls back to `KinitoNormal.png`.
+If a sprite is missing, Kinito falls back to `Standing/KinitoNormal.png`.
 
 ---
 

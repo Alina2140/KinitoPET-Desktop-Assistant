@@ -224,6 +224,14 @@ def test_pick_poem_can_bias_to_theme():
     assert all("christmas" in (item.get("themes") or ()) for item in choice.call_args[0][0])
 
 
+def test_pick_poem_empty_pool_returns_fallback():
+    with patch("content.poems.POEMS", []):
+        poem = pick_poem()
+    assert "misplaced my poems" in poem["text"].lower()
+    assert poem["whisper"] is False
+    assert poem["play_music"] is False
+
+
 def test_dialogue_line_pools_not_empty():
     pools = [
         dlg.PAUSE_LINES,

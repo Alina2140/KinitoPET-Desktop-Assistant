@@ -385,10 +385,12 @@ def test_move_speech_bubble_with_kinito_flips_below_near_top(speech):
 @pytest.mark.parametrize(
     "text,expected",
     [
-        ("", 6500),
-        ("x" * 100, 6500),
-        ("x" * 500, 21500),
-        ("x" * 2000, 46500),
+        ("", 3500),
+        ("x" * 50, 3500),
+        ("x" * 62, 3980),
+        ("x" * 100, 5500),
+        ("x" * 500, 5500),
+        ("x" * 2000, 5500),
     ],
 )
 def test_bubble_close_delay_poem(speech, text, expected):
@@ -558,29 +560,31 @@ def test_play_tts_wav_applies_configured_volume(speech):
     samples = np.array([1000, -1000], dtype=np.int16)
     stream = MagicMock()
     stream.active = False
+    mock_sd = MagicMock()
+    mock_sd.get_stream.return_value = stream
 
     with (
+        patch("kinito.speech.sd", mock_sd),
         patch("kinito.speech.os.path.isfile", return_value=True),
         patch("kinito.speech.os.path.getsize", return_value=128),
         patch.object(speech, "_load_wav_pcm", return_value=(samples, 22050)),
-        patch("kinito.speech.sd.play") as play,
-        patch("kinito.speech.sd.get_stream", return_value=stream),
     ):
         assert speech._play_tts_wav("voice.wav", speech_epoch=1) is True
 
-    play.assert_called_once()
-    played = play.call_args.args[0]
+    mock_sd.play.assert_called_once()
+    played = mock_sd.play.call_args.args[0]
     assert played.dtype == np.int16
     assert int(played[0]) == 400
-    assert play.call_args.args[1] == 22050
+    assert mock_sd.play.call_args.args[1] == 22050
 
 
 def test_stop_active_tts_stops_sounddevice(speech):
     speech._tts_sd_active = True
     speech._tts_process = None
-    with patch("kinito.speech.sd.stop") as stop:
+    mock_sd = MagicMock()
+    with patch("kinito.speech.sd", mock_sd):
         speech._stop_active_tts()
-    stop.assert_called_once()
+    mock_sd.stop.assert_called_once()
     assert speech._tts_sd_active is False
 
 
